@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import { ProcessLine } from '../models/ProcessLine';
 import { User } from '../models/User';
 import { connectDB } from '../config/database';

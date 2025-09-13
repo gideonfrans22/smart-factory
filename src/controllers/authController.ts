@@ -148,7 +148,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // Generate JWT token
     const tokenPayload: JWTPayload = {
-      userId: user._id.toString(),
+      userId: (user._id as any).toString(),
       username: user.username,
       role: user.role,
       assignedProcessLine: user.assignedProcessLine

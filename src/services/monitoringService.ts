@@ -2,7 +2,6 @@ import { mqttService, MQTT_TOPICS } from '../config/mqtt';
 import { ProcessRecord } from '../models/ProcessRecord';
 import { Part } from '../models/Part';
 import { ProcessLine } from '../models/ProcessLine';
-import { User } from '../models/User';
 import { 
   ProcessLineStatus, 
   PartProgress, 
@@ -21,7 +20,7 @@ class MonitoringService {
     console.log('🔍 Monitoring service initialized');
   }
 
-  private async handleWorkerAction(topic: string, message: string): Promise<void> {
+  private async handleWorkerAction(_topic: string, message: string): Promise<void> {
     try {
       const action: WorkerAction = JSON.parse(message);
       console.log('Worker action received:', action);
@@ -38,7 +37,7 @@ class MonitoringService {
     }
   }
 
-  private async handleManagerCommand(topic: string, message: string): Promise<void> {
+  private async handleManagerCommand(_topic: string, message: string): Promise<void> {
     try {
       const command = JSON.parse(message);
       console.log('Manager command received:', command);
@@ -164,7 +163,6 @@ class MonitoringService {
   public async broadcastProcessLineStatus(lineNumber: number): Promise<void> {
     const status = await this.getProcessLineStatus(lineNumber);
     mqttService.publish(MQTT_TOPICS.PROCESS_LINE_STATUS, {
-      lineNumber,
       ...status,
       timestamp: new Date()
     });
@@ -173,7 +171,6 @@ class MonitoringService {
   public async broadcastPartProgress(partId: string): Promise<void> {
     const progress = await this.getPartProgress(partId);
     mqttService.publish(MQTT_TOPICS.PART_PROGRESS, {
-      partId,
       ...progress,
       timestamp: new Date()
     });

@@ -1,6 +1,5 @@
-import * as express from 'express';
-import { Request, Response } from 'express';
-import * as cors from 'cors';
+import express, { Request, Response } from 'express';
+import cors from 'cors';
 import helmet from 'helmet';
 import * as dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
@@ -46,7 +45,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/auth', authRoutes);
 
 // Health check and info routes
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (_req: Request, res: Response) => {
   res.json({
     message: 'Smart Factory Backend API',
     version: '1.0.0',
@@ -62,7 +61,7 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
-app.get('/api/health', (req: Request, res: Response) => {
+app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -74,7 +73,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 // Global error handler
-app.use((error: any, req: Request, res: Response, next: any) => {
+app.use((error: any, _req: Request, res: Response, _next: any) => {
   console.error('Global error handler:', error);
   res.status(error.status || 500).json({
     success: false,

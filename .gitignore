@@ -8,6 +8,11 @@ yarn-error.log*
 dist/
 build/
 
+# Compiled JavaScript files in src (should only be in dist/)
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
+
 # Environment variables
 .env
 .env.local
