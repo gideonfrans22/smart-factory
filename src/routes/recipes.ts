@@ -6,7 +6,8 @@ import {
   createRecipe,
   updateRecipe,
   deleteRecipe,
-  createRecipeVersion
+  createRecipeVersion,
+  getRecipeDependencyGraph
 } from "../controllers/recipeController";
 import { authenticateToken } from "../middleware/auth";
 
@@ -23,6 +24,9 @@ router.get("/product/:productCode", getRecipeByProductCode);
 
 // Get recipe by ID
 router.get("/:id", getRecipeById);
+
+// Get recipe dependency graph
+router.get("/:id/dependency-graph", getRecipeDependencyGraph);
 
 // Create new recipe
 router.post("/", createRecipe);

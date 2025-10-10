@@ -191,7 +191,9 @@ export const createRecipe = async (
       description: step.description,
       estimatedDuration: step.estimatedDuration,
       requiredDevices: step.requiredDevices || [],
-      qualityChecks: step.qualityChecks || []
+      qualityChecks: step.qualityChecks || [],
+      dependsOn: step.dependsOn || [],
+      media: step.media || []
     }));
 
     const recipe = new Recipe({
@@ -359,6 +361,115 @@ export const createRecipeVersion = async (
     res.status(201).json(response);
   } catch (error: any) {
     console.error("Create recipe version error:", error);
+    const errorResponse: APIResponse = {
+      success: false,
+      error: "SERVER_ERROR",
+      message: error.message
+    };
+    res.status(500).json(errorResponse);
+  }
+};
+
+/**
+ * Get dependency graph for a recipe
+ * Returns topological order of steps based on dependencies
+ */
+export const getRecipeDependencyGraph = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const recipe = await Recipe.findById(id);
+
+    if (!recipe) {
+      const errorResponse: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Recipe not found"
+      };
+      res.status(404).json(errorResponse);
+      return;
+    }
+
+    // Build dependency graph
+    const graph: any = {};
+    const inDegree: any = {};
+    const stepMap: any = {};
+
+    // Initialize
+    recipe.steps.forEach((step) => {
+      graph[step.stepId] = step.dependsOn || [];
+      inDegree[step.stepId] = 0;
+      stepMap[step.stepId] = step;
+    });
+
+    // Calculate in-degrees
+    recipe.steps.forEach((step) => {
+      (step.dependsOn || []).forEach(() => {
+        inDegree[step.stepId]++;
+      });
+    });
+
+    // Topological sort (Kahn's algorithm)
+    const queue: string[] = [];
+    const topologicalOrder: any[] = [];
+
+    // Add all nodes with in-degree 0
+    Object.keys(inDegree).forEach((stepId) => {
+      if (inDegree[stepId] === 0) {
+        queue.push(stepId);
+      }
+    });
+
+    while (queue.length > 0) {
+      const stepId = queue.shift()!;
+      const step = stepMap[stepId];
+      topologicalOrder.push({
+        stepId: step.stepId,
+        name: step.name,
+        order: step.order,
+        dependsOn: step.dependsOn || [],
+        level: topologicalOrder.length
+      });
+
+      // Find all steps that depend on this step
+      recipe.steps.forEach((s) => {
+        if ((s.dependsOn || []).includes(stepId)) {
+          inDegree[s.stepId]--;
+          if (inDegree[s.stepId] === 0) {
+            queue.push(s.stepId);
+          }
+        }
+      });
+    }
+
+    // Check if all steps are in topological order (no cycles)
+    if (topologicalOrder.length !== recipe.steps.length) {
+      const errorResponse: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Circular dependencies detected in recipe steps"
+      };
+      res.status(400).json(errorResponse);
+      return;
+    }
+
+    const response: APIResponse = {
+      success: true,
+      message: "Dependency graph retrieved successfully",
+      data: {
+        recipeId: recipe._id,
+        productCode: recipe.productCode,
+        version: recipe.version,
+        topologicalOrder,
+        dependencyGraph: graph
+      }
+    };
+    res.json(response);
+  } catch (error: any) {
+    console.error("Get dependency graph error:", error);
     const errorResponse: APIResponse = {
       success: false,
       error: "SERVER_ERROR",
