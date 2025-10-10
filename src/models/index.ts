@@ -18,8 +18,3 @@ export { EmergencyReport, IEmergencyReport } from "./EmergencyReport";
 export { KPIData, IKPIData } from "./KPIData";
 export { Report, IReport } from "./Report";
 export { ActivityLog, IActivityLog } from "./ActivityLog";
-
-// Legacy models (keeping for backwards compatibility)
-export { ProcessLine, IProcessLine } from "./ProcessLine";
-export { Part, IPart } from "./Part";
-export { ProcessRecord, IProcessRecord } from "./ProcessRecord";
