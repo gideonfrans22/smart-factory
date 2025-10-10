@@ -1,70 +1,75 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema } from "mongoose";
 
 export interface IUser extends Document {
-  username: string;
-  email: string;
+  empNo?: string;
+  name: string;
+  email?: string;
   password: string;
-  role: 'manager' | 'worker';
-  assignedProcessLine?: number;
-  firstName: string;
-  lastName: string;
+  role: "admin" | "worker";
   isActive: boolean;
-  lastLogin?: Date;
+  lastLoginAt?: Date;
+  failedLoginAttempts: number;
+  lockedUntil?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const UserSchema: Schema = new Schema({
-  username: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true,
-    minlength: 3,
-    maxlength: 50
+const UserSchema: Schema = new Schema(
+  {
+    empNo: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      maxlength: 20
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100
+    },
+    email: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      lowercase: true,
+      maxlength: 255
+    },
+    password: {
+      type: String,
+      required: true
+    },
+    role: {
+      type: String,
+      required: true,
+      enum: ["admin", "worker"]
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    lastLoginAt: {
+      type: Date
+    },
+    failedLoginAttempts: {
+      type: Number,
+      default: 0
+    },
+    lockedUntil: {
+      type: Date
+    }
   },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true,
-    lowercase: true
-  },
-  password: {
-    type: String,
-    required: true,
-    minlength: 6
-  },
-  role: {
-    type: String,
-    required: true,
-    enum: ['manager', 'worker']
-  },
-  assignedProcessLine: {
-    type: Number,
-    required: function(this: IUser) { return this.role === 'worker'; },
-    min: 1,
-    max: 20
-  },
-  firstName: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  lastName: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  lastLogin: {
-    type: Date
+  {
+    timestamps: true
   }
-}, {
-  timestamps: true
-});
+);
 
-export const User = mongoose.model<IUser>('User', UserSchema);
+// Indexes
+UserSchema.index({ empNo: 1 });
+UserSchema.index({ email: 1 });
+UserSchema.index({ role: 1 });
+UserSchema.index({ isActive: 1 });
+
+export const User = mongoose.model<IUser>("User", UserSchema);
