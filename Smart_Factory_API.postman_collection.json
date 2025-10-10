@@ -1,0 +1,1572 @@
+{
+  "info": {
+    "_postman_id": "smart-factory-api-2024",
+    "name": "Smart Factory API",
+    "description": "Complete API collection for Smart Factory Backend with authentication, user management, recipes, projects, tasks (with media uploads), devices, alerts, KPI, and reports. Includes file upload examples with multipart/form-data.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "projectId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "taskId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deviceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "alertId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reportId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "recipeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "mediaId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "API Info",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            },
+            "description": "Get API information and version"
+          },
+          "response": []
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check API health status"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login - Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.data.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', jsonData.data.refreshToken);",
+                  "    pm.collectionVariables.set('userId', jsonData.data.user._id);",
+                  "    console.log('Access token saved:', jsonData.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailOrEmpNo\": \"admin@smartfactory.com\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login as admin user and save tokens"
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Worker",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.data.accessToken);",
+                  "    pm.collectionVariables.set('refreshToken', jsonData.data.refreshToken);",
+                  "    pm.collectionVariables.set('userId', jsonData.data.user._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailOrEmpNo\": \"EMP001\",\n  \"password\": \"worker123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login as worker using employee number"
+          },
+          "response": []
+        },
+        {
+          "name": "Register User",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newadmin@smartfactory.com\",\n  \"password\": \"password123\",\n  \"name\": \"New Admin User\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Register a new user"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "profile"]
+            },
+            "description": "Get current user profile"
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('accessToken', jsonData.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "refresh"]
+            },
+            "description": "Refresh access token using refresh token"
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Logout current user"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "role",
+                  "value": "admin",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all users with pagination (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "{{userId}}"]
+            },
+            "description": "Get specific user by ID (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create User - Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('userId', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test.admin@smartfactory.com\",\n  \"password\": \"testpass123\",\n  \"name\": \"Test Admin\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            },
+            "description": "Create new admin user (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create User - Worker",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empNo\": \"EMP999\",\n  \"password\": \"worker123\",\n  \"name\": \"Test Worker\",\n  \"role\": \"worker\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            },
+            "description": "Create new worker user (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "{{userId}}"]
+            },
+            "description": "Update user details (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "{{userId}}"]
+            },
+            "description": "Delete user (Admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "Get All Projects",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/projects?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "projects"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "disabled": true
+                },
+                {
+                  "key": "priority",
+                  "value": "HIGH",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all projects with pagination"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Project by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/projects/{{projectId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "projects", "{{projectId}}"]
+            },
+            "description": "Get specific project by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Project",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('projectId', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Assembly Line Modernization\",\n  \"description\": \"Upgrade assembly line with automation and IoT sensors\",\n  \"status\": \"PLANNING\",\n  \"priority\": \"HIGH\",\n  \"startDate\": \"2025-11-01\",\n  \"endDate\": \"2025-12-31\",\n  \"progress\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/projects",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "projects"]
+            },
+            "description": "Create new project (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Project",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\",\n  \"progress\": 25,\n  \"description\": \"Updated project description\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/projects/{{projectId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "projects", "{{projectId}}"]
+            },
+            "description": "Update project (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Project",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/projects/{{projectId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "projects", "{{projectId}}"]
+            },
+            "description": "Delete project (Admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "Get All Tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/tasks?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tasks"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING",
+                  "disabled": true
+                },
+                {
+                  "key": "projectId",
+                  "value": "{{projectId}}",
+                  "disabled": true
+                },
+                {
+                  "key": "deviceId",
+                  "value": "TABLET_001",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all tasks with filtering"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Task by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/tasks/{{taskId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tasks", "{{taskId}}"]
+            },
+            "description": "Get specific task by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('taskId', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Install Sensor Array\",\n  \"description\": \"Install temperature and pressure sensors on Line 1\",\n  \"projectId\": \"{{projectId}}\",\n  \"deviceId\": \"TABLET_001\",\n  \"status\": \"PENDING\",\n  \"priority\": \"HIGH\",\n  \"estimatedDuration\": 120\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tasks",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tasks"]
+            },
+            "description": "Create new task (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Task Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ONGOING\",\n  \"progress\": 50,\n  \"startTime\": \"2025-10-10T10:00:00Z\",\n  \"notes\": \"Work in progress, halfway done\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tasks/{{taskId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tasks", "{{taskId}}", "status"]
+            },
+            "description": "Update task status and progress"
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\",\n  \"progress\": 100,\n  \"endTime\": \"2025-10-10T14:00:00Z\",\n  \"notes\": \"Task completed successfully\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tasks/{{taskId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tasks", "{{taskId}}", "status"]
+            },
+            "description": "Mark task as completed"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Task",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/tasks/{{taskId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tasks", "{{taskId}}"]
+            },
+            "description": "Delete task (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Task Media",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/tasks/{{taskId}}/media",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tasks", "{{taskId}}", "media"]
+            },
+            "description": "Get all media files for a task"
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Single Media",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('mediaId', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "uploadType",
+                  "value": "PHOTO",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tasks/{{taskId}}/media",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tasks", "{{taskId}}", "media"]
+            },
+            "description": "Upload a single media file (image, document, video) to a task. Max 50MB."
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Multiple Media",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "uploadType",
+                  "value": "DOCUMENT",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tasks/{{taskId}}/media/multiple",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tasks", "{{taskId}}", "media", "multiple"]
+            },
+            "description": "Upload multiple media files (max 10 files, 50MB each) to a task"
+          },
+          "response": []
+        },
+        {
+          "name": "Download Media",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/tasks/media/{{mediaId}}/download",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tasks", "media", "{{mediaId}}", "download"]
+            },
+            "description": "Download a media file"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Media",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/tasks/media/{{mediaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tasks", "media", "{{mediaId}}"]
+            },
+            "description": "Delete a media file and its database record"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Recipes",
+      "item": [
+        {
+          "name": "Get All Recipes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/recipes?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recipes"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "productCode",
+                  "value": "PROD-001",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "Assembly",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all recipes with pagination and filtering"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Recipe by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/recipes/{{recipeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recipes", "{{recipeId}}"]
+            },
+            "description": "Get specific recipe by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Recipe by Product Code",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/recipes/product/PROD-001?version=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recipes", "product", "PROD-001"],
+              "query": [
+                {
+                  "key": "version",
+                  "value": "1",
+                  "description": "Optional - if not provided, returns latest version"
+                }
+              ]
+            },
+            "description": "Get recipe by product code (latest or specific version)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Recipe",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('recipeId', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productCode\": \"PROD-001\",\n  \"version\": 1,\n  \"name\": \"Assembly Line Recipe\",\n  \"description\": \"Standard assembly process for Product 001\",\n  \"steps\": [\n    {\n      \"stepId\": \"STEP_1\",\n      \"order\": 1,\n      \"name\": \"Component Preparation\",\n      \"description\": \"Prepare all components for assembly\",\n      \"estimatedDuration\": 30,\n      \"requiredDevices\": [\"TABLET_001\"],\n      \"qualityChecks\": [\"Visual inspection\", \"Component count\"]\n    },\n    {\n      \"stepId\": \"STEP_2\",\n      \"order\": 2,\n      \"name\": \"Main Assembly\",\n      \"description\": \"Assemble main components\",\n      \"estimatedDuration\": 60,\n      \"requiredDevices\": [\"TABLET_001\", \"TABLET_002\"],\n      \"qualityChecks\": [\"Torque test\", \"Alignment check\"]\n    },\n    {\n      \"stepId\": \"STEP_3\",\n      \"order\": 3,\n      \"name\": \"Quality Testing\",\n      \"description\": \"Perform final quality tests\",\n      \"estimatedDuration\": 20,\n      \"requiredDevices\": [\"TABLET_001\"],\n      \"qualityChecks\": [\"Function test\", \"Visual inspection\"]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/recipes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recipes"]
+            },
+            "description": "Create new recipe with steps"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Recipe",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Assembly Line Recipe\",\n  \"description\": \"Updated process description\",\n  \"steps\": [\n    {\n      \"stepId\": \"STEP_1\",\n      \"order\": 1,\n      \"name\": \"Enhanced Component Preparation\",\n      \"description\": \"Prepare components with new method\",\n      \"estimatedDuration\": 25,\n      \"requiredDevices\": [\"TABLET_001\"],\n      \"qualityChecks\": [\"Enhanced visual inspection\", \"Component verification\"]\n    },\n    {\n      \"stepId\": \"STEP_2\",\n      \"order\": 2,\n      \"name\": \"Main Assembly\",\n      \"description\": \"Assemble main components\",\n      \"estimatedDuration\": 60,\n      \"requiredDevices\": [\"TABLET_001\", \"TABLET_002\"],\n      \"qualityChecks\": [\"Torque test\", \"Alignment check\"]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/recipes/{{recipeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recipes", "{{recipeId}}"]
+            },
+            "description": "Update existing recipe"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Recipe Version",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Assembly Line Recipe v2\",\n  \"description\": \"Optimized version with reduced time\",\n  \"steps\": [\n    {\n      \"stepId\": \"STEP_1\",\n      \"order\": 1,\n      \"name\": \"Fast Component Preparation\",\n      \"description\": \"Quick prep method\",\n      \"estimatedDuration\": 20,\n      \"requiredDevices\": [\"TABLET_001\"],\n      \"qualityChecks\": [\"Quick check\"]\n    },\n    {\n      \"stepId\": \"STEP_2\",\n      \"order\": 2,\n      \"name\": \"Optimized Assembly\",\n      \"description\": \"Faster assembly process\",\n      \"estimatedDuration\": 45,\n      \"requiredDevices\": [\"TABLET_001\"],\n      \"qualityChecks\": [\"Quick test\"]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/recipes/{{recipeId}}/version",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recipes", "{{recipeId}}", "version"]
+            },
+            "description": "Create new version of existing recipe"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Recipe",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/recipes/{{recipeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "recipes", "{{recipeId}}"]
+            },
+            "description": "Delete recipe (Admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Devices",
+      "item": [
+        {
+          "name": "Get All Devices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/devices?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "devices"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "ONLINE",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all devices with filtering"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Device by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/devices/{{deviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "devices", "{{deviceId}}"]
+            },
+            "description": "Get specific device by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Register Device",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('deviceId', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"TABLET_001\",\n  \"name\": \"Assembly Line 1 Tablet\",\n  \"type\": \"TABLET\",\n  \"location\": \"Assembly Line 1\",\n  \"ipAddress\": \"192.168.1.101\",\n  \"macAddress\": \"00:1B:44:11:3A:B7\",\n  \"config\": {\n    \"screenSize\": \"10 inch\",\n    \"os\": \"Android 12\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/devices/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "devices", "register"]
+            },
+            "description": "Register new device (No auth required)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Device",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ONLINE\",\n  \"location\": \"Assembly Line 2\",\n  \"config\": {\n    \"screenSize\": \"10 inch\",\n    \"os\": \"Android 13\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/devices/{{deviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "devices", "{{deviceId}}"]
+            },
+            "description": "Update device (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Device",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/devices/{{deviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "devices", "{{deviceId}}"]
+            },
+            "description": "Delete device (Admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Alerts",
+      "item": [
+        {
+          "name": "Get All Alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alerts?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "alerts"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "type",
+                  "value": "EMERGENCY",
+                  "disabled": true
+                },
+                {
+                  "key": "severity",
+                  "value": "HIGH",
+                  "disabled": true
+                },
+                {
+                  "key": "isRead",
+                  "value": "false",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all alerts with filtering"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Alert by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alerts/{{alertId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "alerts", "{{alertId}}"]
+            },
+            "description": "Get specific alert by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Alert - Info",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('alertId', jsonData.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"INFO\",\n  \"severity\": \"LOW\",\n  \"title\": \"Maintenance Scheduled\",\n  \"message\": \"Regular maintenance scheduled for Line 1 next week\",\n  \"source\": \"SYSTEM\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/alerts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "alerts"]
+            },
+            "description": "Create info alert"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Alert - Warning",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"WARNING\",\n  \"severity\": \"MEDIUM\",\n  \"title\": \"High Temperature Detected\",\n  \"message\": \"Temperature sensor reading 85°C on Assembly Line 1\",\n  \"source\": \"DEVICE\",\n  \"relatedEntityType\": \"Device\",\n  \"relatedEntityId\": \"TABLET_001\",\n  \"metadata\": {\n    \"temperature\": 85,\n    \"threshold\": 80,\n    \"unit\": \"celsius\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/alerts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "alerts"]
+            },
+            "description": "Create warning alert"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Alert - Emergency",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"EMERGENCY\",\n  \"severity\": \"CRITICAL\",\n  \"title\": \"Equipment Failure\",\n  \"message\": \"Critical failure detected on Assembly Line 1 - Immediate attention required\",\n  \"source\": \"DEVICE\",\n  \"relatedEntityType\": \"Device\",\n  \"relatedEntityId\": \"TABLET_001\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/alerts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "alerts"]
+            },
+            "description": "Create emergency alert"
+          },
+          "response": []
+        },
+        {
+          "name": "Acknowledge Alert",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alerts/{{alertId}}/acknowledge",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "alerts", "{{alertId}}", "acknowledge"]
+            },
+            "description": "Acknowledge alert"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Alert",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alerts/{{alertId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "alerts", "{{alertId}}"]
+            },
+            "description": "Delete alert (Admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "KPI",
+      "item": [
+        {
+          "name": "Get Real-time KPI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/kpi/realtime",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "kpi", "realtime"]
+            },
+            "description": "Get real-time KPI dashboard data"
+          },
+          "response": []
+        },
+        {
+          "name": "Create KPI Data - On Time Rate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"metricName\": \"onTimeRate\",\n  \"metricValue\": 87.5,\n  \"unit\": \"percentage\",\n  \"deviceId\": \"TABLET_001\",\n  \"projectId\": \"{{projectId}}\",\n  \"metadata\": {\n    \"line\": \"Assembly Line 1\",\n    \"shift\": \"Morning\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/kpi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "kpi"]
+            },
+            "description": "Create on-time rate KPI data"
+          },
+          "response": []
+        },
+        {
+          "name": "Create KPI Data - Defect Rate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"metricName\": \"defectRate\",\n  \"metricValue\": 2.3,\n  \"unit\": \"percentage\",\n  \"deviceId\": \"TABLET_001\",\n  \"metadata\": {\n    \"totalProduced\": 1000,\n    \"defects\": 23\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/kpi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "kpi"]
+            },
+            "description": "Create defect rate KPI data"
+          },
+          "response": []
+        },
+        {
+          "name": "Create KPI Data - Productivity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"metricName\": \"productivity\",\n  \"metricValue\": 93.2,\n  \"unit\": \"percentage\",\n  \"projectId\": \"{{projectId}}\",\n  \"metadata\": {\n    \"target\": 1000,\n    \"actual\": 932\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/kpi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "kpi"]
+            },
+            "description": "Create productivity KPI data"
+          },
+          "response": []
+        },
+        {
+          "name": "Create KPI Data - Equipment Uptime",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"metricName\": \"equipmentUptime\",\n  \"metricValue\": 96.8,\n  \"unit\": \"percentage\",\n  \"deviceId\": \"TABLET_001\",\n  \"metadata\": {\n    \"totalTime\": 480,\n    \"downtime\": 15\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/kpi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "kpi"]
+            },
+            "description": "Create equipment uptime KPI data"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Get All Reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "type",
+                  "value": "PRODUCTION",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "COMPLETED",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all reports with filtering"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Report - Production",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('reportId', jsonData.data.reportId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Monthly Production Report - October 2025\",\n  \"type\": \"PRODUCTION\",\n  \"format\": \"PDF\",\n  \"parameters\": {\n    \"month\": \"October\",\n    \"year\": 2025,\n    \"includeCharts\": true,\n    \"includeKPI\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/generate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "generate"]
+            },
+            "description": "Generate production report"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Report - Quality",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Quality Analysis Report\",\n  \"type\": \"QUALITY\",\n  \"format\": \"EXCEL\",\n  \"parameters\": {\n    \"startDate\": \"2025-10-01\",\n    \"endDate\": \"2025-10-10\",\n    \"lines\": [\"Line 1\", \"Line 2\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/generate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "generate"]
+            },
+            "description": "Generate quality report"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Report - Maintenance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Maintenance Activity Report\",\n  \"type\": \"MAINTENANCE\",\n  \"format\": \"PDF\",\n  \"parameters\": {\n    \"quarter\": \"Q4\",\n    \"year\": 2025,\n    \"includeScheduled\": true,\n    \"includeUnplanned\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/generate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "generate"]
+            },
+            "description": "Generate maintenance report"
+          },
+          "response": []
+        },
+        {
+          "name": "Download Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/download/{{reportId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "download", "{{reportId}}"]
+            },
+            "description": "Download report file"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Report",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/{{reportId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reports", "{{reportId}}"]
+            },
+            "description": "Delete report (Admin only)"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
