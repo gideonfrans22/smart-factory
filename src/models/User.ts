@@ -21,7 +21,8 @@ const UserSchema: Schema = new Schema(
       unique: true,
       sparse: true,
       trim: true,
-      maxlength: 20
+      maxlength: 20,
+      index: true
     },
     name: {
       type: String,
@@ -35,7 +36,8 @@ const UserSchema: Schema = new Schema(
       sparse: true,
       trim: true,
       lowercase: true,
-      maxlength: 255
+      maxlength: 255,
+      index: true
     },
     password: {
       type: String,
@@ -67,8 +69,6 @@ const UserSchema: Schema = new Schema(
 );
 
 // Indexes
-UserSchema.index({ empNo: 1 });
-UserSchema.index({ email: 1 });
 UserSchema.index({ role: 1 });
 UserSchema.index({ isActive: 1 });
 
