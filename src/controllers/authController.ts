@@ -1,34 +1,56 @@
-import { Request, Response } from 'express';
-import { User } from '../models/User';
-import { LoginCredentials, RegisterData, APIResponse, JWTPayload, AuthenticatedRequest } from '../types';
-import { hashPassword, comparePassword, generateToken, validateEmail, sanitizeInput } from '../utils/helpers';
+import { Request, Response } from "express";
+import * as jwt from "jsonwebtoken";
+import { User } from "../models/User";
+import {
+  RegisterData,
+  APIResponse,
+  JWTPayload,
+  AuthenticatedRequest
+} from "../types";
+import {
+  hashPassword,
+  comparePassword,
+  generateToken,
+  validateEmail,
+  sanitizeInput
+} from "../utils/helpers";
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const {
-      username,
-      email,
-      password,
-      role,
-      assignedProcessLine,
-      firstName,
-      lastName
-    }: RegisterData = req.body;
+    const { empNo, name, email, password, role }: RegisterData = req.body;
 
     // Validation
-    if (!username || !email || !password || !role || !firstName || !lastName) {
+    if (!name || !password || !role) {
       const response: APIResponse = {
         success: false,
-        message: 'All required fields must be provided'
+        message: "Name, password, and role are required"
       };
       res.status(400).json(response);
       return;
     }
 
-    if (!validateEmail(email)) {
+    if (role === "worker" && !empNo) {
       const response: APIResponse = {
         success: false,
-        message: 'Invalid email format'
+        message: "Employee number is required for workers"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    if (role === "admin" && !email) {
+      const response: APIResponse = {
+        success: false,
+        message: "Email is required for admin users"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    if (email && !validateEmail(email)) {
+      const response: APIResponse = {
+        success: false,
+        message: "Invalid email format"
       };
       res.status(400).json(response);
       return;
@@ -37,30 +59,26 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     if (password.length < 6) {
       const response: APIResponse = {
         success: false,
-        message: 'Password must be at least 6 characters long'
-      };
-      res.status(400).json(response);
-      return;
-    }
-
-    if (role === 'worker' && !assignedProcessLine) {
-      const response: APIResponse = {
-        success: false,
-        message: 'Process line assignment required for workers'
+        message: "Password must be at least 6 characters long"
       };
       res.status(400).json(response);
       return;
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({
-      $or: [{ username }, { email }]
-    });
+    const orConditions = [];
+    if (empNo) orConditions.push({ empNo });
+    if (email) orConditions.push({ email });
+
+    const existingUser =
+      orConditions.length > 0
+        ? await User.findOne({ $or: orConditions })
+        : null;
 
     if (existingUser) {
       const response: APIResponse = {
         success: false,
-        message: 'Username or email already exists'
+        message: "Employee number or email already exists"
       };
       res.status(400).json(response);
       return;
@@ -71,37 +89,35 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     // Create user
     const user = new User({
-      username: sanitizeInput(username),
-      email: email.toLowerCase(),
+      empNo: empNo ? sanitizeInput(empNo) : undefined,
+      name: sanitizeInput(name),
+      email: email ? email.toLowerCase() : undefined,
       password: hashedPassword,
-      role,
-      assignedProcessLine: role === 'worker' ? assignedProcessLine : undefined,
-      firstName: sanitizeInput(firstName),
-      lastName: sanitizeInput(lastName)
+      role
     });
 
     await user.save();
 
     const response: APIResponse = {
       success: true,
-      message: 'User registered successfully',
+      message: "User registered successfully",
       data: {
         id: user._id,
-        username: user.username,
+        empNo: user.empNo,
+        name: user.name,
         email: user.email,
         role: user.role,
-        assignedProcessLine: user.assignedProcessLine,
-        firstName: user.firstName,
-        lastName: user.lastName
+        createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt.toISOString()
       }
     };
 
     res.status(201).json(response);
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error("Registration error:", error);
     const response: APIResponse = {
       success: false,
-      message: 'Internal server error'
+      message: "Internal server error"
     };
     res.status(500).json(response);
   }
@@ -109,23 +125,28 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { username, password }: LoginCredentials = req.body;
+    const { idOrEmpNo, password } = req.body;
 
-    if (!username || !password) {
+    if (!idOrEmpNo || !password) {
       const response: APIResponse = {
         success: false,
-        message: 'Username and password are required'
+        error: "VALIDATION_ERROR",
+        message: "ID/Employee number and password are required"
       };
       res.status(400).json(response);
       return;
     }
 
-    // Find user
-    const user = await User.findOne({ username });
+    // Find user by email (admin) or employee number (worker)
+    const user = await User.findOne({
+      $or: [{ email: idOrEmpNo }, { empNo: idOrEmpNo }]
+    });
+
     if (!user || !user.isActive) {
       const response: APIResponse = {
         success: false,
-        message: 'Invalid credentials'
+        error: "INVALID_CREDENTIALS",
+        message: "Invalid credentials"
       };
       res.status(401).json(response);
       return;
@@ -136,61 +157,184 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     if (!isValidPassword) {
       const response: APIResponse = {
         success: false,
-        message: 'Invalid credentials'
+        error: "INVALID_CREDENTIALS",
+        message: "Invalid credentials"
       };
       res.status(401).json(response);
       return;
     }
 
     // Update last login
-    user.lastLogin = new Date();
+    user.lastLoginAt = new Date();
     await user.save();
 
-    // Generate JWT token
-    const tokenPayload: JWTPayload = {
-      userId: (user._id as any).toString(),
-      username: user.username,
+    // Generate JWT tokens according to specification
+    // Access Token: { sub, role, empNo (workers only), iat, exp }
+    const accessTokenPayload: JWTPayload = {
+      sub: (user._id as any).toString(),
       role: user.role,
-      assignedProcessLine: user.assignedProcessLine
+      ...(user.role === "worker" && user.empNo ? { empNo: user.empNo } : {})
     };
 
-    const token = generateToken(tokenPayload);
+    // Refresh Token: { sub, type: "refresh", iat, exp }
+    const refreshTokenPayload: JWTPayload = {
+      sub: (user._id as any).toString(),
+      role: user.role,
+      type: "refresh"
+    };
+
+    const accessToken = generateToken(accessTokenPayload, false); // 15 minutes
+    const refreshToken = generateToken(refreshTokenPayload, true); // 7 days
 
     const response: APIResponse = {
       success: true,
-      message: 'Login successful',
+      message: "Login successful",
       data: {
-        token,
         user: {
           id: user._id,
-          username: user.username,
+          name: user.name,
           role: user.role,
-          assignedProcessLine: user.assignedProcessLine,
-          firstName: user.firstName,
-          lastName: user.lastName
+          empNo: user.empNo,
+          email: user.email,
+          createdAt: user.createdAt.toISOString(),
+          updatedAt: user.updatedAt.toISOString()
+        },
+        tokens: {
+          accessToken,
+          refreshToken
         }
       }
     };
 
     res.json(response);
   } catch (error) {
-    console.error('Login error:', error);
+    console.error("Login error:", error);
     const response: APIResponse = {
       success: false,
-      message: 'Internal server error'
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
     };
     res.status(500).json(response);
   }
 };
 
-export const getProfile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const refreshToken = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Refresh token is required"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Verify refresh token
+    const JWT_SECRET = process.env.JWT_SECRET;
+    if (!JWT_SECRET) {
+      throw new Error("JWT_SECRET not configured");
+    }
+
+    const decoded = jwt.verify(refreshToken, JWT_SECRET) as JWTPayload;
+
+    // Check if it's a refresh token
+    if (decoded.type !== "refresh") {
+      const response: APIResponse = {
+        success: false,
+        error: "INVALID_TOKEN",
+        message: "Invalid refresh token"
+      };
+      res.status(401).json(response);
+      return;
+    }
+
+    // Fetch user to get latest empNo if worker
+    const user = await User.findById(decoded.sub).select("-password");
+
+    if (!user || !user.isActive) {
+      const response: APIResponse = {
+        success: false,
+        error: "INVALID_TOKEN",
+        message: "User not found or inactive"
+      };
+      res.status(401).json(response);
+      return;
+    }
+
+    // Generate new access token with updated payload structure
+    const accessTokenPayload: JWTPayload = {
+      sub: decoded.sub,
+      role: user.role,
+      ...(user.role === "worker" && user.empNo ? { empNo: user.empNo } : {})
+    };
+
+    const accessToken = generateToken(accessTokenPayload, false);
+
+    const response: APIResponse = {
+      success: true,
+      message: "Token refreshed successfully",
+      data: {
+        accessToken
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Refresh token error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INVALID_TOKEN",
+      message: "Invalid or expired refresh token"
+    };
+    res.status(401).json(response);
+  }
+};
+
+export const logout = async (
+  _req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    // In a production environment, you would:
+    // 1. Invalidate the refresh token in database
+    // 2. Add the access token to a blacklist with TTL
+    // For now, we'll just return success
+
+    const response: APIResponse = {
+      success: true,
+      message: "Logged out successfully"
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Logout error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+export const getProfile = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
   try {
     const user = req.user;
-    
+
     if (!user) {
       const response: APIResponse = {
         success: false,
-        message: 'User not found'
+        error: "NOT_FOUND",
+        message: "User not found"
       };
       res.status(404).json(response);
       return;
@@ -198,25 +342,26 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response): Prom
 
     const response: APIResponse = {
       success: true,
-      message: 'Profile retrieved successfully',
+      message: "Profile retrieved successfully",
       data: {
         id: user._id,
-        username: user.username,
+        name: user.name,
+        empNo: user.empNo,
         email: user.email,
         role: user.role,
-        assignedProcessLine: user.assignedProcessLine,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        lastLogin: user.lastLogin
+        lastLoginAt: user.lastLoginAt,
+        createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt.toISOString()
       }
     };
 
     res.json(response);
   } catch (error) {
-    console.error('Get profile error:', error);
+    console.error("Get profile error:", error);
     const response: APIResponse = {
       success: false,
-      message: 'Internal server error'
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
     };
     res.status(500).json(response);
   }
