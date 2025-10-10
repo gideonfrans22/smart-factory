@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { Task } from "../models/Task";
+import { Project } from "../models/Project";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 export const getTasks = async (req: Request, res: Response): Promise<void> => {
@@ -107,13 +108,17 @@ export const createTask = async (
       title,
       description,
       projectId,
+      recipeStepId,
       deviceId,
       assignedTo,
       status,
       priority,
-      estimatedDuration
+      estimatedDuration,
+      notes,
+      qualityData
     } = req.body;
 
+    // Validation
     if (!title || !projectId || !deviceId) {
       const response: APIResponse = {
         success: false,
@@ -124,16 +129,69 @@ export const createTask = async (
       return;
     }
 
+    if (!recipeStepId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Recipe step ID is required"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Validate project exists and has a recipe
+    const project = await Project.findById(projectId).populate("recipeId");
+    if (!project) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Project not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    if (!project.recipeId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Project does not have an associated recipe"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Validate recipe step exists in the recipe
+    const recipe = project.recipeId as any;
+    const recipeStep = recipe.steps.find(
+      (step: any) => step.stepId === recipeStepId
+    );
+
+    if (!recipeStep) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: `Recipe step '${recipeStepId}' not found in project's recipe`
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Create task with recipe step information
     const task = new Task({
       title,
       description,
       projectId,
+      recipeStepId,
       deviceId,
       assignedTo,
       status: status || "PENDING",
       priority: priority || "MEDIUM",
-      estimatedDuration,
-      progress: 0
+      estimatedDuration: estimatedDuration || recipeStep.estimatedDuration,
+      progress: 0,
+      notes,
+      qualityData,
+      pausedDuration: 0
     });
 
     await task.save();

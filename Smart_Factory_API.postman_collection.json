@@ -518,7 +518,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Assembly Line Modernization\",\n  \"description\": \"Upgrade assembly line with automation and IoT sensors\",\n  \"status\": \"PLANNING\",\n  \"priority\": \"HIGH\",\n  \"startDate\": \"2025-11-01\",\n  \"endDate\": \"2025-12-31\",\n  \"progress\": 0\n}"
+              "raw": "{\n  \"name\": \"Assembly Line Production\",\n  \"description\": \"Production run using Assembly Line Recipe\",\n  \"recipeId\": \"{{recipeId}}\",\n  \"status\": \"PLANNING\",\n  \"priority\": \"HIGH\",\n  \"startDate\": \"2025-11-01\",\n  \"endDate\": \"2025-12-31\",\n  \"deadline\": \"2025-12-31T23:59:59Z\",\n  \"assignedDevices\": [\"TABLET_001\", \"TABLET_002\"],\n  \"progress\": 0\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/projects",
@@ -650,7 +650,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Install Sensor Array\",\n  \"description\": \"Install temperature and pressure sensors on Line 1\",\n  \"projectId\": \"{{projectId}}\",\n  \"deviceId\": \"TABLET_001\",\n  \"status\": \"PENDING\",\n  \"priority\": \"HIGH\",\n  \"estimatedDuration\": 120\n}"
+              "raw": "{\n  \"title\": \"Component Preparation\",\n  \"description\": \"Prepare all components for assembly\",\n  \"projectId\": \"{{projectId}}\",\n  \"recipeStepId\": \"STEP_1\",\n  \"deviceId\": \"TABLET_001\",\n  \"status\": \"PENDING\",\n  \"priority\": \"HIGH\",\n  \"estimatedDuration\": 30,\n  \"notes\": \"\",\n  \"qualityData\": {}\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/tasks",

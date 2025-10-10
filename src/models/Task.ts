@@ -4,16 +4,19 @@ export interface ITask extends Document {
   title: string;
   description?: string;
   projectId: mongoose.Types.ObjectId;
+  recipeStepId: string;
   deviceId?: string;
   assignedTo?: mongoose.Types.ObjectId;
   status: "PENDING" | "ONGOING" | "PAUSED" | "COMPLETED" | "FAILED";
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   estimatedDuration?: number;
   actualDuration?: number;
+  pausedDuration?: number;
   startedAt?: Date;
   completedAt?: Date;
   progress: number;
   notes?: string;
+  qualityData?: any;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +36,11 @@ const TaskSchema: Schema = new Schema(
     projectId: {
       type: Schema.Types.ObjectId,
       ref: "Project",
+      required: true
+    },
+    recipeStepId: {
+      type: String,
+      comment: "Reference to a step within the project's recipe",
       required: true
     },
     deviceId: {
@@ -57,11 +65,19 @@ const TaskSchema: Schema = new Schema(
     },
     estimatedDuration: {
       type: Number,
-      min: 0
+      min: 0,
+      comment: "Duration in minutes"
     },
     actualDuration: {
       type: Number,
-      min: 0
+      min: 0,
+      comment: "Actual time taken in minutes"
+    },
+    pausedDuration: {
+      type: Number,
+      default: 0,
+      min: 0,
+      comment: "Total paused time in minutes"
     },
     startedAt: {
       type: Date
@@ -78,6 +94,10 @@ const TaskSchema: Schema = new Schema(
     notes: {
       type: String,
       trim: true
+    },
+    qualityData: {
+      type: Schema.Types.Mixed,
+      comment: "Quality control data for this task"
     }
   },
   {
@@ -87,6 +107,7 @@ const TaskSchema: Schema = new Schema(
 
 // Indexes
 TaskSchema.index({ projectId: 1 });
+TaskSchema.index({ recipeStepId: 1 });
 TaskSchema.index({ deviceId: 1 });
 TaskSchema.index({ assignedTo: 1 });
 TaskSchema.index({ status: 1 });

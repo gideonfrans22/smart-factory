@@ -3,10 +3,13 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IProject extends Document {
   name: string;
   description?: string;
+  recipeId: mongoose.Types.ObjectId;
   status: "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   startDate: Date;
   endDate: Date;
+  deadline?: Date;
+  assignedDevices?: string[];
   progress: number;
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -24,6 +27,11 @@ const ProjectSchema: Schema = new Schema(
     description: {
       type: String,
       trim: true
+    },
+    recipeId: {
+      type: Schema.Types.ObjectId,
+      ref: "Recipe",
+      required: true
     },
     status: {
       type: String,
@@ -44,6 +52,13 @@ const ProjectSchema: Schema = new Schema(
     endDate: {
       type: Date,
       required: true
+    },
+    deadline: {
+      type: Date
+    },
+    assignedDevices: {
+      type: [String],
+      default: []
     },
     progress: {
       type: Number,
@@ -67,5 +82,6 @@ ProjectSchema.index({ status: 1 });
 ProjectSchema.index({ priority: 1 });
 ProjectSchema.index({ startDate: 1, endDate: 1 });
 ProjectSchema.index({ createdBy: 1 });
+ProjectSchema.index({ recipeId: 1 });
 
 export const Project = mongoose.model<IProject>("Project", ProjectSchema);

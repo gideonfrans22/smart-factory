@@ -64,7 +64,6 @@ const SessionSchema: Schema = new Schema(
 SessionSchema.index({ userId: 1 });
 SessionSchema.index({ deviceId: 1 });
 SessionSchema.index({ accessTokenHash: 1, refreshTokenHash: 1 });
-SessionSchema.index({ expiresAt: 1 });
 SessionSchema.index({ isActive: 1 });
 
 // TTL index - automatically delete expired sessions

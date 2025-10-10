@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { Project } from "../models/Project";
+import { Recipe } from "../models/Recipe";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 /**
@@ -29,6 +30,7 @@ export const getProjects = async (
     // Get projects
     const projects = await Project.find(query)
       .populate("createdBy", "name email empNo")
+      .populate("recipeId")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -72,10 +74,9 @@ export const getProjectById = async (
   try {
     const { id } = req.params;
 
-    const project = await Project.findById(id).populate(
-      "createdBy",
-      "name email empNo"
-    );
+    const project = await Project.findById(id)
+      .populate("createdBy", "name email empNo")
+      .populate("recipeId");
 
     if (!project) {
       const response: APIResponse = {
@@ -117,10 +118,13 @@ export const createProject = async (
     const {
       name,
       description,
+      recipeId,
       status,
       priority,
       startDate,
       endDate,
+      deadline,
+      assignedDevices,
       progress
     } = req.body;
 
@@ -130,6 +134,16 @@ export const createProject = async (
         success: false,
         error: "VALIDATION_ERROR",
         message: "Project name is required"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    if (!recipeId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Recipe ID is required"
       };
       res.status(400).json(response);
       return;
@@ -145,20 +159,38 @@ export const createProject = async (
       return;
     }
 
+    // Validate recipe exists
+    const recipe = await Recipe.findById(recipeId);
+    if (!recipe) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Recipe not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
     // Create project
     const project = new Project({
       name,
       description,
+      recipeId,
       status: status || "PLANNING",
       priority: priority || "MEDIUM",
       startDate,
       endDate,
+      deadline,
+      assignedDevices: assignedDevices || [],
       progress: progress || 0,
       createdBy: req.user!._id
     });
 
     await project.save();
-    await project.populate("createdBy", "name email empNo");
+    await project.populate([
+      { path: "createdBy", select: "name email empNo" },
+      { path: "recipeId" }
+    ]);
 
     const response: APIResponse = {
       success: true,
