@@ -20,6 +20,9 @@ src/**/*.d.ts
 .env.test.local
 .env.production.local
 
+# Uploaded files
+uploads/
+
 # IDE files
 .vscode/
 .idea/
