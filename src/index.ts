@@ -10,6 +10,13 @@ import { mqttService } from "./config/mqtt";
 
 // Import routes
 import authRoutes from "./routes/auth";
+import userRoutes from "./routes/users";
+import projectRoutes from "./routes/projects";
+import taskRoutes from "./routes/tasks";
+import deviceRoutes from "./routes/devices";
+import alertRoutes from "./routes/alerts";
+import kpiRoutes from "./routes/kpi";
+import reportRoutes from "./routes/reports";
 
 // Load environment variables
 dotenv.config();
@@ -43,6 +50,13 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // API Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/projects", projectRoutes);
+app.use("/api/tasks", taskRoutes);
+app.use("/api/devices", deviceRoutes);
+app.use("/api/alerts", alertRoutes);
+app.use("/api/kpi", kpiRoutes);
+app.use("/api/reports", reportRoutes);
 
 // Health check and info routes
 app.get("/", (_req: Request, res: Response) => {
