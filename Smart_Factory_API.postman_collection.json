@@ -147,7 +147,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"emailOrEmpNo\": \"admin@smartfactory.com\",\n  \"password\": \"admin123\"\n}"
+              "raw": "{\n  \"username\": \"admin@smartfactory.com\",\n  \"password\": \"admin123\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
@@ -189,7 +189,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"emailOrEmpNo\": \"EMP001\",\n  \"password\": \"worker123\"\n}"
+              "raw": "{\n  \"username\": \"EMP001\",\n  \"password\": \"worker123\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/auth/login",
@@ -391,7 +391,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"empNo\": \"EMP999\",\n  \"password\": \"worker123\",\n  \"name\": \"Test Worker\",\n  \"role\": \"worker\"\n}"
+              "raw": "{\n  \"username\": \"EMP999\",\n  \"password\": \"worker123\",\n  \"name\": \"Test Worker\",\n  \"role\": \"worker\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/users",

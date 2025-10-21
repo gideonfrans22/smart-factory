@@ -18,7 +18,7 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
 
     const total = await Alert.countDocuments(query);
     const alerts = await Alert.find(query)
-      .populate("acknowledgedBy", "name empNo")
+      .populate("acknowledgedBy", "name username")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -60,7 +60,7 @@ export const getAlertById = async (
 
     const alert = await Alert.findById(id).populate(
       "acknowledgedBy",
-      "name empNo"
+      "name username"
     );
 
     if (!alert) {
@@ -185,7 +185,7 @@ export const acknowledgeAlert = async (
     alert.acknowledgedAt = new Date();
 
     await alert.save();
-    await alert.populate("acknowledgedBy", "name empNo");
+    await alert.populate("acknowledgedBy", "name username");
 
     const response: APIResponse = {
       success: true,

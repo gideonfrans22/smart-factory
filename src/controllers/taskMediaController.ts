@@ -53,7 +53,7 @@ export const uploadTaskMedia = async (
     });
 
     await taskMedia.save();
-    await taskMedia.populate("uploadedBy", "name empNo");
+    await taskMedia.populate("uploadedBy", "name username");
 
     const response: APIResponse = {
       success: true,
@@ -128,7 +128,7 @@ export const uploadMultipleTaskMedia = async (
       });
 
       await taskMedia.save();
-      await taskMedia.populate("uploadedBy", "name empNo");
+      await taskMedia.populate("uploadedBy", "name username");
       uploadedMedia.push(taskMedia);
     }
 
@@ -166,7 +166,7 @@ export const getTaskMedia = async (
     const { taskId } = req.params;
 
     const media = await TaskMedia.find({ taskId })
-      .populate("uploadedBy", "name empNo")
+      .populate("uploadedBy", "name username")
       .sort({ createdAt: -1 });
 
     const response: APIResponse = {

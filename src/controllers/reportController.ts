@@ -35,7 +35,7 @@ export const generateReport = async (
     });
 
     await report.save();
-    await report.populate("generatedBy", "name empNo");
+    await report.populate("generatedBy", "name username");
 
     // In production, trigger async report generation here
     // For now, we'll just return the report ID
@@ -79,7 +79,7 @@ export const getReports = async (
 
     const total = await Report.countDocuments(query);
     const reports = await Report.find(query)
-      .populate("generatedBy", "name empNo")
+      .populate("generatedBy", "name username")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });

@@ -27,7 +27,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     const total = await Task.countDocuments(query);
     const tasks = await Task.find(query)
       .populate("projectId", "name status priority")
-      .populate("assignedTo", "name empNo")
+      .populate("assignedTo", "name username")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -69,7 +69,7 @@ export const getTaskById = async (
 
     const task = await Task.findById(id)
       .populate("projectId")
-      .populate("assignedTo", "name empNo");
+      .populate("assignedTo", "name username");
 
     if (!task) {
       const response: APIResponse = {

@@ -29,7 +29,7 @@ export const getProjects = async (
 
     // Get projects
     const projects = await Project.find(query)
-      .populate("createdBy", "name email empNo")
+      .populate("createdBy", "name email username")
       .populate("recipeId")
       .skip(skip)
       .limit(limitNum)
@@ -75,7 +75,7 @@ export const getProjectById = async (
     const { id } = req.params;
 
     const project = await Project.findById(id)
-      .populate("createdBy", "name email empNo")
+      .populate("createdBy", "name email username")
       .populate("recipeId");
 
     if (!project) {
@@ -188,7 +188,7 @@ export const createProject = async (
 
     await project.save();
     await project.populate([
-      { path: "createdBy", select: "name email empNo" },
+      { path: "createdBy", select: "name email username" },
       { path: "recipeId" }
     ]);
 
@@ -252,7 +252,7 @@ export const updateProject = async (
     if (progress !== undefined) project.progress = progress;
 
     await project.save();
-    await project.populate("createdBy", "name email empNo");
+    await project.populate("createdBy", "name email username");
 
     const response: APIResponse = {
       success: true,

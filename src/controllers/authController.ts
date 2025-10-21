@@ -17,7 +17,7 @@ import {
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { empNo, name, email, password, role }: RegisterData = req.body;
+    const { username, name, email, password, role }: RegisterData = req.body;
 
     // Validation
     if (!name || !password || !role) {
@@ -29,7 +29,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    if (role === "worker" && !empNo) {
+    if (role === "worker" && !username) {
       const response: APIResponse = {
         success: false,
         message: "Employee number is required for workers"
@@ -67,7 +67,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     // Check if user already exists
     const orConditions = [];
-    if (empNo) orConditions.push({ empNo });
+    if (username) orConditions.push({ username });
     if (email) orConditions.push({ email });
 
     const existingUser =
@@ -89,7 +89,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     // Create user
     const user = new User({
-      empNo: empNo ? sanitizeInput(empNo) : undefined,
+      username: username ? sanitizeInput(username) : undefined,
       name: sanitizeInput(name),
       email: email ? email.toLowerCase() : undefined,
       password: hashedPassword,
@@ -103,7 +103,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       message: "User registered successfully",
       data: {
         id: user._id,
-        empNo: user.empNo,
+        username: user.username,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -125,9 +125,9 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { idOrEmpNo, password } = req.body;
+    const { idOrusername, password } = req.body;
 
-    if (!idOrEmpNo || !password) {
+    if (!idOrusername || !password) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
@@ -139,7 +139,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // Find user by email (admin) or employee number (worker)
     const user = await User.findOne({
-      $or: [{ email: idOrEmpNo }, { empNo: idOrEmpNo }]
+      $or: [{ email: idOrusername }, { username: idOrusername }]
     });
 
     if (!user || !user.isActive) {
@@ -169,11 +169,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     await user.save();
 
     // Generate JWT tokens according to specification
-    // Access Token: { sub, role, empNo (workers only), iat, exp }
+    // Access Token: { sub, role, username (workers only), iat, exp }
     const accessTokenPayload: JWTPayload = {
       sub: (user._id as any).toString(),
       role: user.role,
-      ...(user.role === "worker" && user.empNo ? { empNo: user.empNo } : {})
+      ...(user.role === "worker" && user.username
+        ? { username: user.username }
+        : {})
     };
 
     // Refresh Token: { sub, type: "refresh", iat, exp }
@@ -194,7 +196,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           id: user._id,
           name: user.name,
           role: user.role,
-          empNo: user.empNo,
+          username: user.username,
           email: user.email,
           createdAt: user.createdAt.toISOString(),
           updatedAt: user.updatedAt.toISOString()
@@ -254,7 +256,7 @@ export const refreshToken = async (
       return;
     }
 
-    // Fetch user to get latest empNo if worker
+    // Fetch user to get latest username if worker
     const user = await User.findById(decoded.sub).select("-password");
 
     if (!user || !user.isActive) {
@@ -271,7 +273,9 @@ export const refreshToken = async (
     const accessTokenPayload: JWTPayload = {
       sub: decoded.sub,
       role: user.role,
-      ...(user.role === "worker" && user.empNo ? { empNo: user.empNo } : {})
+      ...(user.role === "worker" && user.username
+        ? { username: user.username }
+        : {})
     };
 
     const accessToken = generateToken(accessTokenPayload, false);
@@ -346,7 +350,7 @@ export const getProfile = async (
       data: {
         id: user._id,
         name: user.name,
-        empNo: user.empNo,
+        username: user.username,
         email: user.email,
         role: user.role,
         lastLoginAt: user.lastLoginAt,

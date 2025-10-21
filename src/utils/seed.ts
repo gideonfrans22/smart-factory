@@ -48,12 +48,12 @@ const seedDefaultUsers = async (): Promise<void> => {
     ];
 
     for (let i = 1; i <= 5; i++) {
-      const empNo = `EMP${String(i).padStart(3, "0")}`;
-      const workerExists = await User.findOne({ empNo });
+      const username = `EMP${String(i).padStart(3, "0")}`;
+      const workerExists = await User.findOne({ username });
       if (!workerExists) {
         const workerPassword = await hashPassword("worker123");
         await User.create({
-          empNo,
+          username,
           name: workerNames[i - 1],
           password: workerPassword,
           role: "worker"
@@ -62,7 +62,7 @@ const seedDefaultUsers = async (): Promise<void> => {
     }
 
     console.log(
-      "✅ Default workers created (empNo: EMP001-EMP005, password: worker123)"
+      "✅ Default workers created (username: EMP001-EMP005, password: worker123)"
     );
     console.log("📋 Worker credentials:");
     console.log("   - EMP001 (John Smith)");

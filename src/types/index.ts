@@ -11,7 +11,7 @@ export interface LoginCredentials {
 }
 
 export interface RegisterData {
-  empNo?: string;
+  username?: string;
   name: string;
   email?: string;
   password: string;
@@ -21,7 +21,7 @@ export interface RegisterData {
 export interface JWTPayload {
   sub: string; // User ID (was userId)
   role: "admin" | "worker";
-  empNo?: string; // Employee number for workers only
+  username?: string; // Employee number for workers only
   iat?: number; // Issued at timestamp
   exp?: number; // Expiration timestamp
   type?: "refresh"; // For refresh tokens

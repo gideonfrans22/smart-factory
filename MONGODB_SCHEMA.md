@@ -15,7 +15,7 @@ Stores user accounts (admins and workers).
 ```typescript
 {
   _id: ObjectId,
-  empNo: String (optional, unique),      // Employee number for workers
+  username: String (optional, unique),      // Employee number for workers
   name: String (required),               // Full name
   email: String (optional, unique),      // Email address
   password: String (required),           // Hashed password
@@ -31,7 +31,7 @@ Stores user accounts (admins and workers).
 
 **Indexes:**
 
-- `empNo` (unique, sparse)
+- `username` (unique, sparse)
 - `email` (unique, sparse)
 - `role`
 - `isActive`
@@ -372,7 +372,7 @@ Stores user authentication sessions.
 3. **No Foreign Key Constraints**: MongoDB uses references instead
 4. **Embedded Documents**: `metadata` and `config` stored as embedded objects
 5. **TTL Indexes**: Sessions auto-delete when expired
-6. **Sparse Indexes**: Used for optional unique fields (empNo, email)
+6. **Sparse Indexes**: Used for optional unique fields (username, email)
 
 ### **MongoDB Advantages:**
 
@@ -390,7 +390,7 @@ Stores user authentication sessions.
 
 ```typescript
 const user = new User({
-  empNo: "EMP001",
+  username: "EMP001",
   name: "John Worker",
   email: "john@example.com",
   password: hashedPassword,
@@ -404,7 +404,7 @@ await user.save();
 ```typescript
 const tasks = await Task.find({ status: "ONGOING" })
   .populate("projectId")
-  .populate("assignedTo", "name empNo")
+  .populate("assignedTo", "name username")
   .populate("deviceId");
 ```
 

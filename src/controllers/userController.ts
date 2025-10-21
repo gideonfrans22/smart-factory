@@ -38,7 +38,7 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
       data: {
         items: users.map((user) => ({
           id: user._id,
-          empNo: user.empNo,
+          username: user.username,
           name: user.name,
           email: user.email,
           role: user.role,
@@ -97,7 +97,7 @@ export const getUserById = async (
       message: "User retrieved successfully",
       data: {
         id: user._id,
-        empNo: user.empNo,
+        username: user.username,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -129,7 +129,7 @@ export const createUser = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { empNo, name, email, password, role } = req.body;
+    const { username, name, email, password, role } = req.body;
 
     // Validation
     if (!name || !password || !role) {
@@ -142,7 +142,7 @@ export const createUser = async (
       return;
     }
 
-    if (role === "worker" && !empNo) {
+    if (role === "worker" && !username) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
@@ -174,7 +174,7 @@ export const createUser = async (
 
     // Check if user already exists
     const orConditions = [];
-    if (empNo) orConditions.push({ empNo });
+    if (username) orConditions.push({ username });
     if (email) orConditions.push({ email });
 
     const existingUser =
@@ -197,7 +197,7 @@ export const createUser = async (
 
     // Create user
     const user = new User({
-      empNo: empNo ? sanitizeInput(empNo) : undefined,
+      username: username ? sanitizeInput(username) : undefined,
       name: sanitizeInput(name),
       email: email ? email.toLowerCase() : undefined,
       password: hashedPassword,
@@ -211,7 +211,7 @@ export const createUser = async (
       message: "User created successfully",
       data: {
         id: user._id,
-        empNo: user.empNo,
+        username: user.username,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -279,7 +279,7 @@ export const updateUser = async (
       message: "User updated successfully",
       data: {
         id: user._id,
-        empNo: user.empNo,
+        username: user.username,
         name: user.name,
         email: user.email,
         role: user.role,

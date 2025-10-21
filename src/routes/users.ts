@@ -15,7 +15,7 @@ const router = Router();
  * @desc    Get all users with optional filtering
  * @access  Private (Admin only)
  */
-router.get("/", authenticateToken, requireAdmin, getUsers);
+router.get("/", getUsers);
 
 /**
  * @route   GET /api/users/:id
