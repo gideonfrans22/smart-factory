@@ -5,6 +5,7 @@
 ### Test 1: Create Recipe with Valid Dependencies ✅
 
 **Request:**
+
 ```http
 POST /api/recipes
 Authorization: Bearer <token>
@@ -51,6 +52,7 @@ Content-Type: application/json
 ```
 
 **Expected Result:**
+
 - Status: 201 Created
 - Recipe created successfully
 - Total estimatedDuration = 45 minutes
@@ -61,12 +63,14 @@ Content-Type: application/json
 ### Test 2: Get Dependency Graph ✅
 
 **Request:**
+
 ```http
 GET /api/recipes/:recipeId/dependency-graph
 Authorization: Bearer <token>
 ```
 
 **Expected Result:**
+
 ```json
 {
   "success": true,
@@ -112,6 +116,7 @@ Authorization: Bearer <token>
 ### Test 3: Create Recipe with Circular Dependency ❌
 
 **Request:**
+
 ```http
 POST /api/recipes
 Authorization: Bearer <token>
@@ -145,6 +150,7 @@ Content-Type: application/json
 ```
 
 **Expected Result:**
+
 - Status: 500 Internal Server Error
 - Error message: "Circular dependency detected involving step '...'"
 - Recipe NOT created
@@ -154,6 +160,7 @@ Content-Type: application/json
 ### Test 4: Create Recipe with Non-Existent Dependency ❌
 
 **Request:**
+
 ```http
 POST /api/recipes
 Authorization: Bearer <token>
@@ -181,6 +188,7 @@ Content-Type: application/json
 ```
 
 **Expected Result:**
+
 - Status: 500 Internal Server Error
 - Error message: "Step 'STEP_2' depends on non-existent step 'STEP_DOES_NOT_EXIST'"
 - Recipe NOT created
@@ -190,6 +198,7 @@ Content-Type: application/json
 ### Test 5: Parallel Steps with Shared Dependency ✅
 
 **Request:**
+
 ```http
 POST /api/recipes
 Authorization: Bearer <token>
@@ -229,6 +238,7 @@ Content-Type: application/json
 ```
 
 **Expected Result:**
+
 - Status: 201 Created
 - Recipe created successfully
 - Dependency graph shows:
@@ -243,6 +253,7 @@ Content-Type: application/json
 ### Test 6: Upload Instruction Document ✅
 
 **Request:**
+
 ```http
 POST /api/recipes/:recipeId/steps/STEP_1/media
 Authorization: Bearer <token>
@@ -255,6 +266,7 @@ Form Data:
 ```
 
 **Expected Result:**
+
 - Status: 201 Created
 - Returns media object with mediaId, filename, originalName, etc.
 - File saved to uploads/task-media/
@@ -265,6 +277,7 @@ Form Data:
 ### Test 7: Upload Multiple Diagrams ✅
 
 **Request:**
+
 ```http
 POST /api/recipes/:recipeId/steps/STEP_2/media/multiple
 Authorization: Bearer <token>
@@ -279,6 +292,7 @@ Form Data:
 ```
 
 **Expected Result:**
+
 - Status: 201 Created
 - Returns array of 3 media objects
 - Message: "3 media files uploaded successfully"
@@ -288,12 +302,14 @@ Form Data:
 ### Test 8: Get All Media for a Step ✅
 
 **Request:**
+
 ```http
 GET /api/recipes/:recipeId/steps/STEP_1/media
 Authorization: Bearer <token>
 ```
 
 **Expected Result:**
+
 - Status: 200 OK
 - Returns array of all media for STEP_1
 - Should include the instruction document from Test 6
@@ -303,12 +319,14 @@ Authorization: Bearer <token>
 ### Test 9: Download Media File ✅
 
 **Request:**
+
 ```http
 GET /api/recipes/:recipeId/steps/STEP_1/media/:mediaId/download
 Authorization: Bearer <token>
 ```
 
 **Expected Result:**
+
 - Status: 200 OK
 - File downloads with original filename
 - Content-Type header matches file type
@@ -318,6 +336,7 @@ Authorization: Bearer <token>
 ### Test 10: Update Media Metadata ✅
 
 **Request:**
+
 ```http
 PUT /api/recipes/:recipeId/steps/STEP_1/media/:mediaId
 Authorization: Bearer <token>
@@ -330,6 +349,7 @@ Content-Type: application/json
 ```
 
 **Expected Result:**
+
 - Status: 200 OK
 - Media type changed to QUALITY_CHECK
 - Description updated
@@ -339,12 +359,14 @@ Content-Type: application/json
 ### Test 11: Delete Media File ✅
 
 **Request:**
+
 ```http
 DELETE /api/recipes/:recipeId/steps/STEP_1/media/:mediaId
 Authorization: Bearer <token>
 ```
 
 **Expected Result:**
+
 - Status: 200 OK
 - Message: "Media deleted successfully"
 - File removed from filesystem
@@ -355,6 +377,7 @@ Authorization: Bearer <token>
 ### Test 12: Upload Without File ❌
 
 **Request:**
+
 ```http
 POST /api/recipes/:recipeId/steps/STEP_1/media
 Authorization: Bearer <token>
@@ -366,6 +389,7 @@ Form Data:
 ```
 
 **Expected Result:**
+
 - Status: 400 Bad Request
 - Error: "No file uploaded"
 
@@ -374,6 +398,7 @@ Form Data:
 ### Test 13: Upload with Invalid Media Type ❌
 
 **Request:**
+
 ```http
 POST /api/recipes/:recipeId/steps/STEP_1/media
 Authorization: Bearer <token>
@@ -386,6 +411,7 @@ Form Data:
 ```
 
 **Expected Result:**
+
 - Status: 400 Bad Request
 - Error: "Invalid media type. Must be one of: INSTRUCTION, DIAGRAM, VIDEO, QUALITY_CHECK"
 
@@ -394,6 +420,7 @@ Form Data:
 ### Test 14: Upload to Non-Existent Recipe ❌
 
 **Request:**
+
 ```http
 POST /api/recipes/000000000000000000000000/steps/STEP_1/media
 Authorization: Bearer <token>
@@ -405,6 +432,7 @@ Form Data:
 ```
 
 **Expected Result:**
+
 - Status: 404 Not Found
 - Error: "Recipe not found"
 
@@ -413,6 +441,7 @@ Form Data:
 ### Test 15: Upload to Non-Existent Step ❌
 
 **Request:**
+
 ```http
 POST /api/recipes/:recipeId/steps/STEP_999/media
 Authorization: Bearer <token>
@@ -424,6 +453,7 @@ Form Data:
 ```
 
 **Expected Result:**
+
 - Status: 404 Not Found
 - Error: "Recipe step not found"
 
@@ -434,6 +464,7 @@ Form Data:
 ### Workflow Test: Create Recipe with Dependencies and Media ✅
 
 **Step 1: Create Recipe**
+
 ```http
 POST /api/recipes
 {
@@ -449,11 +480,13 @@ POST /api/recipes
 ```
 
 **Step 2: Verify Dependency Graph**
+
 ```http
 GET /api/recipes/:recipeId/dependency-graph
 ```
 
 **Step 3: Upload Media to Each Step**
+
 ```http
 POST /api/recipes/:recipeId/steps/PREP/media
 POST /api/recipes/:recipeId/steps/ASSEMBLE/media/multiple
@@ -461,11 +494,13 @@ POST /api/recipes/:recipeId/steps/TEST/media
 ```
 
 **Step 4: Get All Recipe Data**
+
 ```http
 GET /api/recipes/:recipeId
 ```
 
 **Step 5: Verify Media for Each Step**
+
 ```http
 GET /api/recipes/:recipeId/steps/PREP/media
 GET /api/recipes/:recipeId/steps/ASSEMBLE/media
@@ -473,6 +508,7 @@ GET /api/recipes/:recipeId/steps/TEST/media
 ```
 
 **Step 6: Create Project Using Recipe**
+
 ```http
 POST /api/projects
 {
@@ -482,6 +518,7 @@ POST /api/projects
 ```
 
 **Step 7: Create Tasks Following Dependency Order**
+
 ```http
 POST /api/tasks { "recipeStepId": "PREP", ... }
 POST /api/tasks { "recipeStepId": "ASSEMBLE", ... }
@@ -489,6 +526,7 @@ POST /api/tasks { "recipeStepId": "TEST", ... }
 ```
 
 **Expected Result:**
+
 - All steps complete successfully
 - Recipe has complete dependency graph
 - Each step has attached media
@@ -499,6 +537,7 @@ POST /api/tasks { "recipeStepId": "TEST", ... }
 ## Manual Testing Checklist
 
 ### Dependencies
+
 - [ ] Create recipe with valid linear dependencies
 - [ ] Create recipe with parallel steps
 - [ ] Create recipe with multiple dependencies per step
@@ -508,6 +547,7 @@ POST /api/tasks { "recipeStepId": "TEST", ... }
 - [ ] Verify level assignments in topological order
 
 ### Media Upload
+
 - [ ] Upload PDF instruction document
 - [ ] Upload PNG diagram image
 - [ ] Upload JPEG photo
@@ -518,6 +558,7 @@ POST /api/tasks { "recipeStepId": "TEST", ... }
 - [ ] Try to upload with invalid media type (should fail)
 
 ### Media Management
+
 - [ ] Get all media for a step
 - [ ] Download media file
 - [ ] Update media metadata (type and description)
@@ -526,6 +567,7 @@ POST /api/tasks { "recipeStepId": "TEST", ... }
 - [ ] Try to access deleted media (should fail)
 
 ### Edge Cases
+
 - [ ] Upload to non-existent recipe (should fail)
 - [ ] Upload to non-existent step (should fail)
 - [ ] Download non-existent media (should fail)
@@ -535,6 +577,7 @@ POST /api/tasks { "recipeStepId": "TEST", ... }
 - [ ] Upload file with special characters in name
 
 ### Integration
+
 - [ ] Create recipe with dependencies
 - [ ] Add media to all steps
 - [ ] Get complete recipe data
@@ -648,6 +691,7 @@ wait
 ## Success Criteria
 
 ### Dependencies
+
 ✅ Valid dependencies are accepted
 ✅ Circular dependencies are rejected with clear error
 ✅ Non-existent dependencies are rejected with clear error
@@ -655,6 +699,7 @@ wait
 ✅ Parallel steps are identified (same level)
 
 ### Media
+
 ✅ All file types are accepted (images, documents, videos)
 ✅ Multiple files can be uploaded at once
 ✅ Media can be downloaded with original filename
@@ -663,6 +708,7 @@ wait
 ✅ Invalid uploads are rejected with clear errors
 
 ### Performance
+
 ✅ Dependency validation < 200ms
 ✅ Media upload < 2s per file
 ✅ Dependency graph calculation < 100ms
