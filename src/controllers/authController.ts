@@ -125,9 +125,9 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { idOrusername, password } = req.body;
+    const { username, password } = req.body;
 
-    if (!idOrusername || !password) {
+    if (!username || !password) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
@@ -139,7 +139,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // Find user by email (admin) or employee number (worker)
     const user = await User.findOne({
-      $or: [{ email: idOrusername }, { username: idOrusername }]
+      $or: [{ email: username }, { username: username }]
     });
 
     if (!user || !user.isActive) {

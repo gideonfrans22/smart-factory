@@ -11,6 +11,7 @@ const seedDefaultUsers = async (): Promise<void> => {
     if (!adminExists) {
       const adminPassword = await hashPassword("admin123");
       await User.create({
+        username: "admin",
         name: "Factory Administrator",
         email: "admin@smartfactory.com",
         password: adminPassword,
@@ -28,6 +29,7 @@ const seedDefaultUsers = async (): Promise<void> => {
     if (!managerExists) {
       const managerPassword = await hashPassword("manager123");
       await User.create({
+        username: "manager",
         name: "Production Manager",
         email: "manager@smartfactory.com",
         password: managerPassword,
