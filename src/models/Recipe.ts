@@ -18,14 +18,14 @@ export interface IRecipeStep {
   name: string;
   description: string;
   estimatedDuration: number;
-  requiredDevices: string[];
+  deviceId: string; // Reference to Device._id where this step is processed
   qualityChecks: string[];
   dependsOn: string[]; // Array of stepIds that must be completed first
   media: IRecipeStepMedia[]; // Attached instructions, diagrams, videos
 }
 
 export interface IRecipe extends Document {
-  productCode: string;
+  recipeNumber?: string;
   version: number;
   name: string;
   description?: string;
@@ -114,9 +114,11 @@ const RecipeStepSchema: Schema = new Schema(
       min: 0,
       comment: "Duration in minutes"
     },
-    requiredDevices: {
-      type: [String],
-      default: []
+    deviceId: {
+      type: String,
+      required: true,
+      ref: "Device",
+      comment: "Device where this step is processed"
     },
     qualityChecks: {
       type: [String],
@@ -141,11 +143,9 @@ const RecipeStepSchema: Schema = new Schema(
 
 const RecipeSchema: Schema = new Schema(
   {
-    productCode: {
+    recipeNumber: {
       type: String,
-      required: true,
       trim: true,
-      uppercase: true,
       maxlength: 50
     },
     version: {
@@ -187,9 +187,8 @@ const RecipeSchema: Schema = new Schema(
 );
 
 // Indexes
-RecipeSchema.index({ productCode: 1, version: 1 }, { unique: true });
 RecipeSchema.index({ name: 1 });
-RecipeSchema.index({ productCode: 1 });
+RecipeSchema.index({ recipeNumber: 1 });
 
 // Helper function to validate step dependencies
 function validateStepDependencies(steps: IRecipeStep[]): {

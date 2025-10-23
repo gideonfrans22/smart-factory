@@ -10,20 +10,20 @@ export const getRecipes = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { page = 1, limit = 10, productCode, search } = req.query;
+    const { page = 1, limit = 10, recipeNumber, search } = req.query;
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
     // Build query
     const query: any = {};
-    if (productCode) {
-      query.productCode = productCode;
+    if (recipeNumber) {
+      query.recipeNumber = recipeNumber;
     }
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
-        { productCode: { $regex: search, $options: "i" } },
+        { recipeNumber: { $regex: search, $options: "i" } },
         { description: { $regex: search, $options: "i" } }
       ];
     }
@@ -101,17 +101,17 @@ export const getRecipeById = async (
 };
 
 /**
- * Get recipe by product code and version
+ * Get recipe by recipe number and version
  */
-export const getRecipeByProductCode = async (
+export const getRecipeByRecipeNumber = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const { productCode } = req.params;
+    const { recipeNumber } = req.params;
     const { version } = req.query;
 
-    const query: any = { productCode: productCode.toUpperCase() };
+    const query: any = { recipeNumber };
     if (version) {
       query.version = parseInt(version as string);
     }
@@ -136,7 +136,7 @@ export const getRecipeByProductCode = async (
     };
     res.json(response);
   } catch (error: any) {
-    console.error("Get recipe by product code error:", error);
+    console.error("Get recipe by recipe number error:", error);
     const errorResponse: APIResponse = {
       success: false,
       error: "SERVER_ERROR",
@@ -154,32 +154,16 @@ export const createRecipe = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { productCode, version, name, description, steps } = req.body;
+    const { recipeNumber, version, name, description, steps } = req.body;
 
     // Validate required fields
-    if (!productCode || !name || !steps || steps.length === 0) {
+    if (!name || !steps || steps.length === 0) {
       const errorResponse: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Product code, name, and at least one step are required"
+        message: "Name and at least one step are required"
       };
       res.status(400).json(errorResponse);
-      return;
-    }
-
-    // Check for duplicate product code and version
-    const existingRecipe = await Recipe.findOne({
-      productCode: productCode.toUpperCase(),
-      version: version || 1
-    });
-
-    if (existingRecipe) {
-      const errorResponse: APIResponse = {
-        success: false,
-        error: "CONFLICT",
-        message: "Recipe with this product code and version already exists"
-      };
-      res.status(409).json(errorResponse);
       return;
     }
 
@@ -190,14 +174,14 @@ export const createRecipe = async (
       name: step.name,
       description: step.description,
       estimatedDuration: step.estimatedDuration,
-      requiredDevices: step.requiredDevices || [],
+      deviceId: step.deviceId,
       qualityChecks: step.qualityChecks || [],
       dependsOn: step.dependsOn || [],
       media: step.media || []
     }));
 
     const recipe = new Recipe({
-      productCode: productCode.toUpperCase(),
+      recipeNumber,
       version: version || 1,
       name,
       description,
@@ -335,15 +319,17 @@ export const createRecipeVersion = async (
       return;
     }
 
-    // Get the highest version for this product code
-    const highestVersion = await Recipe.findOne({
-      productCode: existingRecipe.productCode
-    }).sort({ version: -1 });
+    // Get the highest version for this recipe number
+    const highestVersion = existingRecipe.recipeNumber
+      ? await Recipe.findOne({
+          recipeNumber: existingRecipe.recipeNumber
+        }).sort({ version: -1 })
+      : null;
 
-    const newVersion = (highestVersion?.version || 0) + 1;
+    const newVersion = (highestVersion?.version || existingRecipe.version) + 1;
 
     const newRecipe = new Recipe({
-      productCode: existingRecipe.productCode,
+      recipeNumber: existingRecipe.recipeNumber,
       version: newVersion,
       name: name || existingRecipe.name,
       description: description || existingRecipe.description,
@@ -461,7 +447,7 @@ export const getRecipeDependencyGraph = async (
       message: "Dependency graph retrieved successfully",
       data: {
         recipeId: recipe._id,
-        productCode: recipe.productCode,
+        recipeNumber: recipe.recipeNumber,
         version: recipe.version,
         topologicalOrder,
         dependencyGraph: graph

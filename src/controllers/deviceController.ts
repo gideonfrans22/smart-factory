@@ -212,8 +212,20 @@ export const deleteDevice = async (
     };
 
     res.json(response);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Delete device error:", error);
+
+    // Check if error is due to recipe step dependency
+    if (error.message && error.message.includes("Cannot delete device")) {
+      const response: APIResponse = {
+        success: false,
+        error: "CONFLICT",
+        message: error.message
+      };
+      res.status(409).json(response);
+      return;
+    }
+
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",

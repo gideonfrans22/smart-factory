@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IDevice extends Document {
-  _id: string; // Custom string ID like 'DEVICE_001'
+  _id: string; // auto-generated ID
   name: string;
   type: string;
   location?: string;
@@ -60,5 +60,32 @@ DeviceSchema.index({ status: 1 });
 DeviceSchema.index({ type: 1 });
 DeviceSchema.index({ location: 1 });
 DeviceSchema.index({ lastHeartbeat: 1 });
+
+// Pre-remove hook to check for dependent recipe steps
+DeviceSchema.pre("findOneAndDelete", async function (next) {
+  try {
+    const deviceId = this.getQuery()._id;
+
+    // Import Recipe model here to avoid circular dependency
+    const Recipe = mongoose.model("Recipe");
+
+    // Check if any recipe step references this device
+    const recipesWithDevice = await Recipe.findOne({
+      "steps.deviceId": deviceId
+    });
+
+    if (recipesWithDevice) {
+      return next(
+        new Error(
+          `Cannot delete device: It is referenced by recipe steps in recipe "${recipesWithDevice.name}"`
+        )
+      );
+    }
+
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
+});
 
 export const Device = mongoose.model<IDevice>("Device", DeviceSchema);

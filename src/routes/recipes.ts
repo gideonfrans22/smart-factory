@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   getRecipes,
   getRecipeById,
-  getRecipeByProductCode,
+  getRecipeByRecipeNumber,
   createRecipe,
   updateRecipe,
   deleteRecipe,
@@ -19,8 +19,8 @@ router.use(authenticateToken);
 // Get all recipes (paginated)
 router.get("/", getRecipes);
 
-// Get recipe by product code (latest or specific version)
-router.get("/product/:productCode", getRecipeByProductCode);
+// Get recipe by recipe number (latest or specific version)
+router.get("/number/:recipeNumber", getRecipeByRecipeNumber);
 
 // Get recipe by ID
 router.get("/:id", getRecipeById);
