@@ -189,6 +189,11 @@ const RecipeSchema: Schema = new Schema(
 // Indexes
 RecipeSchema.index({ name: 1 });
 RecipeSchema.index({ recipeNumber: 1 });
+// Unique compound index on recipeNumber and version (sparse to allow null recipeNumbers)
+RecipeSchema.index(
+  { recipeNumber: 1, version: 1 },
+  { unique: true, sparse: true }
+);
 
 // Helper function to validate step dependencies
 function validateStepDependencies(steps: IRecipeStep[]): {
