@@ -13,9 +13,8 @@ const router = Router();
 /**
  * @route GET /api/devices
  * @desc Get all devices with filtering
- * @access Authenticated users
  */
-router.get("/", authenticateToken, getDevices);
+router.get("/", getDevices);
 
 /**
  * @route GET /api/devices/:id
