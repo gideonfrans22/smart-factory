@@ -81,7 +81,9 @@ const RecipeStepMediaSchema: Schema = new Schema(
       default: Date.now
     }
   },
-  { _id: false }
+  {
+    timestamps: true
+  }
 );
 
 const RecipeStepSchema: Schema = new Schema(
@@ -132,7 +134,9 @@ const RecipeStepSchema: Schema = new Schema(
         "Attached instructions, diagrams, videos, and quality check documents"
     }
   },
-  { _id: false }
+  {
+    timestamps: true
+  }
 );
 
 const RecipeSchema: Schema = new Schema(
