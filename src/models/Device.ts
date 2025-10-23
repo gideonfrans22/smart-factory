@@ -15,10 +15,6 @@ export interface IDevice extends Document {
 
 const DeviceSchema: Schema = new Schema(
   {
-    _id: {
-      type: String,
-      required: true
-    },
     name: {
       type: String,
       required: true,
@@ -55,7 +51,6 @@ const DeviceSchema: Schema = new Schema(
     }
   },
   {
-    _id: false, // Disable auto ID generation
     timestamps: true
   }
 );

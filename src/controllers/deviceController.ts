@@ -92,39 +92,26 @@ export const registerDevice = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { deviceId, name, type, location, ipAddress, macAddress, config } =
+    const { name, type, location, status, ipAddress, macAddress, config } =
       req.body;
 
-    if (!deviceId || !name || !type) {
+    if (!name || !type) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Device ID, name, and type are required"
+        message: "Name and type are required"
       };
       res.status(400).json(response);
       return;
     }
 
-    // Check if device already exists
-    const existingDevice = await Device.findById(deviceId);
-    if (existingDevice) {
-      const response: APIResponse = {
-        success: false,
-        error: "DUPLICATE_ENTRY",
-        message: "Device with this ID already exists"
-      };
-      res.status(409).json(response);
-      return;
-    }
-
     const device = new Device({
-      _id: deviceId,
       name,
       type,
       location,
       ipAddress,
       macAddress,
-      status: "ONLINE",
+      status,
       config,
       lastHeartbeat: new Date()
     });
