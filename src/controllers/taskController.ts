@@ -9,7 +9,9 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
       status,
       deviceId,
       projectId,
-      assignedTo,
+      recipeId,
+      productId,
+      workerId,
       page = 1,
       limit = 10
     } = req.query;
@@ -18,7 +20,9 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     if (status) query.status = status;
     if (deviceId) query.deviceId = deviceId;
     if (projectId) query.projectId = projectId;
-    if (assignedTo) query.assignedTo = assignedTo;
+    if (recipeId) query.recipeId = recipeId;
+    if (productId) query.productId = productId;
+    if (workerId) query.workerId = workerId;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -27,7 +31,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     const total = await Task.countDocuments(query);
     const tasks = await Task.find(query)
       .populate("projectId", "name status priority")
-      .populate("assignedTo", "name username")
+      .populate("workerId", "name username")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -69,7 +73,7 @@ export const getTaskById = async (
 
     const task = await Task.findById(id)
       .populate("projectId")
-      .populate("assignedTo", "name username");
+      .populate("workerId", "name username");
 
     if (!task) {
       const response: APIResponse = {
@@ -108,9 +112,11 @@ export const createTask = async (
       title,
       description,
       projectId,
+      recipeId,
+      productId,
       recipeStepId,
       deviceId,
-      assignedTo,
+      workerId,
       status,
       priority,
       estimatedDuration,
@@ -119,28 +125,18 @@ export const createTask = async (
     } = req.body;
 
     // Validation
-    if (!title || !projectId || !deviceId) {
+    if (!title || !projectId || !recipeId || !recipeStepId) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Title, project ID, and device ID are required"
+        message: "Title, projectId, recipeId, and recipeStepId are required"
       };
       res.status(400).json(response);
       return;
     }
 
-    if (!recipeStepId) {
-      const response: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Recipe step ID is required"
-      };
-      res.status(400).json(response);
-      return;
-    }
-
-    // Validate project exists and has a recipe
-    const project = await Project.findById(projectId).populate("recipeId");
+    // Validate project exists
+    const project = await Project.findById(projectId);
     if (!project) {
       const response: APIResponse = {
         success: false,
@@ -151,40 +147,70 @@ export const createTask = async (
       return;
     }
 
-    if (!project.recipeId) {
+    // Find recipe in project (either in recipes[] or products[].snapshot.recipes[])
+    let recipeSnapshot: any = null;
+    let recipeStep: any = null;
+
+    // Check in project.recipes[]
+    const projectRecipe = project.recipes.find(
+      (r) => r.recipeId.toString() === recipeId
+    );
+    if (projectRecipe) {
+      recipeSnapshot = projectRecipe.snapshot;
+    } else if (productId) {
+      // Check in project.products[].snapshot
+      const projectProduct = project.products.find(
+        (p) => p.productId.toString() === productId
+      );
+      if (projectProduct) {
+        // Note: Product snapshot contains recipe references, not full recipes
+        // For product tasks, we still need recipeId from project.recipes[]
+        const response: APIResponse = {
+          success: false,
+          error: "VALIDATION_ERROR",
+          message:
+            "Product-specific recipe lookup not yet implemented. Use project.recipes[] for now."
+        };
+        res.status(400).json(response);
+        return;
+      }
+    }
+
+    if (!recipeSnapshot) {
       const response: APIResponse = {
         success: false,
-        error: "VALIDATION_ERROR",
-        message: "Project does not have an associated recipe"
+        error: "NOT_FOUND",
+        message: `Recipe '${recipeId}' not found in project`
       };
-      res.status(400).json(response);
+      res.status(404).json(response);
       return;
     }
 
-    // Validate recipe step exists in the recipe
-    const recipe = project.recipeId as any;
-    const recipeStep = recipe.steps.find(
-      (step: any) => step.stepId === recipeStepId
+    // Validate recipe step exists
+    recipeStep = recipeSnapshot.steps.find(
+      (step: any) => step._id.toString() === recipeStepId
     );
 
     if (!recipeStep) {
       const response: APIResponse = {
         success: false,
         error: "NOT_FOUND",
-        message: `Recipe step '${recipeStepId}' not found in project's recipe`
+        message: `Recipe step '${recipeStepId}' not found in recipe`
       };
       res.status(404).json(response);
       return;
     }
 
-    // Create task with recipe step information
+    // Create task
     const task = new Task({
       title,
       description,
       projectId,
+      recipeId,
+      productId,
       recipeStepId,
       deviceId,
-      assignedTo,
+      workerId,
       status: status || "PENDING",
       priority: priority || "MEDIUM",
       estimatedDuration: estimatedDuration || recipeStep.estimatedDuration,
@@ -195,7 +221,7 @@ export const createTask = async (
     });
 
     await task.save();
-    await task.populate("projectId assignedTo");
+    await task.populate("projectId workerId");
 
     const response: APIResponse = {
       success: true,
@@ -204,12 +230,12 @@ export const createTask = async (
     };
 
     res.status(201).json(response);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Create task error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",
-      message: "Internal server error"
+      message: error.message || "Internal server error"
     };
     res.status(500).json(response);
   }
@@ -249,7 +275,7 @@ export const updateTaskStatus = async (
     }
 
     await task.save();
-    await task.populate("projectId assignedTo");
+    await task.populate("projectId workerId");
 
     const response: APIResponse = {
       success: true,
@@ -300,6 +326,168 @@ export const deleteTask = async (
       success: false,
       error: "INTERNAL_SERVER_ERROR",
       message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Complete a task and handle next step logic
+ * POST /api/tasks/:id/complete
+ */
+export const completeTask = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { workerId, notes, qualityData, actualDuration } = req.body;
+
+    // Find the task
+    const task = await Task.findById(id);
+    if (!task) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Task not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Validate workerId
+    if (!workerId && !task.workerId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "workerId is required to complete a task"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Get project with full snapshot data
+    const project = await Project.findById(task.projectId);
+    if (!project) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Project not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Find the recipe snapshot
+    const projectRecipe = project.recipes.find(
+      (r) => r.recipeId.toString() === task.recipeId.toString()
+    );
+
+    if (!projectRecipe) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Recipe not found in project"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    const recipeSnapshot = projectRecipe.snapshot;
+    const currentStep = recipeSnapshot.steps.find(
+      (step: any) => step._id.toString() === task.recipeStepId.toString()
+    );
+
+    if (!currentStep) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Recipe step not found in recipe snapshot"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Update task to COMPLETED
+    task.status = "COMPLETED";
+    task.workerId = workerId || task.workerId;
+    task.completedAt = new Date();
+    task.progress = 100;
+    if (notes) task.notes = notes;
+    if (qualityData) task.qualityData = qualityData;
+    if (actualDuration) task.actualDuration = actualDuration;
+
+    // Calculate actual duration if not provided
+    if (!actualDuration && task.startedAt) {
+      task.actualDuration = Math.floor(
+        (task.completedAt.getTime() - task.startedAt.getTime()) / 60000
+      );
+    }
+
+    await task.save();
+
+    // Determine next step by order
+    const nextStep = recipeSnapshot.steps.find(
+      (step: any) => step.order === currentStep.order + 1
+    );
+
+    let nextTask = null;
+
+    if (nextStep) {
+      // Create next task
+      nextTask = new Task({
+        title: `${nextStep.name} - ${project.name}`,
+        description: nextStep.description,
+        projectId: project._id,
+        recipeId: task.recipeId,
+        productId: task.productId,
+        recipeStepId: nextStep._id,
+        deviceId: nextStep.deviceId,
+        status: "PENDING",
+        priority: task.priority,
+        estimatedDuration: nextStep.estimatedDuration,
+        progress: 0,
+        pausedDuration: 0
+      });
+
+      await nextTask.save();
+    } else {
+      // This was the last step - increment producedQuantity
+      const recipeIndex = project.recipes.findIndex(
+        (r) => r.recipeId.toString() === task.recipeId.toString()
+      );
+
+      if (recipeIndex !== -1) {
+        project.recipes[recipeIndex].producedQuantity += 1;
+        await project.save(); // Progress will be recalculated by pre-save hook
+      }
+    }
+
+    await task.populate("projectId workerId");
+
+    const response: APIResponse = {
+      success: true,
+      message: nextStep
+        ? "Task completed and next task created"
+        : "Task completed and recipe execution finished",
+      data: {
+        completedTask: task,
+        nextTask: nextTask || null,
+        isLastStep: !nextStep,
+        project: {
+          _id: project._id,
+          progress: project.progress
+        }
+      }
+    };
+
+    res.json(response);
+  } catch (error: any) {
+    console.error("Complete task error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: error.message || "Internal server error"
     };
     res.status(500).json(response);
   }

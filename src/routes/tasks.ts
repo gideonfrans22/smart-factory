@@ -4,7 +4,8 @@ import {
   getTaskById,
   createTask,
   updateTaskStatus,
-  deleteTask
+  deleteTask,
+  completeTask
 } from "../controllers/taskController";
 import {
   uploadTaskMedia,
@@ -45,6 +46,13 @@ router.post("/", authenticateToken, requireAdmin, createTask);
  * @access Authenticated users
  */
 router.post("/:id/status", authenticateToken, updateTaskStatus);
+
+/**
+ * @route POST /api/tasks/:id/complete
+ * @desc Complete task and handle next step creation
+ * @access Authenticated users
+ */
+router.post("/:id/complete", authenticateToken, completeTask);
 
 /**
  * @route DELETE /api/tasks/:id
