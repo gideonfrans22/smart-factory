@@ -1,7 +1,6 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export interface IRecipeStepMedia {
-  mediaId: string;
+export interface IRecipeStepMedia extends Document<mongoose.Types.ObjectId> {
   filename: string;
   originalName: string;
   mimeType: string;
@@ -12,16 +11,20 @@ export interface IRecipeStepMedia {
   uploadedAt: Date;
 }
 
-export interface IRecipeStep {
-  stepId: string;
+export interface IRecipeStep extends Document<mongoose.Types.ObjectId> {
   order: number;
   name: string;
   description: string;
   estimatedDuration: number;
   deviceId: string; // Reference to Device._id where this step is processed
   qualityChecks: string[];
-  dependsOn: string[]; // Array of stepIds that must be completed first
+  dependsOn: mongoose.Types.ObjectId[]; // Array of step _ids that must be completed first
   media: IRecipeStepMedia[]; // Attached instructions, diagrams, videos
+}
+
+export interface IRawMaterialReference {
+  materialId: mongoose.Types.ObjectId; // Reference to RawMaterial._id
+  quantityRequired: number; // Quantity needed per unit produced
 }
 
 export interface IRecipe extends Document {
@@ -29,6 +32,7 @@ export interface IRecipe extends Document {
   version: number;
   name: string;
   description?: string;
+  rawMaterials: IRawMaterialReference[]; // Array of raw materials required
   steps: IRecipeStep[];
   estimatedDuration: number;
   createdAt: Date;
@@ -37,10 +41,6 @@ export interface IRecipe extends Document {
 
 const RecipeStepMediaSchema: Schema = new Schema(
   {
-    mediaId: {
-      type: String,
-      required: true
-    },
     filename: {
       type: String,
       required: true,
@@ -82,16 +82,13 @@ const RecipeStepMediaSchema: Schema = new Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    _id: true // Ensure MongoDB generates _id for each media subdocument
   }
 );
 
 const RecipeStepSchema: Schema = new Schema(
   {
-    stepId: {
-      type: String,
-      required: true
-    },
     order: {
       type: Number,
       required: true,
@@ -125,9 +122,9 @@ const RecipeStepSchema: Schema = new Schema(
       default: []
     },
     dependsOn: {
-      type: [String],
+      type: [Schema.Types.ObjectId],
       default: [],
-      comment: "Array of stepIds that must be completed before this step"
+      comment: "Array of step _ids that must be completed before this step"
     },
     media: {
       type: [RecipeStepMediaSchema],
@@ -137,7 +134,8 @@ const RecipeStepSchema: Schema = new Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    _id: true // Ensure MongoDB generates _id for each step subdocument
   }
 );
 
@@ -164,6 +162,21 @@ const RecipeSchema: Schema = new Schema(
       type: String,
       trim: true
     },
+    rawMaterials: [
+      {
+        materialId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "RawMaterial",
+          required: true
+        },
+        quantityRequired: {
+          type: Number,
+          required: true,
+          min: 0,
+          comment: "Quantity needed per unit produced"
+        }
+      }
+    ],
     steps: {
       type: [RecipeStepSchema],
       required: true,
@@ -200,7 +213,7 @@ function validateStepDependencies(steps: IRecipeStep[]): {
   valid: boolean;
   error?: string;
 } {
-  const stepIds = new Set(steps.map((step) => step.stepId));
+  const stepIds = new Set(steps.map((step) => step._id.toString()));
 
   // Check for circular dependencies using topological sort
   const visited = new Set<string>();
@@ -229,14 +242,16 @@ function validateStepDependencies(steps: IRecipeStep[]): {
   // Build dependency map
   const dependencyMap = new Map<string, string[]>();
   for (const step of steps) {
-    dependencyMap.set(step.stepId, step.dependsOn || []);
+    const stepIdStr = step._id.toString();
+    const dependsOnStr = (step.dependsOn || []).map((id) => id.toString());
+    dependencyMap.set(stepIdStr, dependsOnStr);
 
     // Validate that all dependencies exist
-    for (const depId of step.dependsOn || []) {
+    for (const depId of dependsOnStr) {
       if (!stepIds.has(depId)) {
         return {
           valid: false,
-          error: `Step '${step.stepId}' depends on non-existent step '${depId}'`
+          error: `Step at order ${step.order} depends on non-existent step '${depId}'`
         };
       }
     }

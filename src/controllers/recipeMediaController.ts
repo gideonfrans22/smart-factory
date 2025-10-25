@@ -3,7 +3,6 @@ import { Recipe } from "../models/Recipe";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import { getFileInfo, deleteUploadedFile } from "../middleware/upload";
 import path from "path";
-import crypto from "crypto";
 
 // Get all media for a specific recipe step
 export const getStepMedia = async (
@@ -24,7 +23,7 @@ export const getStepMedia = async (
       return;
     }
 
-    const step = recipe.steps.find((s) => s.stepId === stepId);
+    const step = recipe.steps.find((s) => s._id.toString() === stepId);
     if (!step) {
       const response: APIResponse = {
         success: false,
@@ -110,7 +109,7 @@ export const uploadStepMedia = async (
     }
 
     // Check if step exists
-    const step = recipe.steps.find((s) => s.stepId === stepId);
+    const step = recipe.steps.find((s) => s._id.toString() === stepId);
     if (!step) {
       // Clean up uploaded file
       deleteUploadedFile(req.file.path);
@@ -127,10 +126,8 @@ export const uploadStepMedia = async (
     // Get file information
     const fileInfo = getFileInfo(req.file);
 
-    // Create media object
-    const mediaId = crypto.randomUUID();
+    // Create media object (MongoDB will auto-generate _id)
     const media = {
-      mediaId,
       filename: fileInfo.filename,
       originalName: fileInfo.originalName,
       mimeType: fileInfo.mimeType,
@@ -145,14 +142,17 @@ export const uploadStepMedia = async (
     if (!step.media) {
       step.media = [];
     }
-    step.media.push(media);
+    step.media.push(media as any); // MongoDB will add _id on save
 
     await recipe.save();
+
+    // Get the saved media with _id
+    const savedMedia = step.media[step.media.length - 1];
 
     const response: APIResponse = {
       success: true,
       message: "Media uploaded successfully",
-      data: media
+      data: savedMedia
     };
     res.status(201).json(response);
   } catch (error) {
@@ -234,7 +234,7 @@ export const uploadMultipleStepMedia = async (
     }
 
     // Check if step exists
-    const step = recipe.steps.find((s) => s.stepId === stepId);
+    const step = recipe.steps.find((s) => s._id.toString() === stepId);
     if (!step) {
       // Clean up all uploaded files
       req.files.forEach((file) => {
@@ -255,11 +255,10 @@ export const uploadMultipleStepMedia = async (
       step.media = [];
     }
 
-    // Create media objects for all files
+    // Create media objects for all files (MongoDB will auto-generate _id for each)
     const uploadedMedia = req.files.map((file) => {
       const fileInfo = getFileInfo(file);
       return {
-        mediaId: crypto.randomUUID(),
         filename: fileInfo.filename,
         originalName: fileInfo.originalName,
         mimeType: fileInfo.mimeType,
@@ -272,14 +271,17 @@ export const uploadMultipleStepMedia = async (
     });
 
     // Add all media to step
-    step.media.push(...uploadedMedia);
+    step.media.push(...(uploadedMedia as any)); // MongoDB will add _id on save
 
     await recipe.save();
+
+    // Get the saved media with _id
+    const savedMedia = step.media.slice(-uploadedMedia.length);
 
     const response: APIResponse = {
       success: true,
       message: `${uploadedMedia.length} media files uploaded successfully`,
-      data: uploadedMedia
+      data: savedMedia
     };
     res.status(201).json(response);
   } catch (error) {
@@ -320,7 +322,7 @@ export const downloadStepMedia = async (
       return;
     }
 
-    const step = recipe.steps.find((s) => s.stepId === stepId);
+    const step = recipe.steps.find((s) => s._id.toString() === stepId);
     if (!step) {
       const response: APIResponse = {
         success: false,
@@ -331,7 +333,7 @@ export const downloadStepMedia = async (
       return;
     }
 
-    const media = step.media?.find((m) => m.mediaId === mediaId);
+    const media = step.media?.find((m) => m._id.toString() === mediaId);
     if (!media) {
       const response: APIResponse = {
         success: false,
@@ -378,7 +380,7 @@ export const deleteStepMedia = async (
       return;
     }
 
-    const step = recipe.steps.find((s) => s.stepId === stepId);
+    const step = recipe.steps.find((s) => s._id.toString() === stepId);
     if (!step) {
       const response: APIResponse = {
         success: false,
@@ -389,7 +391,9 @@ export const deleteStepMedia = async (
       return;
     }
 
-    const mediaIndex = step.media?.findIndex((m) => m.mediaId === mediaId);
+    const mediaIndex = step.media?.findIndex(
+      (m) => m._id.toString() === mediaId
+    );
     if (mediaIndex === undefined || mediaIndex === -1) {
       const response: APIResponse = {
         success: false,
@@ -448,7 +452,7 @@ export const updateStepMedia = async (
       return;
     }
 
-    const step = recipe.steps.find((s) => s.stepId === stepId);
+    const step = recipe.steps.find((s) => s._id.toString() === stepId);
     if (!step) {
       const response: APIResponse = {
         success: false,
@@ -459,7 +463,7 @@ export const updateStepMedia = async (
       return;
     }
 
-    const media = step.media?.find((m) => m.mediaId === mediaId);
+    const media = step.media?.find((m) => m._id.toString() === mediaId);
     if (!media) {
       const response: APIResponse = {
         success: false,
