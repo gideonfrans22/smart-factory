@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { Product } from "../models/Product";
 import { Recipe } from "../models/Recipe";
+import { Project } from "../models/Project";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 // Get all products with pagination and filtering
@@ -303,7 +304,7 @@ export const deleteProduct = async (
   try {
     const { id } = req.params;
 
-    const product = await Product.findByIdAndDelete(id);
+    const product = await Product.findById(id);
 
     if (!product) {
       const response: APIResponse = {
@@ -314,6 +315,24 @@ export const deleteProduct = async (
       res.status(404).json(response);
       return;
     }
+
+    // Check if product is used in any project
+    const projectsUsingProduct = await Project.findOne({
+      "products.productId": id
+    });
+
+    if (projectsUsingProduct) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message:
+          "Cannot delete product. It is being used in one or more projects."
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    await Product.findByIdAndDelete(id);
 
     const response: APIResponse = {
       success: true,

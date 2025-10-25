@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { Recipe } from "../models";
+import { RawMaterial } from "../models/RawMaterial";
+import { Project } from "../models/Project";
 import { APIResponse } from "../types";
 
 /**
@@ -154,7 +156,8 @@ export const createRecipe = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { recipeNumber, version, name, description, steps } = req.body;
+    const { recipeNumber, version, name, description, rawMaterials, steps } =
+      req.body;
 
     // Validate required fields
     if (!name || !steps || steps.length === 0) {
@@ -167,17 +170,54 @@ export const createRecipe = async (
       return;
     }
 
-    // Validate and assign stepIds if not provided
+    // Validate raw materials if provided
+    const processedRawMaterials = [];
+    if (rawMaterials && rawMaterials.length > 0) {
+      for (const rawMat of rawMaterials) {
+        if (
+          !rawMat.materialId ||
+          !rawMat.quantityRequired ||
+          rawMat.quantityRequired < 0
+        ) {
+          const errorResponse: APIResponse = {
+            success: false,
+            error: "VALIDATION_ERROR",
+            message:
+              "Each raw material must have materialId and quantityRequired >= 0"
+          };
+          res.status(400).json(errorResponse);
+          return;
+        }
+
+        // Validate that raw material exists
+        const material = await RawMaterial.findById(rawMat.materialId);
+        if (!material) {
+          const errorResponse: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: `Raw material not found: ${rawMat.materialId}`
+          };
+          res.status(404).json(errorResponse);
+          return;
+        }
+
+        processedRawMaterials.push({
+          materialId: rawMat.materialId,
+          quantityRequired: rawMat.quantityRequired
+        });
+      }
+    }
+
+    // Process steps - MongoDB will auto-generate _id for each step
     const processedSteps = steps.map((step: any, index: number) => ({
-      stepId: step.stepId || `STEP_${index + 1}`,
       order: step.order || index + 1,
       name: step.name,
       description: step.description,
       estimatedDuration: step.estimatedDuration,
       deviceId: step.deviceId,
       qualityChecks: step.qualityChecks || [],
-      dependsOn: step.dependsOn || [],
-      media: step.media || []
+      dependsOn: step.dependsOn || [], // Array of step _ids (ObjectIds)
+      media: step.media || [] // MongoDB will auto-generate _id for each media
     }));
 
     const recipe = new Recipe({
@@ -185,6 +225,7 @@ export const createRecipe = async (
       version: version || 1,
       name,
       description,
+      rawMaterials: processedRawMaterials,
       steps: processedSteps,
       estimatedDuration: 0 // Will be calculated by pre-save hook
     });
@@ -217,7 +258,7 @@ export const updateRecipe = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, description, steps } = req.body;
+    const { name, description, rawMaterials, steps } = req.body;
 
     const recipe = await Recipe.findById(id);
 
@@ -234,6 +275,51 @@ export const updateRecipe = async (
     // Update fields
     if (name) recipe.name = name;
     if (description !== undefined) recipe.description = description;
+
+    // Update raw materials if provided
+    if (rawMaterials !== undefined) {
+      if (rawMaterials.length > 0) {
+        // Validate raw materials
+        const processedRawMaterials = [];
+        for (const rawMat of rawMaterials) {
+          if (
+            !rawMat.materialId ||
+            !rawMat.quantityRequired ||
+            rawMat.quantityRequired < 0
+          ) {
+            const errorResponse: APIResponse = {
+              success: false,
+              error: "VALIDATION_ERROR",
+              message:
+                "Each raw material must have materialId and quantityRequired >= 0"
+            };
+            res.status(400).json(errorResponse);
+            return;
+          }
+
+          // Validate that raw material exists
+          const material = await RawMaterial.findById(rawMat.materialId);
+          if (!material) {
+            const errorResponse: APIResponse = {
+              success: false,
+              error: "NOT_FOUND",
+              message: `Raw material not found: ${rawMat.materialId}`
+            };
+            res.status(404).json(errorResponse);
+            return;
+          }
+
+          processedRawMaterials.push({
+            materialId: rawMat.materialId,
+            quantityRequired: rawMat.quantityRequired
+          });
+        }
+        recipe.rawMaterials = processedRawMaterials;
+      } else {
+        recipe.rawMaterials = [];
+      }
+    }
+
     if (steps && steps.length > 0) {
       recipe.steps = steps;
     }
@@ -267,7 +353,7 @@ export const deleteRecipe = async (
   try {
     const { id } = req.params;
 
-    const recipe = await Recipe.findByIdAndDelete(id);
+    const recipe = await Recipe.findById(id);
 
     if (!recipe) {
       const errorResponse: APIResponse = {
@@ -278,6 +364,24 @@ export const deleteRecipe = async (
       res.status(404).json(errorResponse);
       return;
     }
+
+    // Check if recipe is used in any project
+    const projectsUsingRecipe = await Project.findOne({
+      "recipes.recipeId": id
+    });
+
+    if (projectsUsingRecipe) {
+      const errorResponse: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message:
+          "Cannot delete recipe. It is being used in one or more projects."
+      };
+      res.status(400).json(errorResponse);
+      return;
+    }
+
+    await Recipe.findByIdAndDelete(id);
 
     const response: APIResponse = {
       success: true,
@@ -386,15 +490,16 @@ export const getRecipeDependencyGraph = async (
 
     // Initialize
     recipe.steps.forEach((step) => {
-      graph[step.stepId] = step.dependsOn || [];
-      inDegree[step.stepId] = 0;
-      stepMap[step.stepId] = step;
+      const stepIdStr = step._id.toString();
+      graph[stepIdStr] = (step.dependsOn || []).map((id) => id.toString());
+      inDegree[stepIdStr] = 0;
+      stepMap[stepIdStr] = step;
     });
 
     // Calculate in-degrees
     recipe.steps.forEach((step) => {
       (step.dependsOn || []).forEach(() => {
-        inDegree[step.stepId]++;
+        inDegree[step._id.toString()]++;
       });
     });
 
@@ -413,7 +518,7 @@ export const getRecipeDependencyGraph = async (
       const stepId = queue.shift()!;
       const step = stepMap[stepId];
       topologicalOrder.push({
-        stepId: step.stepId,
+        stepId: step._id,
         name: step.name,
         order: step.order,
         dependsOn: step.dependsOn || [],
@@ -422,10 +527,12 @@ export const getRecipeDependencyGraph = async (
 
       // Find all steps that depend on this step
       recipe.steps.forEach((s) => {
-        if ((s.dependsOn || []).includes(stepId)) {
-          inDegree[s.stepId]--;
-          if (inDegree[s.stepId] === 0) {
-            queue.push(s.stepId);
+        const dependsOnStr = (s.dependsOn || []).map((id) => id.toString());
+        if (dependsOnStr.includes(stepId)) {
+          const sIdStr = s._id.toString();
+          inDegree[sIdStr]--;
+          if (inDegree[sIdStr] === 0) {
+            queue.push(sIdStr);
           }
         }
       });
