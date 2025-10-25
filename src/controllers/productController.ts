@@ -123,7 +123,7 @@ export const getProductRecipes = async (
 
     // Combine recipe data with quantity from product
     const recipesWithQuantity = product.recipes.map((pr) => {
-      const recipeData = recipes.find((r) => String(r._id) === pr.recipeId);
+      const recipeData = recipes.find((r) => r._id === pr.recipeId);
       return {
         recipe: recipeData,
         quantity: pr.quantity
