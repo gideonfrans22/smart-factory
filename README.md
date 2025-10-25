@@ -22,11 +22,13 @@ A Node.js backend API built with TypeScript and Express.js for the Smart Factory
 
 1. Clone the repository
 2. Install dependencies:
+
    ```bash
    npm install
    ```
 
 3. Copy the environment file:
+
    ```bash
    cp .env.example .env
    ```
@@ -56,16 +58,40 @@ The server will start on `http://localhost:3000`
 ```
 backend/
 ├── src/
-│   └── index.ts          # Main application file
-├── dist/                 # Compiled JavaScript files
-├── node_modules/         # Dependencies
-├── .env.example          # Environment variables template
-├── .gitignore           # Git ignore file
-├── nodemon.json         # Nodemon configuration
-├── package.json         # Project dependencies and scripts
-├── tsconfig.json        # TypeScript configuration
-└── README.md            # This file
+│   ├── index.ts              # Main application file
+│   ├── config/               # Database & MQTT configuration
+│   ├── controllers/          # Route controllers
+│   ├── middleware/           # Authentication & file upload
+│   ├── models/               # MongoDB schemas
+│   ├── routes/               # API routes
+│   ├── services/             # Business logic
+│   ├── types/                # TypeScript type definitions
+│   └── utils/                # Helper functions & seed data
+├── docs/
+│   ├── MONGODB_SCHEMA.md     # Complete database schema
+│   ├── RAW_MATERIAL_IMPLEMENTATION.md  # Raw material system
+│   ├── TASK_FLOW_ARCHITECTURE.md       # Task workflow
+│   ├── API_IMPLEMENTATION_COMPLETE.md  # Implementation status
+│   └── legacy/               # Outdated documentation (archived)
+├── uploads/                  # File uploads directory
+├── dist/                     # Compiled JavaScript files
+├── .env.example              # Environment variables template
+├── package.json              # Project dependencies and scripts
+└── tsconfig.json             # TypeScript configuration
 ```
+
+## Documentation
+
+📚 **Current Documentation** (in `docs/`):
+
+- **[MONGODB_SCHEMA.md](docs/MONGODB_SCHEMA.md)** - Complete database schema with all 14 collections
+- **[RAW_MATERIAL_IMPLEMENTATION.md](docs/RAW_MATERIAL_IMPLEMENTATION.md)** - Raw material management system
+- **[TASK_FLOW_ARCHITECTURE.md](docs/TASK_FLOW_ARCHITECTURE.md)** - Task workflow and recipe integration
+- **[PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)** - Project organization details
+- **[API_IMPLEMENTATION_COMPLETE.md](docs/API_IMPLEMENTATION_COMPLETE.md)** - API implementation status
+
+⚠️ **Legacy Documentation** (in `docs/legacy/`):
+Archived documentation from previous versions - contains outdated field names and structures. See `docs/legacy/README.md` for details.
 
 ## Development
 

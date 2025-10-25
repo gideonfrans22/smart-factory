@@ -1,5 +1,20 @@
 # Recipe Enhancements Testing Guide
 
+> **⚠️ OUTDATED DOCUMENTATION**  
+> This document contains outdated field names and structures:
+> - `productCode` field has been **removed** from Recipe model
+> - `stepId` is now **auto-generated** by MongoDB as `_id` (ObjectId)
+> - `mediaId` is now **auto-generated** by MongoDB as `_id` (ObjectId)
+> - Recipes now include `rawMaterials` array for material tracking
+> - Use `recipeNumber` (optional) instead of `productCode`
+> 
+> **For current API documentation, refer to:**
+> - `RAW_MATERIAL_IMPLEMENTATION.md` - Raw material integration
+> - `TASK_FLOW_ARCHITECTURE.md` - Current task flow
+> - `MONGODB_SCHEMA.md` - Up-to-date schema definitions
+
+---
+
 ## Test Suite: Step Dependencies
 
 ### Test 1: Create Recipe with Valid Dependencies ✅
