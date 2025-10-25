@@ -201,6 +201,18 @@ export const createTask = async (
       return;
     }
 
+    // Extract deviceTypeId from recipe step
+    const deviceTypeId = recipeStep.deviceTypeId;
+    if (!deviceTypeId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Recipe step does not have a deviceTypeId"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     // Create task
     const task = new Task({
       title,
@@ -209,6 +221,7 @@ export const createTask = async (
       recipeId,
       productId,
       recipeStepId,
+      deviceTypeId, // Automatically extracted from recipe step
       deviceId,
       workerId,
       status: status || "PENDING",
@@ -434,6 +447,18 @@ export const completeTask = async (
     let nextTask = null;
 
     if (nextStep) {
+      // Extract deviceTypeId from next step
+      const nextDeviceTypeId = nextStep.deviceTypeId;
+      if (!nextDeviceTypeId) {
+        const response: APIResponse = {
+          success: false,
+          error: "VALIDATION_ERROR",
+          message: "Next recipe step does not have a deviceTypeId"
+        };
+        res.status(400).json(response);
+        return;
+      }
+
       // Create next task
       nextTask = new Task({
         title: `${nextStep.name} - ${project.name}`,
@@ -442,7 +467,7 @@ export const completeTask = async (
         recipeId: task.recipeId,
         productId: task.productId,
         recipeStepId: nextStep._id,
-        deviceId: nextStep.deviceId,
+        deviceTypeId: nextDeviceTypeId, // Copied from next step
         status: "PENDING",
         priority: task.priority,
         estimatedDuration: nextStep.estimatedDuration,

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { Device } from "../models/Device";
+import { DeviceType } from "../models/DeviceType";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 export const getDevices = async (
@@ -92,22 +93,43 @@ export const registerDevice = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { name, type, location, status, ipAddress, macAddress, config } =
-      req.body;
+    const {
+      name,
+      type,
+      deviceTypeId,
+      location,
+      status,
+      ipAddress,
+      macAddress,
+      config
+    } = req.body;
 
-    if (!name || !type) {
+    if (!name || !type || !deviceTypeId) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Name and type are required"
+        message: "Name, type, and deviceTypeId are required"
       };
       res.status(400).json(response);
+      return;
+    }
+
+    // Validate deviceTypeId exists
+    const deviceType = await DeviceType.findById(deviceTypeId);
+    if (!deviceType) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: `Device type not found: ${deviceTypeId}`
+      };
+      res.status(404).json(response);
       return;
     }
 
     const device = new Device({
       name,
       type,
+      deviceTypeId,
       location,
       ipAddress,
       macAddress,
@@ -142,7 +164,8 @@ export const updateDevice = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, location, status, ipAddress, config } = req.body;
+    const { name, deviceTypeId, location, status, ipAddress, config } =
+      req.body;
 
     const device = await Device.findById(id);
 
@@ -154,6 +177,21 @@ export const updateDevice = async (
       };
       res.status(404).json(response);
       return;
+    }
+
+    // Validate deviceTypeId if provided
+    if (deviceTypeId) {
+      const deviceType = await DeviceType.findById(deviceTypeId);
+      if (!deviceType) {
+        const response: APIResponse = {
+          success: false,
+          error: "NOT_FOUND",
+          message: `Device type not found: ${deviceTypeId}`
+        };
+        res.status(404).json(response);
+        return;
+      }
+      device.deviceTypeId = deviceTypeId;
     }
 
     if (name) device.name = name;

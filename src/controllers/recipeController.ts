@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Recipe } from "../models";
 import { RawMaterial } from "../models/RawMaterial";
+import { DeviceType } from "../models/DeviceType";
 import { Project } from "../models/Project";
 import { APIResponse } from "../types";
 
@@ -208,17 +209,47 @@ export const createRecipe = async (
       }
     }
 
-    // Process steps - MongoDB will auto-generate _id for each step
-    const processedSteps = steps.map((step: any, index: number) => ({
-      order: step.order || index + 1,
-      name: step.name,
-      description: step.description,
-      estimatedDuration: step.estimatedDuration,
-      deviceId: step.deviceId,
-      qualityChecks: step.qualityChecks || [],
-      dependsOn: step.dependsOn || [], // Array of step _ids (ObjectIds)
-      media: step.media || [] // MongoDB will auto-generate _id for each media
-    }));
+    // Validate and process steps
+    const processedSteps = [];
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+
+      // Validate required fields
+      if (!step.name || !step.estimatedDuration || !step.deviceTypeId) {
+        const errorResponse: APIResponse = {
+          success: false,
+          error: "VALIDATION_ERROR",
+          message: `Step ${
+            i + 1
+          }: name, estimatedDuration, and deviceTypeId are required`
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      // Validate deviceTypeId exists
+      const deviceType = await DeviceType.findById(step.deviceTypeId);
+      if (!deviceType) {
+        const errorResponse: APIResponse = {
+          success: false,
+          error: "NOT_FOUND",
+          message: `Step ${i + 1}: Device type not found: ${step.deviceTypeId}`
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      processedSteps.push({
+        order: step.order || i + 1,
+        name: step.name,
+        description: step.description,
+        estimatedDuration: step.estimatedDuration,
+        deviceTypeId: step.deviceTypeId,
+        qualityChecks: step.qualityChecks || [],
+        dependsOn: step.dependsOn || [], // Array of step _ids (ObjectIds)
+        media: step.media || [] // MongoDB will auto-generate _id for each media
+      });
+    }
 
     const recipe = new Recipe({
       recipeNumber,
@@ -321,7 +352,42 @@ export const updateRecipe = async (
     }
 
     if (steps && steps.length > 0) {
-      recipe.steps = steps;
+      // Validate and process steps
+      const processedSteps = [];
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+
+        // Validate required fields
+        if (!step.name || !step.estimatedDuration || !step.deviceTypeId) {
+          const errorResponse: APIResponse = {
+            success: false,
+            error: "VALIDATION_ERROR",
+            message: `Step ${
+              i + 1
+            }: name, estimatedDuration, and deviceTypeId are required`
+          };
+          res.status(400).json(errorResponse);
+          return;
+        }
+
+        // Validate deviceTypeId exists
+        const deviceType = await DeviceType.findById(step.deviceTypeId);
+        if (!deviceType) {
+          const errorResponse: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: `Step ${i + 1}: Device type not found: ${
+              step.deviceTypeId
+            }`
+          };
+          res.status(404).json(errorResponse);
+          return;
+        }
+
+        processedSteps.push(step);
+      }
+
+      recipe.steps = processedSteps;
     }
 
     await recipe.save();
