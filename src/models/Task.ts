@@ -4,9 +4,11 @@ export interface ITask extends Document {
   title: string;
   description?: string;
   projectId: mongoose.Types.ObjectId;
-  recipeStepId: string;
+  recipeId: mongoose.Types.ObjectId; // Required: Which recipe in project
+  productId?: mongoose.Types.ObjectId; // Optional: Which product (if task is product-specific)
+  recipeStepId: mongoose.Types.ObjectId; // Required: Which step in the recipe (step's _id)
   deviceId?: string;
-  assignedTo?: mongoose.Types.ObjectId;
+  workerId?: mongoose.Types.ObjectId; // Optional at creation, required for ONGOING/COMPLETED
   status: "PENDING" | "ONGOING" | "PAUSED" | "COMPLETED" | "FAILED";
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   estimatedDuration?: number;
@@ -38,18 +40,30 @@ const TaskSchema: Schema = new Schema(
       ref: "Project",
       required: true
     },
+    recipeId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      comment: "Reference to recipe in project.recipes[] or product.recipes[]"
+    },
+    productId: {
+      type: Schema.Types.ObjectId,
+      comment:
+        "Reference to product in project.products[] (optional, only if task is product-specific)"
+    },
     recipeStepId: {
-      type: String,
-      comment: "Reference to a step within the project's recipe",
+      type: Schema.Types.ObjectId,
+      comment: "Reference to a step _id within the recipe snapshot",
       required: true
     },
     deviceId: {
       type: String,
       ref: "Device"
     },
-    assignedTo: {
+    workerId: {
       type: Schema.Types.ObjectId,
-      ref: "User"
+      ref: "User",
+      comment:
+        "Worker assigned to this task (required for ONGOING/COMPLETED status)"
     },
     status: {
       type: String,
@@ -107,11 +121,40 @@ const TaskSchema: Schema = new Schema(
 
 // Indexes
 TaskSchema.index({ projectId: 1 });
+TaskSchema.index({ recipeId: 1 });
+TaskSchema.index({ productId: 1 });
 TaskSchema.index({ recipeStepId: 1 });
 TaskSchema.index({ deviceId: 1 });
-TaskSchema.index({ assignedTo: 1 });
+TaskSchema.index({ workerId: 1 });
 TaskSchema.index({ status: 1 });
 TaskSchema.index({ priority: 1 });
 TaskSchema.index({ startedAt: 1, completedAt: 1 });
+
+// Pre-save validation hook
+TaskSchema.pre("save", function (next) {
+  const task = this as unknown as ITask;
+
+  // Require workerId for ONGOING and COMPLETED status
+  if (
+    (task.status === "ONGOING" || task.status === "COMPLETED") &&
+    !task.workerId
+  ) {
+    return next(
+      new Error(`workerId is required when task status is ${task.status}`)
+    );
+  }
+
+  // Set completedAt when status changes to COMPLETED
+  if (task.status === "COMPLETED" && !task.completedAt) {
+    task.completedAt = new Date();
+  }
+
+  // Set startedAt when status changes to ONGOING
+  if (task.status === "ONGOING" && !task.startedAt) {
+    task.startedAt = new Date();
+  }
+
+  next();
+});
 
 export const Task = mongoose.model<ITask>("Task", TaskSchema);
