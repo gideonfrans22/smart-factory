@@ -15,6 +15,14 @@ Complete documentation for the Smart Factory backend API system.
 
 ### Feature Documentation
 
+**[DEVICE_TYPE_IMPLEMENTATION.md](DEVICE_TYPE_IMPLEMENTATION.md)** - _NEW Feature_
+
+- Device type categorization system
+- Flexible device assignment for tasks
+- Worker can select from available devices
+- Complete API endpoints and workflows
+- Migration guide from old system
+
 **[RAW_MATERIAL_IMPLEMENTATION.md](RAW_MATERIAL_IMPLEMENTATION.md)**
 
 - Raw material inventory management system
