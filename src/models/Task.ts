@@ -7,7 +7,8 @@ export interface ITask extends Document {
   recipeId: mongoose.Types.ObjectId; // Required: Which recipe in project
   productId?: mongoose.Types.ObjectId; // Optional: Which product (if task is product-specific)
   recipeStepId: mongoose.Types.ObjectId; // Required: Which step in the recipe (step's _id)
-  deviceId?: string;
+  deviceTypeId: mongoose.Types.ObjectId; // Required: Type of device needed (from recipe step)
+  deviceId?: mongoose.Types.ObjectId; // Optional: Specific device assigned (required when ONGOING)
   workerId?: mongoose.Types.ObjectId; // Optional at creation, required for ONGOING/COMPLETED
   status: "PENDING" | "ONGOING" | "PAUSED" | "COMPLETED" | "FAILED";
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
@@ -55,9 +56,17 @@ const TaskSchema: Schema = new Schema(
       comment: "Reference to a step _id within the recipe snapshot",
       required: true
     },
+    deviceTypeId: {
+      type: Schema.Types.ObjectId,
+      ref: "DeviceType",
+      required: true,
+      comment: "Type of device required for this task (copied from recipe step)"
+    },
     deviceId: {
-      type: String,
-      ref: "Device"
+      type: Schema.Types.ObjectId,
+      ref: "Device",
+      comment:
+        "Specific device assigned to this task (required when status is ONGOING)"
     },
     workerId: {
       type: Schema.Types.ObjectId,
@@ -124,6 +133,7 @@ TaskSchema.index({ projectId: 1 });
 TaskSchema.index({ recipeId: 1 });
 TaskSchema.index({ productId: 1 });
 TaskSchema.index({ recipeStepId: 1 });
+TaskSchema.index({ deviceTypeId: 1 });
 TaskSchema.index({ deviceId: 1 });
 TaskSchema.index({ workerId: 1 });
 TaskSchema.index({ status: 1 });
@@ -131,7 +141,7 @@ TaskSchema.index({ priority: 1 });
 TaskSchema.index({ startedAt: 1, completedAt: 1 });
 
 // Pre-save validation hook
-TaskSchema.pre("save", function (next) {
+TaskSchema.pre("save", async function (next) {
   const task = this as unknown as ITask;
 
   // Require workerId for ONGOING and COMPLETED status
@@ -142,6 +152,34 @@ TaskSchema.pre("save", function (next) {
     return next(
       new Error(`workerId is required when task status is ${task.status}`)
     );
+  }
+
+  // Require deviceId for ONGOING and COMPLETED status
+  if (
+    (task.status === "ONGOING" || task.status === "COMPLETED") &&
+    !task.deviceId
+  ) {
+    return next(
+      new Error(`deviceId is required when task status is ${task.status}`)
+    );
+  }
+
+  // Validate that the assigned device matches the required device type
+  if (task.deviceId && task.deviceTypeId) {
+    const Device = mongoose.model("Device");
+    const device = await Device.findById(task.deviceId);
+
+    if (!device) {
+      return next(new Error(`Device with id ${task.deviceId} not found`));
+    }
+
+    if (device.deviceTypeId.toString() !== task.deviceTypeId.toString()) {
+      return next(
+        new Error(
+          `Device type mismatch: Task requires device type ${task.deviceTypeId}, but device ${task.deviceId} is of type ${device.deviceTypeId}`
+        )
+      );
+    }
   }
 
   // Set completedAt when status changes to COMPLETED

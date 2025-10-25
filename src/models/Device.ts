@@ -4,6 +4,7 @@ export interface IDevice extends Document {
   _id: string; // auto-generated ID
   name: string;
   type: string;
+  deviceTypeId: mongoose.Types.ObjectId; // Reference to DeviceType
   location?: string;
   status: "ONLINE" | "OFFLINE" | "MAINTENANCE" | "ERROR";
   ipAddress?: string;
@@ -26,6 +27,12 @@ const DeviceSchema: Schema = new Schema(
       required: true,
       trim: true,
       maxlength: 50
+    },
+    deviceTypeId: {
+      type: Schema.Types.ObjectId,
+      ref: "DeviceType",
+      required: true,
+      comment: "Reference to the device type category"
     },
     location: {
       type: String,
@@ -58,6 +65,7 @@ const DeviceSchema: Schema = new Schema(
 // Indexes
 DeviceSchema.index({ status: 1 });
 DeviceSchema.index({ type: 1 });
+DeviceSchema.index({ deviceTypeId: 1 });
 DeviceSchema.index({ location: 1 });
 DeviceSchema.index({ lastHeartbeat: 1 });
 

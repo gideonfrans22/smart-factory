@@ -16,7 +16,7 @@ export interface IRecipeStep extends Document<mongoose.Types.ObjectId> {
   name: string;
   description: string;
   estimatedDuration: number;
-  deviceId: string; // Reference to Device._id where this step is processed
+  deviceTypeId: mongoose.Types.ObjectId; // Reference to DeviceType (not specific device)
   qualityChecks: string[];
   dependsOn: mongoose.Types.ObjectId[]; // Array of step _ids that must be completed first
   media: IRecipeStepMedia[]; // Attached instructions, diagrams, videos
@@ -111,11 +111,11 @@ const RecipeStepSchema: Schema = new Schema(
       min: 0,
       comment: "Duration in minutes"
     },
-    deviceId: {
-      type: String,
+    deviceTypeId: {
+      type: Schema.Types.ObjectId,
+      ref: "DeviceType",
       required: true,
-      ref: "Device",
-      comment: "Device where this step is processed"
+      comment: "Type of device required for this step (not specific device)"
     },
     qualityChecks: {
       type: [String],

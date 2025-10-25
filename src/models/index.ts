@@ -12,6 +12,7 @@ export { TaskMedia, ITaskMedia } from "./TaskMedia";
 
 // Devices
 export { Device, IDevice } from "./Device";
+export { DeviceType, IDeviceType } from "./DeviceType";
 
 // Alerts and Emergency
 export { Alert, IAlert } from "./Alert";
