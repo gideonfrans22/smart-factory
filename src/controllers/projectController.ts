@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Project } from "../models/Project";
 import { Recipe } from "../models/Recipe";
+import { Product } from "../models/Product";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 /**
@@ -27,10 +28,9 @@ export const getProjects = async (
     // Get total count
     const total = await Project.countDocuments(query);
 
-    // Get projects
+    // Get projects (snapshots contain all data, no need to populate products/recipes)
     const projects = await Project.find(query)
       .populate("createdBy", "name email username")
-      .populate("recipeId")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -74,9 +74,10 @@ export const getProjectById = async (
   try {
     const { id } = req.params;
 
-    const project = await Project.findById(id)
-      .populate("createdBy", "name email username")
-      .populate("recipeId");
+    const project = await Project.findById(id).populate(
+      "createdBy",
+      "name email username"
+    );
 
     if (!project) {
       const response: APIResponse = {
@@ -107,8 +108,13 @@ export const getProjectById = async (
 };
 
 /**
- * Create new project
+ * Create new project with product and recipe snapshots
  * POST /api/projects
+ * Body: {
+ *   name, description, status, priority, startDate, endDate, deadline,
+ *   products: [{ productId, targetQuantity }],
+ *   recipes: [{ recipeId, targetQuantity }]
+ * }
  */
 export const createProject = async (
   req: AuthenticatedRequest,
@@ -118,14 +124,13 @@ export const createProject = async (
     const {
       name,
       description,
-      recipeId,
+      products,
+      recipes,
       status,
       priority,
       startDate,
       endDate,
-      deadline,
-      assignedDevices,
-      progress
+      deadline
     } = req.body;
 
     // Validation
@@ -134,16 +139,6 @@ export const createProject = async (
         success: false,
         error: "VALIDATION_ERROR",
         message: "Project name is required"
-      };
-      res.status(400).json(response);
-      return;
-    }
-
-    if (!recipeId) {
-      const response: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Recipe ID is required"
       };
       res.status(400).json(response);
       return;
@@ -159,38 +154,151 @@ export const createProject = async (
       return;
     }
 
-    // Validate recipe exists
-    const recipe = await Recipe.findById(recipeId);
-    if (!recipe) {
+    // Validate at least one product or recipe
+    if (
+      (!products || products.length === 0) &&
+      (!recipes || recipes.length === 0)
+    ) {
       const response: APIResponse = {
         success: false,
-        error: "NOT_FOUND",
-        message: "Recipe not found"
+        error: "VALIDATION_ERROR",
+        message: "Project must have at least one product or one recipe"
       };
-      res.status(404).json(response);
+      res.status(400).json(response);
       return;
     }
 
-    // Create project
+    // Process products with snapshots
+    const processedProducts = [];
+    if (products && products.length > 0) {
+      for (const item of products) {
+        if (
+          !item.productId ||
+          !item.targetQuantity ||
+          item.targetQuantity < 1
+        ) {
+          const response: APIResponse = {
+            success: false,
+            error: "VALIDATION_ERROR",
+            message: "Each product must have productId and targetQuantity >= 1"
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        // Validate product exists and fetch for snapshot
+        const product = await Product.findById(item.productId);
+        if (!product) {
+          const response: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: `Product not found: ${item.productId}`
+          };
+          res.status(404).json(response);
+          return;
+        }
+
+        // Create snapshot
+        processedProducts.push({
+          productId: product._id,
+          snapshot: {
+            designNumber: product.designNumber,
+            productName: product.productName,
+            customerName: product.customerName,
+            quantityUnit: product.quantityUnit,
+            recipes: product.recipes
+          },
+          targetQuantity: item.targetQuantity,
+          producedQuantity: 0
+        });
+      }
+    }
+
+    // Process recipes with snapshots
+    const processedRecipes = [];
+    if (recipes && recipes.length > 0) {
+      for (const item of recipes) {
+        if (!item.recipeId || !item.targetQuantity || item.targetQuantity < 1) {
+          const response: APIResponse = {
+            success: false,
+            error: "VALIDATION_ERROR",
+            message: "Each recipe must have recipeId and targetQuantity >= 1"
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        // Validate recipe exists and fetch for snapshot
+        const recipe = await Recipe.findById(item.recipeId).populate(
+          "rawMaterials.materialId"
+        );
+        if (!recipe) {
+          const response: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: `Recipe not found: ${item.recipeId}`
+          };
+          res.status(404).json(response);
+          return;
+        }
+
+        // Process raw materials with snapshots
+        const rawMaterialsWithSnapshots = [];
+        if (recipe.rawMaterials && recipe.rawMaterials.length > 0) {
+          for (const rawMat of recipe.rawMaterials) {
+            const material = rawMat.materialId as any;
+            if (material) {
+              rawMaterialsWithSnapshots.push({
+                materialId: material._id,
+                snapshot: {
+                  materialCode: material.materialCode,
+                  name: material.name,
+                  materialType: material.materialType,
+                  specifications: material.specifications,
+                  supplier: material.supplier,
+                  unit: material.unit
+                },
+                quantityRequired: rawMat.quantityRequired
+              });
+            }
+          }
+        }
+
+        // Create snapshot
+        processedRecipes.push({
+          recipeId: recipe._id,
+          snapshot: {
+            recipeNumber: recipe.recipeNumber,
+            version: recipe.version,
+            name: recipe.name,
+            description: recipe.description,
+            rawMaterials: rawMaterialsWithSnapshots,
+            steps: recipe.steps,
+            estimatedDuration: recipe.estimatedDuration
+          },
+          targetQuantity: item.targetQuantity,
+          producedQuantity: 0
+        });
+      }
+    }
+
+    // Create project with snapshots
     const project = new Project({
       name,
       description,
-      recipeId,
+      products: processedProducts,
+      recipes: processedRecipes,
       status: status || "PLANNING",
       priority: priority || "MEDIUM",
       startDate,
       endDate,
       deadline,
-      assignedDevices: assignedDevices || [],
-      progress: progress || 0,
+      progress: 0, // Will be calculated by pre-save hook
       createdBy: req.user!._id
     });
 
     await project.save();
-    await project.populate([
-      { path: "createdBy", select: "name email username" },
-      { path: "recipeId" }
-    ]);
+    await project.populate("createdBy", "name email username");
 
     const response: APIResponse = {
       success: true,
@@ -199,12 +307,12 @@ export const createProject = async (
     };
 
     res.status(201).json(response);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Create project error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",
-      message: "Internal server error"
+      message: error.message || "Internal server error"
     };
     res.status(500).json(response);
   }
@@ -213,6 +321,8 @@ export const createProject = async (
 /**
  * Update project
  * PUT /api/projects/:id
+ * Note: Products/recipes snapshots cannot be changed once created (immutable)
+ * Only quantities can be updated
  */
 export const updateProject = async (
   req: AuthenticatedRequest,
@@ -227,7 +337,9 @@ export const updateProject = async (
       priority,
       startDate,
       endDate,
-      progress
+      deadline,
+      products,
+      recipes
     } = req.body;
 
     const project = await Project.findById(id);
@@ -242,16 +354,71 @@ export const updateProject = async (
       return;
     }
 
-    // Update fields
+    // Update basic fields
     if (name !== undefined) project.name = name;
     if (description !== undefined) project.description = description;
     if (status !== undefined) project.status = status;
     if (priority !== undefined) project.priority = priority;
     if (startDate !== undefined) project.startDate = new Date(startDate);
     if (endDate !== undefined) project.endDate = new Date(endDate);
-    if (progress !== undefined) project.progress = progress;
+    if (deadline !== undefined)
+      project.deadline = deadline ? new Date(deadline) : undefined;
 
-    await project.save();
+    // Update product quantities (snapshots remain immutable)
+    if (products && Array.isArray(products)) {
+      for (const updatedProduct of products) {
+        const existingProduct = project.products.find(
+          (p) => p.productId.toString() === updatedProduct.productId
+        );
+
+        if (existingProduct) {
+          if (updatedProduct.targetQuantity !== undefined) {
+            if (updatedProduct.targetQuantity < 1) {
+              const response: APIResponse = {
+                success: false,
+                error: "VALIDATION_ERROR",
+                message: "Target quantity must be at least 1"
+              };
+              res.status(400).json(response);
+              return;
+            }
+            existingProduct.targetQuantity = updatedProduct.targetQuantity;
+          }
+          if (updatedProduct.producedQuantity !== undefined) {
+            existingProduct.producedQuantity = updatedProduct.producedQuantity;
+          }
+        }
+      }
+    }
+
+    // Update recipe quantities (snapshots remain immutable)
+    if (recipes && Array.isArray(recipes)) {
+      for (const updatedRecipe of recipes) {
+        const existingRecipe = project.recipes.find(
+          (r) => r.recipeId.toString() === updatedRecipe.recipeId
+        );
+
+        if (existingRecipe) {
+          if (updatedRecipe.targetQuantity !== undefined) {
+            if (updatedRecipe.targetQuantity < 1) {
+              const response: APIResponse = {
+                success: false,
+                error: "VALIDATION_ERROR",
+                message: "Target quantity must be at least 1"
+              };
+              res.status(400).json(response);
+              return;
+            }
+            existingRecipe.targetQuantity = updatedRecipe.targetQuantity;
+          }
+          if (updatedRecipe.producedQuantity !== undefined) {
+            existingRecipe.producedQuantity = updatedRecipe.producedQuantity;
+          }
+        }
+      }
+    }
+
+    await project.save(); // Progress will be recalculated by pre-save hook
     await project.populate("createdBy", "name email username");
 
     const response: APIResponse = {
@@ -261,12 +428,12 @@ export const updateProject = async (
     };
 
     res.json(response);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Update project error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",
-      message: "Internal server error"
+      message: error.message || "Internal server error"
     };
     res.status(500).json(response);
   }
