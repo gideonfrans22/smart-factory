@@ -14,6 +14,7 @@ import authRoutes from "./routes/auth";
 import userRoutes from "./routes/users";
 import recipeRoutes from "./routes/recipes";
 import recipeMediaRoutes from "./routes/recipeMedia";
+import rawMaterialRoutes from "./routes/rawMaterials";
 import productRoutes from "./routes/products";
 import projectRoutes from "./routes/projects";
 import taskRoutes from "./routes/tasks";
@@ -60,6 +61,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/recipes", recipeRoutes);
 app.use("/api/recipes", recipeMediaRoutes); // Recipe step media endpoints
+app.use("/api/raw-materials", rawMaterialRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/tasks", taskRoutes);

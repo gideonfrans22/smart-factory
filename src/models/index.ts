@@ -4,6 +4,7 @@ export { Session, ISession } from "./Session";
 
 // Projects and Tasks
 export { Recipe, IRecipe, IRecipeStep } from "./Recipe";
+export { RawMaterial, IRawMaterial } from "./RawMaterial";
 export { Product, IProduct, IProductRecipe } from "./Product";
 export { Project, IProject } from "./Project";
 export { Task, ITask } from "./Task";
