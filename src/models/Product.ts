@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IProductRecipe {
-  recipeId: string;
+  recipeId: mongoose.Types.ObjectId; // Reference to Recipe._id
   quantity: number;
 }
 
@@ -19,7 +19,7 @@ export interface IProduct extends Document {
 const ProductRecipeSchema = new Schema(
   {
     recipeId: {
-      type: String,
+      type: Schema.Types.ObjectId,
       required: true,
       ref: "Recipe"
     },
