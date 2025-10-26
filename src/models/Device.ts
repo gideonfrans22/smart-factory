@@ -3,7 +3,6 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IDevice extends Document {
   _id: string; // auto-generated ID
   name: string;
-  type: string;
   deviceTypeId: mongoose.Types.ObjectId; // Reference to DeviceType
   location?: string;
   status: "ONLINE" | "OFFLINE" | "MAINTENANCE" | "ERROR";
@@ -21,12 +20,6 @@ const DeviceSchema: Schema = new Schema(
       required: true,
       trim: true,
       maxlength: 100
-    },
-    type: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 50
     },
     deviceTypeId: {
       type: Schema.Types.ObjectId,
@@ -58,16 +51,25 @@ const DeviceSchema: Schema = new Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
 
 // Indexes
 DeviceSchema.index({ status: 1 });
-DeviceSchema.index({ type: 1 });
 DeviceSchema.index({ deviceTypeId: 1 });
 DeviceSchema.index({ location: 1 });
 DeviceSchema.index({ lastHeartbeat: 1 });
+
+// Create virtual populate for deviceType details
+DeviceSchema.virtual("deviceType", {
+  ref: "DeviceType",
+  localField: "deviceTypeId",
+  foreignField: "_id",
+  justOne: true
+});
 
 // Pre-remove hook to check for dependent recipe steps
 DeviceSchema.pre("findOneAndDelete", async function (next) {

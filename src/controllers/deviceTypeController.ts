@@ -1,105 +1,148 @@
 import { Request, Response } from "express";
 import { DeviceType } from "../models";
+import { Device } from "../models/Device";
+import { APIResponse } from "../types";
 import mongoose from "mongoose";
 
 /**
  * Get all device types
  */
-export const getAllDeviceTypes = async (_: Request, res: Response) => {
+export const getAllDeviceTypes = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
   try {
-    const deviceTypes = await DeviceType.find().sort({ name: 1 });
+    const deviceTypes = await DeviceType.find()
+      .populate("devices")
+      .sort({ name: 1 });
 
-    res.status(200).json({
+    const response: APIResponse = {
       success: true,
-      count: deviceTypes.length,
-      data: deviceTypes
-    });
-  } catch (error: any) {
-    res.status(500).json({
+      message: "Device types retrieved successfully",
+      data: {
+        count: deviceTypes.length,
+        items: deviceTypes
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get device types error:", error);
+    const response: APIResponse = {
       success: false,
-      message: "Error fetching device types",
-      error: error.message
-    });
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
   }
 };
 
 /**
  * Get a single device type by ID
  */
-export const getDeviceTypeById = async (req: Request, res: Response) => {
+export const getDeviceTypeById = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
+      const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Invalid device type ID"
-      });
+      };
+      res.status(400).json(response);
+      return;
     }
 
-    const deviceType = await DeviceType.findById(id);
+    const deviceType = await DeviceType.findById(id).populate("devices");
 
     if (!deviceType) {
-      return res.status(404).json({
+      const response: APIResponse = {
         success: false,
+        error: "NOT_FOUND",
         message: "Device type not found"
-      });
+      };
+      res.status(404).json(response);
+      return;
     }
 
-    return res.status(200).json({
+    const response: APIResponse = {
       success: true,
+      message: "Device type retrieved successfully",
       data: deviceType
-    });
-  } catch (error: any) {
-    return res.status(500).json({
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get device type error:", error);
+    const response: APIResponse = {
       success: false,
-      message: "Error fetching device type",
-      error: error.message
-    });
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
   }
 };
 
 /**
  * Get all devices of a specific device type
  */
-export const getDevicesByType = async (req: Request, res: Response) => {
+export const getDevicesByType = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
+      const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Invalid device type ID"
-      });
+      };
+      res.status(400).json(response);
+      return;
     }
 
     const deviceType = await DeviceType.findById(id);
 
     if (!deviceType) {
-      return res.status(404).json({
+      const response: APIResponse = {
         success: false,
+        error: "NOT_FOUND",
         message: "Device type not found"
-      });
+      };
+      res.status(404).json(response);
+      return;
     }
 
-    const Device = mongoose.model("Device");
     const devices = await Device.find({ deviceTypeId: id }).sort({ name: 1 });
 
-    return res.status(200).json({
+    const response: APIResponse = {
       success: true,
-      deviceType: {
-        _id: deviceType._id,
-        name: deviceType.name
-      },
-      count: devices.length,
-      data: devices
-    });
-  } catch (error: any) {
-    return res.status(500).json({
+      message: "Devices retrieved successfully",
+      data: {
+        deviceType: {
+          _id: deviceType._id,
+          name: deviceType.name
+        },
+        count: devices.length,
+        items: devices
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get devices by type error:", error);
+    const response: APIResponse = {
       success: false,
-      message: "Error fetching devices by type",
-      error: error.message
-    });
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
   }
 };
 
@@ -109,63 +152,81 @@ export const getDevicesByType = async (req: Request, res: Response) => {
 export const getAvailableDevicesByType = async (
   req: Request,
   res: Response
-) => {
+): Promise<void> => {
   try {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
+      const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Invalid device type ID"
-      });
+      };
+      res.status(400).json(response);
+      return;
     }
 
     const deviceType = await DeviceType.findById(id);
 
     if (!deviceType) {
-      return res.status(404).json({
+      const response: APIResponse = {
         success: false,
+        error: "NOT_FOUND",
         message: "Device type not found"
-      });
+      };
+      res.status(404).json(response);
+      return;
     }
 
-    const Device = mongoose.model("Device");
     const availableDevices = await Device.find({
       deviceTypeId: id,
       status: "ONLINE"
     }).sort({ name: 1 });
 
-    return res.status(200).json({
+    const response: APIResponse = {
       success: true,
-      deviceType: {
-        _id: deviceType._id,
-        name: deviceType.name
-      },
-      count: availableDevices.length,
-      data: availableDevices
-    });
-  } catch (error: any) {
-    return res.status(500).json({
+      message: "Available devices retrieved successfully",
+      data: {
+        deviceType: {
+          _id: deviceType._id,
+          name: deviceType.name
+        },
+        count: availableDevices.length,
+        items: availableDevices
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get available devices error:", error);
+    const response: APIResponse = {
       success: false,
-      message: "Error fetching available devices",
-      error: error.message
-    });
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
   }
 };
 
 /**
  * Create a new device type
  */
-export const createDeviceType = async (req: Request, res: Response) => {
+export const createDeviceType = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const { name, description, specifications } = req.body;
 
     // Validate required fields
     if (!name) {
-      return res.status(400).json({
+      const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Name is required"
-      });
+      };
+      res.status(400).json(response);
+      return;
     }
 
     // Check if device type with same name already exists
@@ -174,10 +235,13 @@ export const createDeviceType = async (req: Request, res: Response) => {
     });
 
     if (existingDeviceType) {
-      return res.status(400).json({
+      const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: `Device type with name "${name}" already exists`
-      });
+      };
+      res.status(400).json(response);
+      return;
     }
 
     const deviceType = await DeviceType.create({
@@ -186,49 +250,66 @@ export const createDeviceType = async (req: Request, res: Response) => {
       specifications
     });
 
-    return res.status(201).json({
+    const response: APIResponse = {
       success: true,
       message: "Device type created successfully",
       data: deviceType
-    });
+    };
+
+    res.status(201).json(response);
   } catch (error: any) {
+    console.error("Create device type error:", error);
+
     if (error.code === 11000) {
-      return res.status(400).json({
+      const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Device type with this name already exists"
-      });
+      };
+      res.status(400).json(response);
+      return;
     }
 
-    return res.status(500).json({
+    const response: APIResponse = {
       success: false,
-      message: "Error creating device type",
-      error: error.message
-    });
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
   }
 };
 
 /**
  * Update a device type
  */
-export const updateDeviceType = async (req: Request, res: Response) => {
+export const updateDeviceType = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const { id } = req.params;
     const { name, description, specifications } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
+      const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Invalid device type ID"
-      });
+      };
+      res.status(400).json(response);
+      return;
     }
 
     const deviceType = await DeviceType.findById(id);
 
     if (!deviceType) {
-      return res.status(404).json({
+      const response: APIResponse = {
         success: false,
+        error: "NOT_FOUND",
         message: "Device type not found"
-      });
+      };
+      res.status(404).json(response);
+      return;
     }
 
     // Check if new name conflicts with existing device type
@@ -239,10 +320,13 @@ export const updateDeviceType = async (req: Request, res: Response) => {
       });
 
       if (existingDeviceType) {
-        return res.status(400).json({
+        const response: APIResponse = {
           success: false,
+          error: "VALIDATION_ERROR",
           message: `Device type with name "${name}" already exists`
-        });
+        };
+        res.status(400).json(response);
+        return;
       }
     }
 
@@ -254,59 +338,93 @@ export const updateDeviceType = async (req: Request, res: Response) => {
 
     await deviceType.save();
 
-    return res.status(200).json({
+    const response: APIResponse = {
       success: true,
       message: "Device type updated successfully",
       data: deviceType
-    });
+    };
+
+    res.json(response);
   } catch (error: any) {
+    console.error("Update device type error:", error);
+
     if (error.code === 11000) {
-      return res.status(400).json({
+      const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Device type with this name already exists"
-      });
+      };
+      res.status(400).json(response);
+      return;
     }
 
-    return res.status(500).json({
+    const response: APIResponse = {
       success: false,
-      message: "Error updating device type",
-      error: error.message
-    });
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
   }
 };
 
 /**
  * Delete a device type
  */
-export const deleteDeviceType = async (req: Request, res: Response) => {
+export const deleteDeviceType = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
+      const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Invalid device type ID"
-      });
+      };
+      res.status(400).json(response);
+      return;
     }
 
     const deviceType = await DeviceType.findByIdAndDelete(id);
 
     if (!deviceType) {
-      return res.status(404).json({
+      const response: APIResponse = {
         success: false,
+        error: "NOT_FOUND",
         message: "Device type not found"
-      });
+      };
+      res.status(404).json(response);
+      return;
     }
 
-    return res.status(200).json({
+    const response: APIResponse = {
       success: true,
       message: "Device type deleted successfully",
       data: deviceType
-    });
+    };
+
+    res.json(response);
   } catch (error: any) {
-    return res.status(400).json({
+    console.error("Delete device type error:", error);
+
+    // Check if error is due to dependencies (cascade prevention)
+    if (error.message && error.message.includes("Cannot delete device type")) {
+      const response: APIResponse = {
+        success: false,
+        error: "CONFLICT",
+        message: error.message
+      };
+      res.status(409).json(response);
+      return;
+    }
+
+    const response: APIResponse = {
       success: false,
-      message: error.message || "Error deleting device type"
-    });
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
   }
 };

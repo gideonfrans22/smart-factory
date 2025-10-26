@@ -19,6 +19,7 @@ export const getDevices = async (
 
     const total = await Device.countDocuments(query);
     const devices = await Device.find(query)
+      .populate("deviceType", "name description")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -58,7 +59,10 @@ export const getDeviceById = async (
   try {
     const { id } = req.params;
 
-    const device = await Device.findById(id);
+    const device = await Device.findById(id).populate(
+      "deviceType",
+      "name description"
+    );
 
     if (!device) {
       const response: APIResponse = {
@@ -95,7 +99,6 @@ export const registerDevice = async (
   try {
     const {
       name,
-      type,
       deviceTypeId,
       location,
       status,
@@ -104,11 +107,11 @@ export const registerDevice = async (
       config
     } = req.body;
 
-    if (!name || !type || !deviceTypeId) {
+    if (!name || !deviceTypeId) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Name, type, and deviceTypeId are required"
+        message: "Name, and deviceTypeId are required"
       };
       res.status(400).json(response);
       return;
@@ -128,7 +131,6 @@ export const registerDevice = async (
 
     const device = new Device({
       name,
-      type,
       deviceTypeId,
       location,
       ipAddress,
@@ -143,7 +145,7 @@ export const registerDevice = async (
     const response: APIResponse = {
       success: true,
       message: "Device registered successfully",
-      data: device
+      data: await device.populate("deviceType", "name description")
     };
 
     res.status(201).json(response);
@@ -210,7 +212,7 @@ export const updateDevice = async (
     const response: APIResponse = {
       success: true,
       message: "Device updated successfully",
-      data: device
+      data: await device.populate("deviceType", "name description")
     };
 
     res.json(response);

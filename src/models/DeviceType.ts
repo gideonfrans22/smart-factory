@@ -40,12 +40,21 @@ const DeviceTypeSchema: Schema = new Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
 
 // Indexes
 DeviceTypeSchema.index({ name: 1 });
+
+// Create virtual populate for devices of this type
+DeviceTypeSchema.virtual("devices", {
+  ref: "Device",
+  localField: "_id",
+  foreignField: "deviceTypeId"
+});
 
 // Pre-remove hook to check for dependent devices, recipe steps, and tasks
 DeviceTypeSchema.pre("findOneAndDelete", async function (next) {
