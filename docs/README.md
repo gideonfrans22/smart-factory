@@ -4,6 +4,18 @@ Complete documentation for the Smart Factory backend API system.
 
 ## 📚 Core Documentation
 
+### API Reference
+
+**[COMPLETE_API_REFERENCE.md](COMPLETE_API_REFERENCE.md)** - ⭐ **Comprehensive API Guide**
+
+- **ALL 14 endpoint groups** documented with examples
+- Prompt-friendly format for AI assistants
+- Complete request/response examples
+- Authentication requirements
+- Validation rules and error handling
+- Workflow examples and testing guidance
+- DeviceType, Recipes, RawMaterials, Products, Media uploads, and more
+
 ### Database & Schema
 
 **[MONGODB_SCHEMA.md](MONGODB_SCHEMA.md)** - _Most Important Reference_
