@@ -106,9 +106,15 @@ const RawMaterialSchema: Schema = new Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+RawMaterialSchema.virtual("id").get(function (this: IRawMaterial) {
+  return this._id;
+});
 
 // Indexes
 RawMaterialSchema.index({ materialCode: 1 }, { unique: true });
