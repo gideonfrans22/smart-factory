@@ -130,7 +130,8 @@ export const createProject = async (
       priority,
       startDate,
       endDate,
-      deadline
+      deadline,
+      createdBy
     } = req.body;
 
     // Validation
@@ -139,6 +140,17 @@ export const createProject = async (
         success: false,
         error: "VALIDATION_ERROR",
         message: "Project name is required"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Validate createdBy
+    if (!createdBy) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "CreatedBy is required"
       };
       res.status(400).json(response);
       return;
@@ -283,7 +295,7 @@ export const createProject = async (
       endDate,
       deadline,
       progress: 0, // Will be calculated by pre-save hook
-      createdBy: req.user!._id
+      createdBy: createdBy
     });
 
     await project.save();
