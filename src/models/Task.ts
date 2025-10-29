@@ -20,6 +20,7 @@ export interface ITask extends Document {
   progress: number;
   notes?: string;
   qualityData?: any;
+  mediaFiles: mongoose.Types.ObjectId[]; // References to Media documents
   createdAt: Date;
   updatedAt: Date;
 }
@@ -121,6 +122,10 @@ const TaskSchema: Schema = new Schema(
     qualityData: {
       type: Schema.Types.Mixed,
       comment: "Quality control data for this task"
+    },
+    mediaFiles: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Media" }],
+      default: []
     }
   },
   {

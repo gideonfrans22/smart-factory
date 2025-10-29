@@ -1,16 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export interface IRecipeStepMedia extends Document<mongoose.Types.ObjectId> {
-  filename: string;
-  originalName: string;
-  mimeType: string;
-  fileSize: number;
-  filePath: string;
-  mediaType: "INSTRUCTION" | "DIAGRAM" | "VIDEO" | "QUALITY_CHECK";
-  description?: string;
-  uploadedAt: Date;
-}
-
 export interface IRecipeStep extends Document<mongoose.Types.ObjectId> {
   order: number;
   name: string;
@@ -19,7 +8,7 @@ export interface IRecipeStep extends Document<mongoose.Types.ObjectId> {
   deviceTypeId: mongoose.Types.ObjectId; // Reference to DeviceType (not specific device)
   qualityChecks: string[];
   dependsOn: mongoose.Types.ObjectId[]; // Array of step _ids that must be completed first
-  media: IRecipeStepMedia[]; // Attached instructions, diagrams, videos
+  mediaIds: mongoose.Types.ObjectId[]; // References to Media documents
 }
 
 export interface IRawMaterialReference {
@@ -39,53 +28,17 @@ export interface IRecipe extends Document {
   updatedAt: Date;
 }
 
-const RecipeStepMediaSchema: Schema = new Schema(
-  {
-    filename: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    originalName: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    mimeType: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    fileSize: {
-      type: Number,
-      required: true,
-      min: 0
-    },
-    filePath: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    mediaType: {
-      type: String,
-      required: true,
-      enum: ["INSTRUCTION", "DIAGRAM", "VIDEO", "QUALITY_CHECK"],
-      default: "INSTRUCTION"
-    },
-    description: {
-      type: String,
-      trim: true
-    },
-    uploadedAt: {
-      type: Date,
-      default: Date.now
-    }
-  },
-  {
-    timestamps: true,
-    _id: true // Ensure MongoDB generates _id for each media subdocument
-  }
-);
+export interface IRecipe extends Document {
+  recipeNumber?: string;
+  version: number;
+  name: string;
+  description?: string;
+  rawMaterials: IRawMaterialReference[]; // Array of raw materials required
+  steps: IRecipeStep[];
+  estimatedDuration: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 const RecipeStepSchema: Schema = new Schema(
   {
@@ -126,11 +79,10 @@ const RecipeStepSchema: Schema = new Schema(
       default: [],
       comment: "Array of step _ids that must be completed before this step"
     },
-    media: {
-      type: [RecipeStepMediaSchema],
+    mediaIds: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Media" }],
       default: [],
-      comment:
-        "Attached instructions, diagrams, videos, and quality check documents"
+      comment: "References to Media documents"
     }
   },
   {
