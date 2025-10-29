@@ -96,6 +96,13 @@ jobs:
             $ENV_CONTENT
             EOF
 
+            # Load nvm and use correct node version
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+            # Ensure we're using the correct Node.js version
+            nvm use 18 || nvm use default
+
             npm i
             npm run build
             pm2 reload PM2_BE --update-env
