@@ -44,28 +44,67 @@ jobs:
             echo "❌ ERROR: ENV secret is not set"
             exit 1
           fi
+          if [ -z "${{ secrets.GIT_SSH_KEY }}" ]; then
+            echo "❌ ERROR: GIT_SSH_KEY secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.GIT_SSH_PASSPHRASE }}" ]; then
+            echo "❌ ERROR: GIT_SSH_PASSPHRASE secret is not set"
+            exit 1
+          fi
           echo "✅ All required secrets are set"
 
       - name: Deploy to server via SSH
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_ADDRESS }}
-          SERVER_USER: ${{ secrets.USER }}
-          SSH_KEY: ${{ secrets.PRIVATE_KEY }}
-          ENV_FILE: ${{ secrets.ENV }}
         with:
           host: ${{ secrets.SERVER_ADDRESS }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.PRIVATE_KEY }}
           port: 22
+          envs: GIT_SSH_KEY,GIT_SSH_PASSPHRASE,ENV_CONTENT
           script: |
             set -e
-            cd ~/PM_BE
-            git pull origin main
-            cat > .env << 'EOF'
-            ${{ secrets.ENV }}
+
+            # Setup SSH agent with the git SSH key
+            eval $(ssh-agent -s)
+
+            # Create temporary file for SSH key
+            SSH_KEY_FILE=$(mktemp)
+            echo "$GIT_SSH_KEY" > "$SSH_KEY_FILE"
+            chmod 600 "$SSH_KEY_FILE"
+
+            # Add key to SSH agent with passphrase using expect
+            export DISPLAY=:0
+            expect << EOF
+            spawn ssh-add "$SSH_KEY_FILE"
+            expect "Enter passphrase"
+            send "$GIT_SSH_PASSPHRASE\r"
+            expect eof
             EOF
+
+            # Remove temporary key file
+            rm -f "$SSH_KEY_FILE"
+
+            cd ~/PM_BE
+
+            # Configure git to use SSH agent
+            export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+
+            git pull origin main
+
+            cat > .env << 'EOF'
+            $ENV_CONTENT
+            EOF
+
             npm ci --production
             npm run build
             pm2 reload PM2_BE --update-env
+
+            # Kill SSH agent
+            ssh-agent -k
+
             echo "✅ Deployment completed successfully!"
+        env:
+          GIT_SSH_KEY: ${{ secrets.GIT_SSH_KEY }}
+          GIT_SSH_PASSPHRASE: ${{ secrets.GIT_SSH_PASSPHRASE }}
+          ENV_CONTENT: ${{ secrets.ENV }}
