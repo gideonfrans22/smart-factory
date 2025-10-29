@@ -3,19 +3,59 @@ import { RawMaterial } from "../models/RawMaterial";
 import { Recipe } from "../models/Recipe";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
-// Get all raw materials
+// Get all raw materials with pagination and filtering
 export const getAllRawMaterials = async (
-  _req: AuthenticatedRequest,
+  req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
-    const rawMaterials = await RawMaterial.find().sort({ materialCode: 1 });
+    const { materialType, supplier, search, page = 1, limit = 10 } = req.query;
+
+    // Build query
+    const query: any = {};
+    if (materialType) {
+      query.materialType = (materialType as string).toUpperCase();
+    }
+    if (supplier) {
+      query.supplier = { $regex: supplier, $options: "i" };
+    }
+    if (search) {
+      query.$or = [
+        { materialCode: { $regex: search, $options: "i" } },
+        { name: { $regex: search, $options: "i" } }
+      ];
+    }
+
+    // Calculate pagination
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get total count
+    const total = await RawMaterial.countDocuments(query);
+
+    // Get raw materials
+    const rawMaterials = await RawMaterial.find(query)
+      .skip(skip)
+      .limit(limitNum)
+      .sort({ materialCode: 1 });
 
     const response: APIResponse = {
       success: true,
       message: "Raw materials retrieved successfully",
-      data: rawMaterials
+      data: {
+        items: rawMaterials,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+          hasNext: pageNum * limitNum < total,
+          hasPrev: pageNum > 1
+        }
+      }
     };
+
     res.json(response);
   } catch (error) {
     console.error("Get all raw materials error:", error);
@@ -298,8 +338,7 @@ export const deleteRawMaterial = async (
 
     const response: APIResponse = {
       success: true,
-      message: "Raw material deleted successfully",
-      data: null
+      message: "Raw material deleted successfully"
     };
     res.json(response);
   } catch (error) {
