@@ -253,7 +253,6 @@ export const createProject = async (
                 snapshot: {
                   materialCode: material.materialCode,
                   name: material.name,
-                  materialType: material.materialType,
                   specifications: material.specifications,
                   supplier: material.supplier,
                   unit: material.unit

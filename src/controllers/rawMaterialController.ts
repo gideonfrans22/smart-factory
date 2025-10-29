@@ -9,13 +9,10 @@ export const getAllRawMaterials = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { materialType, supplier, search, page = 1, limit = 10 } = req.query;
+    const { supplier, search, page = 1, limit = 10 } = req.query;
 
     // Build query
     const query: any = {};
-    if (materialType) {
-      query.materialType = (materialType as string).toUpperCase();
-    }
     if (supplier) {
       query.supplier = { $regex: supplier, $options: "i" };
     }
@@ -110,22 +107,15 @@ export const createRawMaterial = async (
   res: Response
 ): Promise<void> => {
   try {
-    const {
-      materialCode,
-      name,
-      materialType,
-      specifications,
-      supplier,
-      unit,
-      currentStock
-    } = req.body;
+    const { materialCode, name, specifications, supplier, unit, currentStock } =
+      req.body;
 
     // Validate required fields
-    if (!materialCode || !name || !materialType) {
+    if (!materialCode || !name) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Material code, name, and material type are required"
+        message: "Material code and name are required"
       };
       res.status(400).json(response);
       return;
@@ -149,7 +139,6 @@ export const createRawMaterial = async (
     const rawMaterial = new RawMaterial({
       materialCode: materialCode.toUpperCase(),
       name,
-      materialType: materialType.toUpperCase(),
       specifications,
       supplier,
       unit,
@@ -205,15 +194,8 @@ export const updateRawMaterial = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const {
-      materialCode,
-      name,
-      materialType,
-      specifications,
-      supplier,
-      unit,
-      currentStock
-    } = req.body;
+    const { materialCode, name, specifications, supplier, unit, currentStock } =
+      req.body;
 
     const rawMaterial = await RawMaterial.findById(id);
     if (!rawMaterial) {
@@ -249,8 +231,6 @@ export const updateRawMaterial = async (
 
     // Update fields
     if (name !== undefined) rawMaterial.name = name;
-    if (materialType !== undefined)
-      rawMaterial.materialType = materialType.toUpperCase();
     if (specifications !== undefined)
       rawMaterial.specifications = specifications;
     if (supplier !== undefined) rawMaterial.supplier = supplier;

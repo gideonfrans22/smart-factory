@@ -21,7 +21,6 @@ export interface IProjectProduct {
 export interface IProjectRawMaterialSnapshot {
   materialCode: string;
   name: string;
-  materialType: string;
   specifications?: ISpecifications;
   supplier?: string;
   unit?: string;
@@ -139,11 +138,6 @@ const ProjectRawMaterialSnapshotSchema = new Schema(
       trim: true
     },
     name: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    materialType: {
       type: String,
       required: true,
       trim: true

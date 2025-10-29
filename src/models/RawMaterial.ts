@@ -23,7 +23,6 @@ export interface ISpecifications {
 export interface IRawMaterial extends Document {
   materialCode: string; // Unique identifier (e.g., "MAT-001")
   name: string; // e.g., "Steel Plate"
-  materialType: string; // e.g., "METAL", "PLASTIC", "COMPOSITE", "CHEMICAL"
   specifications?: ISpecifications;
   supplier?: string; // Optional supplier name
   unit?: string; // Optional unit of measure (e.g., "kg", "meters", "pieces")
@@ -84,12 +83,6 @@ const RawMaterialSchema: Schema = new Schema(
       required: [true, "Material name is required"],
       trim: true
     },
-    materialType: {
-      type: String,
-      required: [true, "Material type is required"],
-      trim: true,
-      uppercase: true
-    },
     specifications: {
       dimensions: DimensionsSchema,
       weight: WeightSchema,
@@ -119,7 +112,6 @@ const RawMaterialSchema: Schema = new Schema(
 
 // Indexes
 RawMaterialSchema.index({ materialCode: 1 }, { unique: true });
-RawMaterialSchema.index({ materialType: 1 });
 RawMaterialSchema.index({ name: 1 });
 
 export const RawMaterial = mongoose.model<IRawMaterial>(
