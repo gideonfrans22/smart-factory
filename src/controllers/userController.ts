@@ -242,7 +242,7 @@ export const updateUser = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, email, isActive } = req.body;
+    const { name, email, isActive, role } = req.body;
 
     const user = await User.findById(id);
 
@@ -271,6 +271,7 @@ export const updateUser = async (
       user.email = email ? email.toLowerCase() : undefined;
     }
     if (isActive !== undefined) user.isActive = isActive;
+    if (role) user.role = role;
 
     await user.save();
 
