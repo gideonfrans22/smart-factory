@@ -26,16 +26,45 @@ jobs:
       - name: Build project
         run: npm run build
 
+      - name: Verify secrets
+        run: |
+          if [ -z "${{ secrets.SERVER_ADDRESS }}" ]; then
+            echo "❌ ERROR: SERVER_ADDRESS secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.USER }}" ]; then
+            echo "❌ ERROR: USER secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.PRIVATE_KEY }}" ]; then
+            echo "❌ ERROR: PRIVATE_KEY secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.ENV }}" ]; then
+            echo "❌ ERROR: ENV secret is not set"
+            exit 1
+          fi
+          echo "✅ All required secrets are set"
+
       - name: Deploy to server via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_ADDRESS }}
+          SERVER_USER: ${{ secrets.USER }}
+          SSH_KEY: ${{ secrets.PRIVATE_KEY }}
+          ENV_FILE: ${{ secrets.ENV }}
         with:
           host: ${{ secrets.SERVER_ADDRESS }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.PRIVATE_KEY }}
+          port: 22
           script: |
+            set -e
             cd ~/PM_BE
             git pull origin main
-            echo "${{ secrets.ENV }}" > .env
+            cat > .env << 'EOF'
+            ${{ secrets.ENV }}
+            EOF
             npm ci --production
             npm run build
             pm2 reload PM2_BE --update-env
