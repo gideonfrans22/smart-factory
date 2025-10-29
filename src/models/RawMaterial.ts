@@ -23,6 +23,7 @@ export interface ISpecifications {
 export interface IRawMaterial extends Document {
   materialCode: string; // Unique identifier (e.g., "MAT-001")
   name: string; // e.g., "Steel Plate"
+  description?: string; // Optional description of the material
   specifications?: ISpecifications;
   supplier?: string; // Optional supplier name
   unit?: string; // Optional unit of measure (e.g., "kg", "meters", "pieces")
@@ -81,6 +82,10 @@ const RawMaterialSchema: Schema = new Schema(
     name: {
       type: String,
       required: [true, "Material name is required"],
+      trim: true
+    },
+    description: {
+      type: String,
       trim: true
     },
     specifications: {

@@ -107,8 +107,15 @@ export const createRawMaterial = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { materialCode, name, specifications, supplier, unit, currentStock } =
-      req.body;
+    const {
+      materialCode,
+      name,
+      description,
+      specifications,
+      supplier,
+      unit,
+      currentStock
+    } = req.body;
 
     // Validate required fields
     if (!materialCode || !name) {
@@ -139,6 +146,7 @@ export const createRawMaterial = async (
     const rawMaterial = new RawMaterial({
       materialCode: materialCode.toUpperCase(),
       name,
+      description,
       specifications,
       supplier,
       unit,
@@ -194,8 +202,15 @@ export const updateRawMaterial = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { materialCode, name, specifications, supplier, unit, currentStock } =
-      req.body;
+    const {
+      materialCode,
+      name,
+      description,
+      specifications,
+      supplier,
+      unit,
+      currentStock
+    } = req.body;
 
     const rawMaterial = await RawMaterial.findById(id);
     if (!rawMaterial) {
@@ -231,6 +246,7 @@ export const updateRawMaterial = async (
 
     // Update fields
     if (name !== undefined) rawMaterial.name = name;
+    if (description !== undefined) rawMaterial.description = description;
     if (specifications !== undefined)
       rawMaterial.specifications = specifications;
     if (supplier !== undefined) rawMaterial.supplier = supplier;
