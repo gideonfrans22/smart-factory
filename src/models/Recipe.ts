@@ -147,9 +147,16 @@ const RecipeSchema: Schema = new Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+// translate _id to id
+RecipeSchema.virtual("id").get(function (this: IRecipe) {
+  return this._id;
+});
 
 // Indexes
 RecipeSchema.index({ name: 1 });

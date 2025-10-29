@@ -53,9 +53,16 @@ const MediaSchema: Schema = new Schema(
     }
   },
   {
-    timestamps: { createdAt: true, updatedAt: false }
+    timestamps: { createdAt: true, updatedAt: false },
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+// translate _id to id
+MediaSchema.virtual("id").get(function (this: IMedia) {
+  return this._id;
+});
 
 // Indexes
 MediaSchema.index({ uploadedBy: 1 });

@@ -69,9 +69,16 @@ const ProductSchema: Schema = new Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+// translate _id to id
+ProductSchema.virtual("id").get(function (this: IProduct) {
+  return this._id;
+});
 
 // Indexes
 ProductSchema.index({ designNumber: 1 });

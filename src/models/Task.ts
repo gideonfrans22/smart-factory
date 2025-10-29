@@ -129,9 +129,16 @@ const TaskSchema: Schema = new Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+// translate _id to id
+TaskSchema.virtual("id").get(function (this: ITask) {
+  return this._id;
+});
 
 // Indexes
 TaskSchema.index({ projectId: 1 });

@@ -307,9 +307,16 @@ const ProjectSchema: Schema = new Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+// translate _id to id
+ProjectSchema.virtual("id").get(function (this: IProject) {
+  return this._id;
+});
 
 // Indexes
 ProjectSchema.index({ status: 1 });

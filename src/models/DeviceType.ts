@@ -49,6 +49,11 @@ const DeviceTypeSchema: Schema = new Schema(
 // Indexes
 DeviceTypeSchema.index({ name: 1 });
 
+// translate _id to id
+DeviceTypeSchema.virtual("id").get(function (this: IDeviceType) {
+  return this._id;
+});
+
 // Create virtual populate for devices of this type
 DeviceTypeSchema.virtual("devices", {
   ref: "Device",

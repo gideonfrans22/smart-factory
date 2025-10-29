@@ -64,9 +64,16 @@ const UserSchema: Schema = new Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+// translate _id to id
+UserSchema.virtual("id").get(function (this: IUser) {
+  return this._id;
+});
 
 // Indexes
 UserSchema.index({ role: 1 });

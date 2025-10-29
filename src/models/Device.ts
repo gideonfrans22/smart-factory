@@ -63,6 +63,11 @@ DeviceSchema.index({ deviceTypeId: 1 });
 DeviceSchema.index({ location: 1 });
 DeviceSchema.index({ lastHeartbeat: 1 });
 
+// translate _id to id
+DeviceSchema.virtual("id").get(function (this: IDevice) {
+  return this._id;
+});
+
 // Create virtual populate for deviceType details
 DeviceSchema.virtual("deviceType", {
   ref: "DeviceType",
