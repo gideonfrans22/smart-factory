@@ -56,8 +56,8 @@ export interface IProject extends Document {
   recipes: IProjectRecipe[];
   status: "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
-  startDate: Date;
-  endDate: Date;
+  startDate?: Date;
+  endDate?: Date;
   deadline?: Date;
   progress: number;
   createdBy: mongoose.Types.ObjectId;
@@ -284,12 +284,10 @@ const ProjectSchema: Schema = new Schema(
       default: "MEDIUM"
     },
     startDate: {
-      type: Date,
-      required: true
+      type: Date
     },
     endDate: {
-      type: Date,
-      required: true
+      type: Date
     },
     deadline: {
       type: Date

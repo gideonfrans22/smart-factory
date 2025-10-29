@@ -144,16 +144,6 @@ export const createProject = async (
       return;
     }
 
-    if (!startDate || !endDate) {
-      const response: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Start date and end date are required"
-      };
-      res.status(400).json(response);
-      return;
-    }
-
     // Validate at least one product or recipe
     if (
       (!products || products.length === 0) &&
