@@ -4,7 +4,7 @@ import fs from "fs";
 import crypto from "crypto";
 
 // Ensure upload directory exists
-const uploadDir = path.join(__dirname, "../../uploads/task-media");
+const uploadDir = path.join(__dirname, "../../uploads/media");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }

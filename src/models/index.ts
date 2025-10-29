@@ -8,7 +8,9 @@ export { RawMaterial, IRawMaterial } from "./RawMaterial";
 export { Product, IProduct, IProductRecipe } from "./Product";
 export { Project, IProject } from "./Project";
 export { Task, ITask } from "./Task";
-export { TaskMedia, ITaskMedia } from "./TaskMedia";
+
+// Media
+export { Media, IMedia } from "./Media";
 
 // Devices
 export { Device, IDevice } from "./Device";

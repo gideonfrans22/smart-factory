@@ -13,7 +13,6 @@ import { mqttService } from "./config/mqtt";
 import authRoutes from "./routes/auth";
 import userRoutes from "./routes/users";
 import recipeRoutes from "./routes/recipes";
-import recipeMediaRoutes from "./routes/recipeMedia";
 import rawMaterialRoutes from "./routes/rawMaterials";
 import productRoutes from "./routes/products";
 import projectRoutes from "./routes/projects";
@@ -23,6 +22,7 @@ import deviceTypeRoutes from "./routes/deviceTypes";
 import alertRoutes from "./routes/alerts";
 import kpiRoutes from "./routes/kpi";
 import reportRoutes from "./routes/reports";
+import mediaRoutes from "./routes/media";
 
 // Load environment variables
 dotenv.config();
@@ -61,7 +61,6 @@ app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/recipes", recipeRoutes);
-app.use("/api/recipes", recipeMediaRoutes); // Recipe step media endpoints
 app.use("/api/raw-materials", rawMaterialRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/projects", projectRoutes);
@@ -71,6 +70,7 @@ app.use("/api/device-types", deviceTypeRoutes);
 app.use("/api/alerts", alertRoutes);
 app.use("/api/kpi", kpiRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/media", mediaRoutes);
 
 // Health check and info routes
 app.get("/", (_req: Request, res: Response) => {
