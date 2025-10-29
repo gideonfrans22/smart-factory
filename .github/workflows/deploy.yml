@@ -92,9 +92,7 @@ jobs:
 
             git pull origin main
 
-            cat > .env << 'EOF'
-            $ENV_CONTENT
-            EOF
+            echo "$ENV_CONTENT" > .env
 
             # Load nvm and use correct node version
             export NVM_DIR="$HOME/.nvm"
