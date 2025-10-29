@@ -96,7 +96,7 @@ jobs:
             $ENV_CONTENT
             EOF
 
-            npm ci --production
+            npm i
             npm run build
             pm2 reload PM2_BE --update-env
 
