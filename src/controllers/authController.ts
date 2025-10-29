@@ -23,6 +23,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     if (!name || !password || !role) {
       const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Name, password, and role are required"
       };
       res.status(400).json(response);
@@ -32,6 +33,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     if (role === "worker" && !username) {
       const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Employee number is required for workers"
       };
       res.status(400).json(response);
@@ -41,6 +43,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     if (role === "admin" && !email) {
       const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Email is required for admin users"
       };
       res.status(400).json(response);
@@ -50,6 +53,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     if (email && !validateEmail(email)) {
       const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Invalid email format"
       };
       res.status(400).json(response);
@@ -59,6 +63,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     if (password.length < 6) {
       const response: APIResponse = {
         success: false,
+        error: "VALIDATION_ERROR",
         message: "Password must be at least 6 characters long"
       };
       res.status(400).json(response);
@@ -78,9 +83,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     if (existingUser) {
       const response: APIResponse = {
         success: false,
+        error: "CONFLICT",
         message: "Employee number or email already exists"
       };
-      res.status(400).json(response);
+      res.status(409).json(response);
       return;
     }
 
@@ -117,6 +123,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     console.error("Registration error:", error);
     const response: APIResponse = {
       success: false,
+      error: "INTERNAL_SERVER_ERROR",
       message: "Internal server error"
     };
     res.status(500).json(response);

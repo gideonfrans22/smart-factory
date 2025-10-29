@@ -57,7 +57,7 @@ export const getRecipes = async (
     console.error("Get recipes error:", error);
     const errorResponse: APIResponse = {
       success: false,
-      error: "SERVER_ERROR",
+      error: "INTERNAL_SERVER_ERROR",
       message: error.message
     };
     res.status(500).json(errorResponse);
@@ -96,7 +96,7 @@ export const getRecipeById = async (
     console.error("Get recipe error:", error);
     const errorResponse: APIResponse = {
       success: false,
-      error: "SERVER_ERROR",
+      error: "INTERNAL_SERVER_ERROR",
       message: error.message
     };
     res.status(500).json(errorResponse);
@@ -142,7 +142,7 @@ export const getRecipeByRecipeNumber = async (
     console.error("Get recipe by recipe number error:", error);
     const errorResponse: APIResponse = {
       success: false,
-      error: "SERVER_ERROR",
+      error: "INTERNAL_SERVER_ERROR",
       message: error.message
     };
     res.status(500).json(errorResponse);
@@ -273,7 +273,7 @@ export const createRecipe = async (
     console.error("Create recipe error:", error);
     const errorResponse: APIResponse = {
       success: false,
-      error: "SERVER_ERROR",
+      error: "INTERNAL_SERVER_ERROR",
       message: error.message
     };
     res.status(500).json(errorResponse);
@@ -402,7 +402,7 @@ export const updateRecipe = async (
     console.error("Update recipe error:", error);
     const errorResponse: APIResponse = {
       success: false,
-      error: "SERVER_ERROR",
+      error: "INTERNAL_SERVER_ERROR",
       message: error.message
     };
     res.status(500).json(errorResponse);
@@ -451,15 +451,14 @@ export const deleteRecipe = async (
 
     const response: APIResponse = {
       success: true,
-      message: "Recipe deleted successfully",
-      data: null
+      message: "Recipe deleted successfully"
     };
     res.json(response);
   } catch (error: any) {
     console.error("Delete recipe error:", error);
     const errorResponse: APIResponse = {
       success: false,
-      error: "SERVER_ERROR",
+      error: "INTERNAL_SERVER_ERROR",
       message: error.message
     };
     res.status(500).json(errorResponse);
@@ -519,7 +518,7 @@ export const createRecipeVersion = async (
     console.error("Create recipe version error:", error);
     const errorResponse: APIResponse = {
       success: false,
-      error: "SERVER_ERROR",
+      error: "INTERNAL_SERVER_ERROR",
       message: error.message
     };
     res.status(500).json(errorResponse);
@@ -631,7 +630,7 @@ export const getRecipeDependencyGraph = async (
     console.error("Get dependency graph error:", error);
     const errorResponse: APIResponse = {
       success: false,
-      error: "SERVER_ERROR",
+      error: "INTERNAL_SERVER_ERROR",
       message: error.message
     };
     res.status(500).json(errorResponse);
