@@ -40,8 +40,8 @@ jobs:
             echo "❌ ERROR: PRIVATE_KEY secret is not set"
             exit 1
           fi
-          if [ -z "${{ secrets.ENV }}" ]; then
-            echo "❌ ERROR: ENV secret is not set"
+          if [ -z "${{ secrets.ENV_CONTENT }}" ]; then
+            echo "❌ ERROR: ENV_CONTENT secret is not set"
             exit 1
           fi
           if [ -z "${{ secrets.GIT_SSH_KEY }}" ]; then
