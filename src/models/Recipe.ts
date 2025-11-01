@@ -152,6 +152,12 @@ RecipeSchema.virtual("id").get(function (this: IRecipe) {
   return this._id;
 });
 
+// populate Media references in steps as mediaFiles
+RecipeSchema.pre<IRecipe>("find", function (next) {
+  this.populate("steps.mediaIds");
+  next();
+});
+
 // Indexes
 RecipeSchema.index({ name: 1 });
 RecipeSchema.index({ recipeNumber: 1 });
