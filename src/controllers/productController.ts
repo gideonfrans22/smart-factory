@@ -23,7 +23,6 @@ export const getProducts = async (
 
     const total = await Product.countDocuments(query);
     const products = await Product.find(query)
-      .populate("personInCharge", "username email")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -64,10 +63,7 @@ export const getProductById = async (
   try {
     const { id } = req.params;
 
-    const product = await Product.findById(id).populate(
-      "personInCharge",
-      "username email"
-    );
+    const product = await Product.findById(id);
 
     if (!product) {
       const response: APIResponse = {
@@ -199,10 +195,7 @@ export const createProduct = async (
 
     await product.save();
 
-    const populatedProduct = await Product.findById(product._id).populate(
-      "personInCharge",
-      "username email"
-    );
+    const populatedProduct = await Product.findById(product._id);
 
     const response: APIResponse = {
       success: true,
@@ -273,10 +266,7 @@ export const updateProduct = async (
 
     await product.save();
 
-    const populatedProduct = await Product.findById(product._id).populate(
-      "personInCharge",
-      "username email"
-    );
+    const populatedProduct = await Product.findById(product._id);
 
     const response: APIResponse = {
       success: true,

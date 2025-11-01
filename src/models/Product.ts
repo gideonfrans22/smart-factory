@@ -80,6 +80,32 @@ ProductSchema.virtual("id").get(function (this: IProduct) {
   return this._id;
 });
 
+// Populate references before returning
+ProductSchema.pre<IProduct>("findOne", function (next) {
+  this.populate("personInCharge");
+  this.populate("recipes.recipeId");
+  this.populate({
+    path: "recipes.recipeId",
+    populate: {
+      path: "rawMaterials.materialId",
+      select: "materialCode name specifications supplier unit"
+    }
+  });
+  next();
+});
+ProductSchema.pre<IProduct>("find", function (next) {
+  this.populate("personInCharge");
+  this.populate("recipes.recipeId");
+  this.populate({
+    path: "recipes.recipeId",
+    populate: {
+      path: "rawMaterials.materialId",
+      select: "materialCode name specifications supplier unit"
+    }
+  });
+  next();
+});
+
 // Indexes
 ProductSchema.index({ designNumber: 1 });
 ProductSchema.index({ productName: 1 });
