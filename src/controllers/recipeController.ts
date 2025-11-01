@@ -204,7 +204,8 @@ export const createRecipe = async (
 
         processedRawMaterials.push({
           materialId: rawMat.materialId,
-          quantityRequired: rawMat.quantityRequired
+          quantityRequired: rawMat.quantityRequired,
+          specification: rawMat.specification
         });
       }
     }
@@ -247,7 +248,7 @@ export const createRecipe = async (
         deviceTypeId: step.deviceTypeId,
         qualityChecks: step.qualityChecks || [],
         dependsOn: step.dependsOn || [], // Array of step _ids (ObjectIds)
-        media: step.media || [] // MongoDB will auto-generate _id for each media
+        mediaIds: step.mediaIds || [] // MongoDB will auto-generate _id for each media
       });
     }
 
@@ -342,7 +343,8 @@ export const updateRecipe = async (
 
           processedRawMaterials.push({
             materialId: rawMat.materialId,
-            quantityRequired: rawMat.quantityRequired
+            quantityRequired: rawMat.quantityRequired,
+            specification: rawMat.specification
           });
         }
         recipe.rawMaterials = processedRawMaterials;

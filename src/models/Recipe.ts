@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { ISpecifications } from "./RawMaterial";
 
 export interface IRecipeStep extends Document<mongoose.Types.ObjectId> {
   order: number;
@@ -14,6 +15,7 @@ export interface IRecipeStep extends Document<mongoose.Types.ObjectId> {
 export interface IRawMaterialReference {
   materialId: mongoose.Types.ObjectId; // Reference to RawMaterial._id
   quantityRequired: number; // Quantity needed per unit produced
+  specification?: ISpecifications; // Specifications like dimensions, weight, etc.
 }
 
 export interface IRecipe extends Document {
@@ -126,6 +128,10 @@ const RecipeSchema: Schema = new Schema(
           required: true,
           min: 0,
           comment: "Quantity needed per unit produced"
+        },
+        specification: {
+          type: Schema.Types.Mixed,
+          comment: "Specifications like dimensions, weight, color, etc."
         }
       }
     ],

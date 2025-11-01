@@ -30,6 +30,7 @@ export interface IProjectRawMaterialReference {
   materialId: mongoose.Types.ObjectId;
   snapshot: IProjectRawMaterialSnapshot;
   quantityRequired: number;
+  specification?: ISpecifications;
 }
 
 export interface IProjectRecipeSnapshot {
@@ -172,6 +173,10 @@ const ProjectRawMaterialReferenceSchema = new Schema(
       type: Number,
       required: true,
       min: 0
+    },
+    specification: {
+      type: Schema.Types.Mixed,
+      comment: "Specifications like dimensions, weight, color, etc."
     }
   },
   { _id: false }
