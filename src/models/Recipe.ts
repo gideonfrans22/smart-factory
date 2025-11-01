@@ -30,18 +30,6 @@ export interface IRecipe extends Document {
   updatedAt: Date;
 }
 
-export interface IRecipe extends Document {
-  recipeNumber?: string;
-  version: number;
-  name: string;
-  description?: string;
-  rawMaterials: IRawMaterialReference[]; // Array of raw materials required
-  steps: IRecipeStep[];
-  estimatedDuration: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 const RecipeStepSchema: Schema = new Schema(
   {
     order: {

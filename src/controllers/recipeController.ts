@@ -32,7 +32,18 @@ export const getRecipes = async (
     }
 
     const [recipes, total] = await Promise.all([
-      Recipe.find(query).sort({ createdAt: -1 }).skip(skip).limit(limitNum),
+      Recipe.find(query)
+        .populate(
+          "rawMaterials.materialId",
+          "materialCode name specifications supplier unit"
+        )
+        .populate(
+          "steps.mediaIds",
+          "filename originalName mimeType fileSize filePath"
+        )
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
       Recipe.countDocuments(query)
     ]);
 
@@ -74,7 +85,15 @@ export const getRecipeById = async (
   try {
     const { id } = req.params;
 
-    const recipe = await Recipe.findById(id);
+    const recipe = await Recipe.findById(id)
+      .populate(
+        "rawMaterials.materialId",
+        "materialCode name specifications supplier unit"
+      )
+      .populate(
+        "steps.mediaIds",
+        "filename originalName mimeType fileSize filePath"
+      );
 
     if (!recipe) {
       const errorResponse: APIResponse = {
@@ -120,7 +139,16 @@ export const getRecipeByRecipeNumber = async (
     }
 
     // If version not specified, get the latest version
-    const recipe = await Recipe.findOne(query).sort({ version: -1 });
+    const recipe = await Recipe.findOne(query)
+      .populate(
+        "rawMaterials.materialId",
+        "materialCode name specifications supplier unit"
+      )
+      .populate(
+        "steps.mediaIds",
+        "filename originalName mimeType fileSize filePath"
+      )
+      .sort({ version: -1 });
 
     if (!recipe) {
       const errorResponse: APIResponse = {
@@ -538,7 +566,15 @@ export const getRecipeDependencyGraph = async (
   try {
     const { id } = req.params;
 
-    const recipe = await Recipe.findById(id);
+    const recipe = await Recipe.findById(id)
+      .populate(
+        "rawMaterials.materialId",
+        "materialCode name specifications supplier unit"
+      )
+      .populate(
+        "steps.mediaIds",
+        "filename originalName mimeType fileSize filePath"
+      );
 
     if (!recipe) {
       const errorResponse: APIResponse = {
