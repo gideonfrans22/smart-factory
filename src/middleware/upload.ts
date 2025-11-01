@@ -58,7 +58,15 @@ const fileFilter = (
     // Archives
     "application/zip",
     "application/x-rar-compressed",
-    "application/x-7z-compressed"
+    "application/x-7z-compressed",
+    // Drawings
+    "application/vnd.dwg",
+    "image/x-dwg",
+    "application/acad",
+    "image/x-dxf",
+    "application/dxf",
+    "drawing/x-dwf",
+    "application/octet-stream" // for some CAD files
   ];
 
   if (allowedMimeTypes.includes(file.mimetype)) {
