@@ -26,6 +26,8 @@ export interface IRecipe extends Document {
   rawMaterials: IRawMaterialReference[]; // Array of raw materials required
   steps: IRecipeStep[];
   estimatedDuration: number;
+  deletedAt?: Date; // Soft delete timestamp
+  isDeleted: boolean; // Virtual field for soft delete check
   createdAt: Date;
   updatedAt: Date;
 }
@@ -138,6 +140,11 @@ const RecipeSchema: Schema = new Schema(
       required: true,
       min: 0,
       comment: "Total duration in minutes (sum of all steps)"
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+      comment: "Soft delete timestamp"
     }
   },
   {
@@ -152,6 +159,20 @@ RecipeSchema.virtual("id").get(function (this: IRecipe) {
   return this._id;
 });
 
+// Virtual field for soft delete check
+RecipeSchema.virtual("isDeleted").get(function (this: IRecipe) {
+  return this.deletedAt != null;
+});
+
+// Query middleware to exclude soft-deleted documents by default
+RecipeSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
+  const options = this.getOptions();
+  if (!(options as any).includeDeleted) {
+    this.where({ deletedAt: null });
+  }
+  next();
+});
+
 // populate Media references in steps as mediaFiles
 RecipeSchema.pre<IRecipe>("find", function (next) {
   this.populate("steps.mediaIds");
@@ -161,6 +182,7 @@ RecipeSchema.pre<IRecipe>("find", function (next) {
 // Indexes
 RecipeSchema.index({ name: 1 });
 RecipeSchema.index({ recipeNumber: 1 });
+RecipeSchema.index({ deletedAt: 1 }); // For soft delete queries
 // Unique compound index on recipeNumber and version (sparse to allow null recipeNumbers)
 RecipeSchema.index(
   { recipeNumber: 1, version: 1 },

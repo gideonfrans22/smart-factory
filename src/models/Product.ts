@@ -12,6 +12,8 @@ export interface IProduct extends Document {
   personInCharge: mongoose.Types.ObjectId; // 담당자 (User reference)
   quantityUnit?: string; // 수량 단위
   recipes: IProductRecipe[]; // Array of recipes with quantities
+  deletedAt?: Date; // Soft delete timestamp
+  isDeleted: boolean; // Virtual field for soft delete check
   createdAt: Date;
   updatedAt: Date;
 }
@@ -66,6 +68,11 @@ const ProductSchema: Schema = new Schema(
     recipes: {
       type: [ProductRecipeSchema],
       default: []
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+      comment: "Soft delete timestamp"
     }
   },
   {
@@ -78,6 +85,20 @@ const ProductSchema: Schema = new Schema(
 // translate _id to id
 ProductSchema.virtual("id").get(function (this: IProduct) {
   return this._id;
+});
+
+// Virtual field for soft delete check
+ProductSchema.virtual("isDeleted").get(function (this: IProduct) {
+  return this.deletedAt != null;
+});
+
+// Query middleware to exclude soft-deleted documents by default
+ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
+  const options = this.getOptions();
+  if (!(options as any).includeDeleted) {
+    this.where({ deletedAt: null });
+  }
+  next();
 });
 
 // Populate references before returning
@@ -111,5 +132,6 @@ ProductSchema.index({ designNumber: 1 });
 ProductSchema.index({ productName: 1 });
 ProductSchema.index({ personInCharge: 1 });
 ProductSchema.index({ customerName: 1 });
+ProductSchema.index({ deletedAt: 1 }); // For soft delete queries
 
 export const Product = mongoose.model<IProduct>("Product", ProductSchema);
