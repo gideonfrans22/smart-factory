@@ -1,22 +1,6 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { IRecipeStep } from "./Recipe";
-import { IProductRecipe } from "./Product";
 import { ISpecifications } from "./RawMaterial";
-
-export interface IProjectProductSnapshot {
-  designNumber: string;
-  productName: string;
-  customerName?: string;
-  quantityUnit?: string;
-  recipes: IProductRecipe[];
-}
-
-export interface IProjectProduct {
-  productId: mongoose.Types.ObjectId;
-  snapshot: IProjectProductSnapshot;
-  targetQuantity: number;
-  producedQuantity: number;
-}
 
 export interface IProjectRawMaterialSnapshot {
   materialCode: string;
@@ -31,6 +15,33 @@ export interface IProjectRawMaterialReference {
   snapshot: IProjectRawMaterialSnapshot;
   quantityRequired: number;
   specification?: ISpecifications;
+}
+
+export interface IProjectProductRecipeSnapshot {
+  recipeId: mongoose.Types.ObjectId;
+  recipeNumber?: string;
+  version: number;
+  name: string;
+  description?: string;
+  rawMaterials: IProjectRawMaterialReference[];
+  steps: IRecipeStep[];
+  estimatedDuration: number;
+  quantity: number;
+}
+
+export interface IProjectProductSnapshot {
+  designNumber: string;
+  productName: string;
+  customerName?: string;
+  quantityUnit?: string;
+  recipes: IProjectProductRecipeSnapshot[];
+}
+
+export interface IProjectProduct {
+  productId: mongoose.Types.ObjectId;
+  snapshot: IProjectProductSnapshot;
+  targetQuantity: number;
+  producedQuantity: number;
 }
 
 export interface IProjectRecipeSnapshot {
@@ -65,71 +76,6 @@ export interface IProject extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
-
-const ProjectProductSnapshotSchema = new Schema(
-  {
-    designNumber: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    productName: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    customerName: {
-      type: String,
-      trim: true
-    },
-    quantityUnit: {
-      type: String,
-      trim: true
-    },
-    recipes: {
-      type: [
-        {
-          recipeId: {
-            type: String,
-            required: true
-          },
-          quantity: {
-            type: Number,
-            required: true,
-            default: 1
-          }
-        }
-      ],
-      default: []
-    }
-  },
-  { _id: false }
-);
-
-const ProjectProductSchema = new Schema(
-  {
-    productId: {
-      type: Schema.Types.ObjectId,
-      ref: "Product",
-      required: true
-    },
-    snapshot: {
-      type: ProjectProductSnapshotSchema,
-      required: true
-    },
-    targetQuantity: {
-      type: Number,
-      required: true,
-      min: 1
-    },
-    producedQuantity: {
-      type: Number,
-      default: 0,
-      min: 0
-    }
-  },
-  { _id: false }
-);
 
 const ProjectRawMaterialSnapshotSchema = new Schema(
   {
@@ -177,6 +123,105 @@ const ProjectRawMaterialReferenceSchema = new Schema(
     specification: {
       type: Schema.Types.Mixed,
       comment: "Specifications like dimensions, weight, color, etc."
+    }
+  },
+  { _id: false }
+);
+
+const ProjectProductRecipeSnapshotSchema = new Schema(
+  {
+    recipeId: {
+      type: Schema.Types.ObjectId,
+      ref: "Recipe",
+      required: true
+    },
+    recipeNumber: {
+      type: String,
+      trim: true
+    },
+    version: {
+      type: Number,
+      required: true
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    description: {
+      type: String,
+      trim: true
+    },
+    rawMaterials: {
+      type: [ProjectRawMaterialReferenceSchema],
+      default: []
+    },
+    steps: {
+      type: [Schema.Types.Mixed],
+      required: true
+    },
+    estimatedDuration: {
+      type: Number,
+      required: true
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      default: 1,
+      min: 1
+    }
+  },
+  { _id: false }
+);
+
+const ProjectProductSnapshotSchema = new Schema(
+  {
+    designNumber: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    productName: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    customerName: {
+      type: String,
+      trim: true
+    },
+    quantityUnit: {
+      type: String,
+      trim: true
+    },
+    recipes: {
+      type: [ProjectProductRecipeSnapshotSchema],
+      default: []
+    }
+  },
+  { _id: false }
+);
+
+const ProjectProductSchema = new Schema(
+  {
+    productId: {
+      type: Schema.Types.ObjectId,
+      ref: "Product",
+      required: true
+    },
+    snapshot: {
+      type: ProjectProductSnapshotSchema,
+      required: true
+    },
+    targetQuantity: {
+      type: Number,
+      required: true,
+      min: 1
+    },
+    producedQuantity: {
+      type: Number,
+      default: 0,
+      min: 0
     }
   },
   { _id: false }

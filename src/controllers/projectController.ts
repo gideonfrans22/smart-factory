@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { Project } from "../models/Project";
 import { Recipe } from "../models/Recipe";
 import { Product } from "../models/Product";
+import { Task } from "../models/Task";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 /**
@@ -200,6 +201,51 @@ export const createProject = async (
           return;
         }
 
+        // Fetch recipe details for snapshot
+        const recipeSnapshots = [];
+        if (product.recipes && product.recipes.length > 0) {
+          for (const productRecipe of product.recipes) {
+            const recipe = await Recipe.findById(
+              productRecipe.recipeId
+            ).populate("rawMaterials.materialId");
+            if (recipe) {
+              // Process raw materials with snapshots
+              const rawMaterialsWithSnapshots = [];
+              if (recipe.rawMaterials && recipe.rawMaterials.length > 0) {
+                for (const rawMat of recipe.rawMaterials) {
+                  const material = rawMat.materialId as any;
+                  if (material) {
+                    rawMaterialsWithSnapshots.push({
+                      materialId: material._id,
+                      snapshot: {
+                        materialCode: material.materialCode,
+                        name: material.name,
+                        specifications: material.specifications,
+                        supplier: material.supplier,
+                        unit: material.unit
+                      },
+                      quantityRequired: rawMat.quantityRequired,
+                      specification: rawMat.specification
+                    });
+                  }
+                }
+              }
+
+              recipeSnapshots.push({
+                recipeId: recipe._id,
+                recipeNumber: recipe.recipeNumber,
+                version: recipe.version,
+                name: recipe.name,
+                description: recipe.description,
+                rawMaterials: rawMaterialsWithSnapshots,
+                steps: recipe.steps,
+                estimatedDuration: recipe.estimatedDuration,
+                quantity: productRecipe.quantity
+              });
+            }
+          }
+        }
+
         // Create snapshot
         processedProducts.push({
           productId: product._id,
@@ -208,7 +254,7 @@ export const createProject = async (
             productName: product.productName,
             customerName: product.customerName,
             quantityUnit: product.quantityUnit,
-            recipes: product.recipes
+            recipes: recipeSnapshots
           },
           targetQuantity: item.targetQuantity,
           producedQuantity: 0
@@ -259,7 +305,8 @@ export const createProject = async (
                   supplier: material.supplier,
                   unit: material.unit
                 },
-                quantityRequired: rawMat.quantityRequired
+                quantityRequired: rawMat.quantityRequired,
+                specification: rawMat.specification
               });
             }
           }
@@ -355,6 +402,10 @@ export const updateProject = async (
       return;
     }
 
+    // Track if status is changing to ACTIVE
+    const oldStatus = project.status;
+    const isActivating = status === "ACTIVE" && oldStatus !== "ACTIVE";
+
     // Update basic fields
     if (name !== undefined) project.name = name;
     if (description !== undefined) project.description = description;
@@ -364,6 +415,11 @@ export const updateProject = async (
     if (endDate !== undefined) project.endDate = new Date(endDate);
     if (deadline !== undefined)
       project.deadline = deadline ? new Date(deadline) : undefined;
+
+    // Auto-set startDate when activating project
+    if (isActivating && !project.startDate) {
+      project.startDate = new Date();
+    }
 
     // Update product quantities (snapshots remain immutable)
     if (products && Array.isArray(products)) {
@@ -420,12 +476,115 @@ export const updateProject = async (
     }
 
     await project.save(); // Progress will be recalculated by pre-save hook
+
+    // Auto-create initial tasks when project becomes ACTIVE
+    const createdTasks = [];
+    if (isActivating) {
+      // Create initial tasks for each product's recipes
+      if (project.products && project.products.length > 0) {
+        for (const projectProduct of project.products) {
+          const productSnapshot = projectProduct.snapshot;
+
+          // Iterate through each recipe in the product snapshot
+          if (productSnapshot.recipes && productSnapshot.recipes.length > 0) {
+            for (const productRecipe of productSnapshot.recipes) {
+              // Use snapshot data instead of fetching live Recipe
+              if (productRecipe.steps && productRecipe.steps.length > 0) {
+                // Find the first step (order = 1) from snapshot
+                const firstStep = productRecipe.steps.find(
+                  (step: any) => step.order === 1
+                );
+
+                if (firstStep) {
+                  // Validate deviceTypeId exists
+                  if (!firstStep.deviceTypeId) {
+                    const response: APIResponse = {
+                      success: false,
+                      error: "VALIDATION_ERROR",
+                      message: `First step of recipe in product "${productSnapshot.productName}" does not have a deviceTypeId`
+                    };
+                    res.status(400).json(response);
+                    return;
+                  }
+
+                  // Create task for the first step using snapshot data
+                  const newTask = new Task({
+                    title: `${firstStep.name} - ${productSnapshot.productName} - ${project.name}`,
+                    description: firstStep.description,
+                    projectId: project._id,
+                    productId: projectProduct.productId,
+                    recipeId: productRecipe.recipeId,
+                    recipeStepId: firstStep._id,
+                    deviceTypeId: firstStep.deviceTypeId,
+                    status: "PENDING",
+                    priority: project.priority,
+                    estimatedDuration: firstStep.estimatedDuration,
+                    progress: 0,
+                    pausedDuration: 0
+                  });
+
+                  await newTask.save();
+                  createdTasks.push(newTask);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Create initial tasks for each standalone recipe's first step
+      for (const projectRecipe of project.recipes) {
+        const recipeSnapshot = projectRecipe.snapshot;
+
+        // Find the first step (order = 1)
+        const firstStep = recipeSnapshot.steps.find(
+          (step: any) => step.order === 1
+        );
+
+        if (firstStep) {
+          // Validate deviceTypeId exists
+          if (!firstStep.deviceTypeId) {
+            const response: APIResponse = {
+              success: false,
+              error: "VALIDATION_ERROR",
+              message: `First step of recipe "${recipeSnapshot.name}" does not have a deviceTypeId`
+            };
+            res.status(400).json(response);
+            return;
+          }
+
+          // Create task for the first step
+          const newTask = new Task({
+            title: `${firstStep.name} - ${project.name}`,
+            description: firstStep.description,
+            projectId: project._id,
+            recipeId: projectRecipe.recipeId,
+            recipeStepId: firstStep._id,
+            deviceTypeId: firstStep.deviceTypeId,
+            status: "PENDING",
+            priority: project.priority,
+            estimatedDuration: firstStep.estimatedDuration,
+            progress: 0,
+            pausedDuration: 0
+          });
+
+          await newTask.save();
+          createdTasks.push(newTask);
+        }
+      }
+    }
+
     await project.populate("createdBy", "name email username");
 
     const response: APIResponse = {
       success: true,
-      message: "Project updated successfully",
-      data: project
+      message: isActivating
+        ? `Project activated successfully. ${createdTasks.length} initial task(s) created.`
+        : "Project updated successfully",
+      data: {
+        project,
+        ...(isActivating && { createdTasks })
+      }
     };
 
     res.json(response);
