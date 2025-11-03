@@ -408,6 +408,10 @@ export const updateProject = async (
             projectProduct.productId
           ).populate("recipes.recipeId");
           if (!product) continue;
+          const productSnapshot =
+            await SnapshotService.getOrCreateProductSnapshot(
+              projectProduct.productId
+            );
 
           // Process each recipe in this product
           for (const productRecipe of product.recipes) {
@@ -455,6 +459,7 @@ export const updateProject = async (
                   description: firstStep.description,
                   projectId: project._id,
                   productId: projectProduct.productId,
+                  productSnapshotId: productSnapshot._id,
                   recipeId: productRecipe.recipeId as any,
                   recipeSnapshotId: recipeSnapshot._id,
                   recipeStepId: firstStep._id,
