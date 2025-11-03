@@ -76,10 +76,14 @@ export const getProjectById = async (
   try {
     const { id } = req.params;
 
-    const project = await Project.findById(id).populate(
-      "createdBy",
-      "name email username"
-    );
+    const project = await Project.findById(id)
+      .populate("createdBy", "name email username")
+      .populate({
+        path: "products.productId"
+      })
+      .populate({
+        path: "recipes.recipeId"
+      });
 
     if (!project) {
       const response: APIResponse = {
