@@ -14,6 +14,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
       recipeId,
       productId,
       workerId,
+      search,
       page = 1,
       limit = 10
     } = req.query;
@@ -25,6 +26,45 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     if (recipeId) query.recipeId = recipeId;
     if (productId) query.productId = productId;
     if (workerId) query.workerId = workerId;
+
+    // Text search support for recipe/product names
+    let recipeIds: any[] = [];
+    let productIds: any[] = [];
+
+    if (search && typeof search === "string") {
+      const searchRegex = new RegExp(search, "i"); // Case-insensitive search
+
+      // Find matching recipes
+      const recipes = await Recipe.find({
+        name: searchRegex
+      }).select("_id");
+      recipeIds = recipes.map((r) => r._id);
+
+      // Find matching products
+      const products = await Product.find({
+        name: searchRegex
+      }).select("_id");
+      productIds = products.map((p) => p._id);
+
+      // Add search conditions to query
+      if (recipeIds.length > 0 || productIds.length > 0) {
+        query.$or = [];
+
+        if (recipeIds.length > 0) {
+          query.$or.push({ recipeId: { $in: recipeIds } });
+        }
+
+        if (productIds.length > 0) {
+          query.$or.push({ productId: { $in: productIds } });
+        }
+
+        // Also search in task title
+        query.$or.push({ title: searchRegex });
+      } else {
+        // No matching recipes/products, but still search in task title
+        query.title = searchRegex;
+      }
+    }
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -593,6 +633,7 @@ export const getStandaloneTasks = async (
       deviceTypeId,
       recipeId,
       workerId,
+      search,
       page = 1,
       limit = 10
     } = req.query;
@@ -608,6 +649,25 @@ export const getStandaloneTasks = async (
     if (deviceTypeId) query.deviceTypeId = deviceTypeId;
     if (recipeId) query.recipeId = recipeId;
     if (workerId) query.workerId = workerId;
+
+    // Text search support for recipe names
+    if (search && typeof search === "string") {
+      const searchRegex = new RegExp(search, "i"); // Case-insensitive search
+
+      // Find matching recipes
+      const recipes = await Recipe.find({
+        name: searchRegex
+      }).select("_id");
+      const recipeIds = recipes.map((r) => r._id);
+
+      // Add search conditions to query
+      if (recipeIds.length > 0) {
+        query.$or = [{ recipeId: { $in: recipeIds } }, { title: searchRegex }];
+      } else {
+        // No matching recipes, but still search in task title
+        query.title = searchRegex;
+      }
+    }
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
