@@ -2,54 +2,97 @@
 
 ## 🏗️ Architecture Overview
 
-This is a **TypeScript + Express + MongoDB** backend for a smart factory management system. The core pattern is **snapshot-based immutability** for historical data integrity.
+This is a **TypeScript + Express + MongoDB** backend for a smart factory management system. The core pattern is **deferred snapshot creation with execution tracking** for historical data integrity and quantity management.
 
 ### Key Components
 
-- **Projects**: Top-level containers with **Products** OR standalone **Recipes**
+- **Projects**: Top-level containers with **Products** OR standalone **Recipes** (stores only live references)
 - **Recipes**: Multi-step manufacturing processes with raw materials and device requirements
-- **Tasks**: Executable work items auto-generated from recipe steps
-- **Snapshots**: Immutable copies of data captured at project creation time
+- **Tasks**: Executable work items auto-generated from recipe steps with execution tracking
+- **RecipeSnapshot & ProductSnapshot**: Immutable copies created at task generation time (separate collections with versioning)
+- **Execution Tracking**: System to manage multiple recipe executions per product with proper quantity calculation
 
 ## 🎯 Critical Patterns
 
-### 1. Snapshot Pattern (Most Important!)
+### 1. Deferred Snapshot Pattern (Most Important!)
 
-Projects store **immutable snapshots** of products, recipes, steps, and raw materials. This ensures historical data remains unchanged even if original documents are modified.
+Snapshots are created **at task generation time**, not at project creation. Projects store only **live references** to products and recipes.
 
 ```typescript
-// ✅ CORRECT: Use snapshot data for tasks
-const firstStep = projectProduct.snapshot.recipes[0].steps.find(
-  (s) => s.order === 1
+// ✅ CORRECT: Projects store live references
+const project = {
+  products: [{ productId: "abc123", targetQuantity: 10, producedQuantity: 0 }],
+  recipes: [{ recipeId: "xyz789", targetQuantity: 5, producedQuantity: 0 }]
+};
+
+// ✅ CORRECT: Create snapshot when generating tasks
+const recipeSnapshot = await SnapshotService.getOrCreateRecipeSnapshot(
+  recipeId
+);
+const task = new Task({
+  recipeSnapshotId: recipeSnapshot._id
+  // ... other fields
+});
+
+// ✅ CORRECT: Use snapshot in task completion
+const recipeSnapshot = await RecipeSnapshot.findById(task.recipeSnapshotId);
+const nextStep = recipeSnapshot.steps.find(
+  (s) => s.order === task.stepOrder + 1
 );
 
-// ❌ WRONG: Don't fetch live Recipe document
-const recipe = await Recipe.findById(recipeId); // Violates immutability
+// ❌ WRONG: Don't look for embedded snapshots in projects
+const firstStep = project.products[0].snapshot.recipes[0].steps[0]; // No longer exists!
 ```
 
 **Key locations:**
 
-- `src/models/Project.ts`: Defines snapshot interfaces (`IProjectProductSnapshot`, `IProjectRecipeSnapshot`, `IProjectRawMaterialSnapshot`)
-- `src/controllers/projectController.ts`: Creates snapshots in `createProject()` by populating and copying data
-- `src/controllers/taskController.ts`: `completeTask()` must use snapshot steps, not live recipes
+- `src/models/RecipeSnapshot.ts`: Separate collection with versioning and smart caching
+- `src/models/ProductSnapshot.ts`: Separate collection with recipe snapshot references
+- `src/services/snapshotService.ts`: Smart caching with `getOrCreateRecipeSnapshot()`
+- `src/models/Project.ts`: Only stores live references (`productId`, `recipeId`) with quantities
+- `src/controllers/projectController.ts`: `updateProject()` creates snapshots during task generation
+- `src/controllers/taskController.ts`: `completeTask()` uses `RecipeSnapshot` model
 
-### 2. Task Auto-Generation Workflow
+### 2. Task Auto-Generation with Execution Tracking
 
-When a project status changes to `ACTIVE`, the system auto-creates PENDING tasks for the first step of each recipe:
+When a project status changes to `ACTIVE`, the system creates **ALL first-step tasks for ALL executions** upfront:
 
 ```typescript
 // In updateProject() when isActivating === true:
-// 1. Iterate project.products[].snapshot.recipes[]
-// 2. Find first step (order === 1) from snapshot.steps[]
-// 3. Create Task with productId, recipeId, recipeStepId, deviceTypeId
-// 4. Title format: "{stepName} - {productName} - {projectName}"
+// For each product:
+for (const productRecipe of product.recipes) {
+  // Calculate total executions needed
+  const totalExecutions =
+    projectProduct.targetQuantity * productRecipe.quantity;
+
+  // Create snapshot using SnapshotService (smart caching)
+  const recipeSnapshot = await SnapshotService.getOrCreateRecipeSnapshot(
+    recipeId
+  );
+  const firstStep = recipeSnapshot.steps.find((s) => s.order === 1);
+  const maxStepOrder = Math.max(...recipeSnapshot.steps.map((s) => s.order));
+
+  // Create ALL first-step tasks for ALL executions
+  for (let execution = 1; execution <= totalExecutions; execution++) {
+    await Task.create({
+      title: `${firstStep.name} - Exec ${execution}/${totalExecutions} - ${productName}`,
+      recipeExecutionNumber: execution, // Which execution (1 to N)
+      totalRecipeExecutions: totalExecutions, // Total needed
+      stepOrder: firstStep.order, // Step order in recipe
+      isLastStepInRecipe: firstStep.order === maxStepOrder,
+      recipeSnapshotId: recipeSnapshot._id // Reference to snapshot
+      // ... other fields
+    });
+  }
+}
 ```
 
-**Task completion triggers next task creation** in `completeTask()`:
+**Task completion triggers next step creation** in `completeTask()`:
 
-- Find current step in snapshot
-- Identify next step by order
-- Create new PENDING task for next step
+- Fetch recipe snapshot: `await RecipeSnapshot.findById(task.recipeSnapshotId)`
+- If NOT last step: Create next step with **SAME execution number**
+- Copy execution tracking fields: `recipeExecutionNumber`, `totalRecipeExecutions`, `stepOrder`
+- If IS last step: Increment `producedQuantity` with proper calculation
 
 ### 3. MQTT Real-Time Communication
 
@@ -92,7 +135,60 @@ git add api_spec && git commit -m "Update api_spec"
 
 **Always update TypeScript interfaces in `api_spec/types/` when modifying models or API responses.**
 
-### 5. Recipe → Product → Project Hierarchy
+### 5. Quantity Tracking & Execution System
+
+**Calculation Formulas:**
+
+For **Products** (with recipe quantities):
+
+```typescript
+totalExecutions = product.targetQuantity × productRecipe.quantity
+// Example: Need 10 units, recipe makes 2 per execution → 20 total executions
+```
+
+For **Standalone Recipes**:
+
+```typescript
+totalExecutions = recipe.targetQuantity;
+// Example: Need 5 executions → 5 total executions
+```
+
+**ProducedQuantity Increment Logic:**
+
+Only increments when `task.isLastStepInRecipe === true`
+
+For **Products**:
+
+```typescript
+// Count completed recipe executions
+const completedExecutions = await Task.countDocuments({
+  projectId,
+  productId,
+  recipeId,
+  isLastStepInRecipe: true,
+  status: "COMPLETED"
+});
+
+// Calculate completed product units
+const executionsPerUnit = productRecipe.quantity;
+const completedUnits = Math.floor(completedExecutions / executionsPerUnit);
+projectProduct.producedQuantity = completedUnits;
+```
+
+For **Standalone Recipes**:
+
+```typescript
+projectRecipe.producedQuantity += 1; // Direct increment
+```
+
+**Execution Number Propagation:**
+
+Tasks in the same execution chain must maintain the same `recipeExecutionNumber`:
+
+- Exec 1: Step 1 → Step 2 → Step 3 (all have executionNumber = 1)
+- Exec 2: Step 1 → Step 2 → Step 3 (all have executionNumber = 2)
+
+### 6. Recipe → Product → Project Hierarchy
 
 ```
 Recipe (template)
@@ -104,10 +200,10 @@ Product
   ├─ recipes[] array with { recipeId, quantity }
   └─ Used by ↓
 
-Project
-  ├─ products[] with full snapshots (including recipe details)
-  ├─ recipes[] for standalone recipes
-  └─ Generates → Tasks (one per step execution)
+Project (live references only)
+  ├─ products[]: { productId, targetQuantity, producedQuantity }
+  ├─ recipes[]: { recipeId, targetQuantity, producedQuantity }
+  └─ Generates → Tasks (ALL first-step tasks for ALL executions)
 ```
 
 ## 🔧 Development Workflow
@@ -139,19 +235,27 @@ Copy `.env.example` to `.env`. Key variables:
 
 ### Models (`src/models/`)
 
-- **`Project.ts`**: Snapshot interfaces and pre-save progress calculation hook
-- **`Task.ts`**: Task lifecycle with status enum (`PENDING`, `ONGOING`, `PAUSED`, `COMPLETED`, `FAILED`)
-- **`Recipe.ts`**: Steps with `IRecipeStep` interface, dependencies via `dependsOn[]`
-- **`Product.ts`**: Products with recipe references and quantities
+- **`Project.ts`**: Live references only, pre-save progress calculation hook
+- **`Task.ts`**: Task lifecycle with execution tracking fields (`recipeExecutionNumber`, `totalRecipeExecutions`, `stepOrder`, `isLastStepInRecipe`)
+- **`Recipe.ts`**: Steps with `IRecipeStep` interface, soft delete support
+- **`Product.ts`**: Products with recipe references and quantities, soft delete support
+- **`RecipeSnapshot.ts`**: Immutable recipe snapshots with versioning (separate collection)
+- **`ProductSnapshot.ts`**: Immutable product snapshots with versioning (separate collection)
 
 ### Controllers (`src/controllers/`)
 
 - **`projectController.ts`**:
-  - `createProject()`: Creates snapshots by populating raw materials
-  - `updateProject()`: Auto-generates tasks on status change to ACTIVE (lines ~440-540)
+  - `createProject()`: Stores only live references (no snapshot creation)
+  - `updateProject()`: Generates ALL first-step tasks for ALL executions on ACTIVE status
 - **`taskController.ts`**:
-  - `completeTask()`: Marks task complete, auto-creates next step task
-  - Always reads from project snapshots, not live Recipe documents
+  - `completeTask()`: Uses RecipeSnapshot model, creates next step with SAME execution number, increments producedQuantity when `isLastStepInRecipe=true`
+  - `createTask()`: For standalone tasks only, creates snapshot via SnapshotService
+
+### Services (`src/services/`)
+
+- **`snapshotService.ts`**:
+  - `getOrCreateRecipeSnapshot()`: Smart caching (compares createdAt vs updatedAt)
+  - `getOrCreateProductSnapshot()`: Creates product snapshots with recipe snapshot references
 
 ### Middleware (`src/middleware/`)
 
@@ -195,31 +299,50 @@ Example: `1698765432000-a3f8b2c1d4e5-blueprint.pdf`
 - Max file size: 50MB (configurable)
 - Files linked to tasks/recipes via Media model with metadata
 
-## �🚨 Common Pitfalls
+## 🚨 Common Pitfalls
 
-1. **Don't fetch live Recipe/Product documents when working with project tasks**
+1. **Don't use embedded snapshots - they no longer exist in projects**
 
-   - Use `project.products[].snapshot` or `project.recipes[].snapshot`
+   - ❌ WRONG: `project.products[].snapshot.recipes[].steps`
+   - ✅ CORRECT: Use `RecipeSnapshot.findById(task.recipeSnapshotId)`
 
-2. **Update `api_spec/types/` when changing API contracts**
+2. **Always use SnapshotService for snapshot creation**
+
+   - Smart caching prevents duplicate snapshots
+   - Compares snapshot `createdAt` vs live document `updatedAt`
+
+3. **Maintain execution number through task chains**
+
+   - Next step task must have SAME `recipeExecutionNumber`
+   - Copy all execution tracking fields: `recipeExecutionNumber`, `totalRecipeExecutions`, `stepOrder`, `isLastStepInRecipe`
+
+4. **ProducedQuantity increment logic**
+
+   - Only increment when `task.isLastStepInRecipe === true`
+   - For products: `floor(completedExecutions / recipe.quantity)`
+   - For standalone recipes: Direct increment
+
+5. **Update `api_spec/types/` when changing API contracts**
 
    - Changes must be committed to the submodule separately
 
-3. **DeviceTypeId vs DeviceId**
+6. **DeviceTypeId vs DeviceId**
 
    - Tasks require `deviceTypeId` (from recipe step) at creation
    - `deviceId` (specific device) is assigned when task becomes `ONGOING`
 
-4. **Progress auto-calculation**
+7. **Progress auto-calculation**
 
    - Project progress is calculated by pre-save hook based on `producedQuantity / targetQuantity`
    - Don't manually set `progress` field
 
-5. **Task creation requires populated data**
+8. **Task creation workflow**
 
-   - When creating tasks in `updateProject()`, ensure snapshots include full step details (name, description, estimatedDuration, deviceTypeId)
+   - Project tasks are auto-generated on activation (ALL first-step tasks upfront)
+   - Manual creation via API is for standalone tasks only
+   - Snapshots are created during task generation, not project creation
 
-6. **File naming convention**
+9. **File naming convention**
    - Don't manually construct file paths; use the naming pattern from `upload.ts`
    - Always sanitize original filenames (replace special chars with underscores)
 
@@ -250,4 +373,4 @@ Currently no automated tests configured. When adding tests:
 
 ---
 
-**Last Updated:** November 2025 | **Architecture Version:** Snapshot-based with auto-task generation
+**Last Updated:** November 2025 | **Architecture Version:** Deferred snapshots with execution tracking and quantity management
