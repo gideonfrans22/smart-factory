@@ -6,7 +6,8 @@ import {
   updateTaskStatus,
   deleteTask,
   completeTask,
-  getStandaloneTasks
+  getStandaloneTasks,
+  getTaskStatistics
 } from "../controllers/taskController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -18,6 +19,13 @@ const router = Router();
  * @access Authenticated users
  */
 router.get("/", authenticateToken, getTasks);
+
+/**
+ * @route GET /api/tasks/statistics
+ * @desc Get task statistics and metrics
+ * @access Authenticated users
+ */
+router.get("/statistics", authenticateToken, getTaskStatistics);
 
 /**
  * @route GET /api/tasks/standalone

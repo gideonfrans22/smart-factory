@@ -619,6 +619,295 @@ export const completeTask = async (
 };
 
 /**
+ * Get task statistics
+ * GET /api/tasks/statistics
+ */
+export const getTaskStatistics = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { projectId, deviceTypeId, workerId, startDate, endDate } = req.query;
+
+    // Build base query for filtering
+    const baseQuery: any = {};
+    if (projectId) baseQuery.projectId = projectId;
+    if (deviceTypeId) baseQuery.deviceTypeId = deviceTypeId;
+    if (workerId) baseQuery.workerId = workerId;
+
+    // Date range filter
+    if (startDate || endDate) {
+      baseQuery.createdAt = {};
+      if (startDate) baseQuery.createdAt.$gte = new Date(startDate as string);
+      if (endDate) baseQuery.createdAt.$lte = new Date(endDate as string);
+    }
+
+    // Run aggregations in parallel for better performance
+    const [
+      statusCounts,
+      priorityCounts,
+      totalTasks,
+      completedTasks,
+      overdueTasks,
+      avgCompletionTime,
+      tasksByDeviceType,
+      tasksByProject,
+      executionProgress
+    ] = await Promise.all([
+      // Task count per status
+      Task.aggregate([
+        { $match: baseQuery },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 }
+          }
+        }
+      ]),
+
+      // Task count per priority
+      Task.aggregate([
+        { $match: baseQuery },
+        {
+          $group: {
+            _id: "$priority",
+            count: { $sum: 1 }
+          }
+        }
+      ]),
+
+      // Total tasks
+      Task.countDocuments(baseQuery),
+
+      // Completed tasks count
+      Task.countDocuments({ ...baseQuery, status: "COMPLETED" }),
+
+      // Overdue tasks (estimated vs actual)
+      Task.countDocuments({
+        ...baseQuery,
+        status: { $in: ["PENDING", "ONGOING", "PAUSED"] },
+        estimatedDuration: { $exists: true },
+        $expr: {
+          $gt: [
+            { $subtract: [new Date(), "$createdAt"] },
+            { $multiply: ["$estimatedDuration", 60000] } // Convert minutes to ms
+          ]
+        }
+      }),
+
+      // Average completion time (in minutes)
+      Task.aggregate([
+        {
+          $match: {
+            ...baseQuery,
+            status: "COMPLETED",
+            actualDuration: { $exists: true, $gt: 0 }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            avgDuration: { $avg: "$actualDuration" },
+            minDuration: { $min: "$actualDuration" },
+            maxDuration: { $max: "$actualDuration" }
+          }
+        }
+      ]),
+
+      // Tasks by device type
+      Task.aggregate([
+        { $match: baseQuery },
+        {
+          $group: {
+            _id: "$deviceTypeId",
+            count: { $sum: 1 },
+            completed: {
+              $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] }
+            }
+          }
+        },
+        { $limit: 10 } // Top 10 device types
+      ]),
+
+      // Tasks by project
+      Task.aggregate([
+        { $match: { ...baseQuery, projectId: { $exists: true } } },
+        {
+          $group: {
+            _id: "$projectId",
+            count: { $sum: 1 },
+            completed: {
+              $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] }
+            },
+            pending: {
+              $sum: { $cond: [{ $eq: ["$status", "PENDING"] }, 1, 0] }
+            },
+            ongoing: {
+              $sum: { $cond: [{ $eq: ["$status", "ONGOING"] }, 1, 0] }
+            }
+          }
+        },
+        { $sort: { count: -1 } },
+        { $limit: 10 } // Top 10 projects
+      ]),
+
+      // Recipe execution progress
+      Task.aggregate([
+        {
+          $match: {
+            ...baseQuery,
+            projectId: { $exists: true },
+            recipeExecutionNumber: { $exists: true }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              projectId: "$projectId",
+              recipeId: "$recipeId",
+              executionNumber: "$recipeExecutionNumber"
+            },
+            totalSteps: { $sum: 1 },
+            completedSteps: {
+              $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] }
+            },
+            isLastStepCompleted: {
+              $max: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$isLastStepInRecipe", true] },
+                      { $eq: ["$status", "COMPLETED"] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalExecutions: { $sum: 1 },
+            completedExecutions: { $sum: "$isLastStepCompleted" }
+          }
+        }
+      ])
+    ]);
+
+    // Format status counts
+    const statusStats: Record<string, number> = {
+      PENDING: 0,
+      ONGOING: 0,
+      PAUSED: 0,
+      COMPLETED: 0,
+      FAILED: 0
+    };
+    statusCounts.forEach((item: any) => {
+      if (item._id) statusStats[item._id] = item.count;
+    });
+
+    // Format priority counts
+    const priorityStats: Record<string, number> = {
+      LOW: 0,
+      MEDIUM: 0,
+      HIGH: 0,
+      URGENT: 0
+    };
+    priorityCounts.forEach((item: any) => {
+      if (item._id) priorityStats[item._id] = item.count;
+    });
+
+    // Calculate completion rate
+    const completionRate =
+      totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(2) : "0";
+
+    // Format average completion time
+    const completionTimeStats = avgCompletionTime[0] || {
+      avgDuration: 0,
+      minDuration: 0,
+      maxDuration: 0
+    };
+
+    // Format execution progress
+    const executionStats = executionProgress[0] || {
+      totalExecutions: 0,
+      completedExecutions: 0
+    };
+    const executionCompletionRate =
+      executionStats.totalExecutions > 0
+        ? (
+            (executionStats.completedExecutions /
+              executionStats.totalExecutions) *
+            100
+          ).toFixed(2)
+        : "0";
+
+    const response: APIResponse = {
+      success: true,
+      message: "Task statistics retrieved successfully",
+      data: {
+        overview: {
+          totalTasks,
+          completedTasks,
+          pendingTasks: statusStats.PENDING,
+          ongoingTasks: statusStats.ONGOING,
+          pausedTasks: statusStats.PAUSED,
+          failedTasks: statusStats.FAILED,
+          overdueTasks,
+          completionRate: parseFloat(completionRate)
+        },
+        byStatus: statusStats,
+        byPriority: priorityStats,
+        completionTime: {
+          average: Math.round(completionTimeStats.avgDuration || 0),
+          min: completionTimeStats.minDuration || 0,
+          max: completionTimeStats.maxDuration || 0,
+          unit: "minutes"
+        },
+        byDeviceType: tasksByDeviceType.map((item: any) => ({
+          deviceTypeId: item._id,
+          total: item.count,
+          completed: item.completed,
+          completionRate:
+            item.count > 0
+              ? parseFloat(((item.completed / item.count) * 100).toFixed(2))
+              : 0
+        })),
+        byProject: tasksByProject.map((item: any) => ({
+          projectId: item._id,
+          total: item.count,
+          completed: item.completed,
+          pending: item.pending,
+          ongoing: item.ongoing,
+          completionRate:
+            item.count > 0
+              ? parseFloat(((item.completed / item.count) * 100).toFixed(2))
+              : 0
+        })),
+        executionProgress: {
+          totalExecutions: executionStats.totalExecutions,
+          completedExecutions: executionStats.completedExecutions,
+          completionRate: parseFloat(executionCompletionRate)
+        }
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get task statistics error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
  * Get standalone tasks (tasks not associated with any project)
  * GET /api/tasks/standalone
  */
