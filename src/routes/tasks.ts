@@ -7,7 +7,8 @@ import {
   deleteTask,
   completeTask,
   getStandaloneTasks,
-  getTaskStatistics
+  getTaskStatistics,
+  getGroupedTasks
 } from "../controllers/taskController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -26,6 +27,13 @@ router.get("/", authenticateToken, getTasks);
  * @access Authenticated users
  */
 router.get("/statistics", authenticateToken, getTaskStatistics);
+
+/**
+ * @route GET /api/tasks/grouped
+ * @desc Get tasks grouped by project > product > recipe hierarchy
+ * @access Authenticated users
+ */
+router.get("/grouped", authenticateToken, getGroupedTasks);
 
 /**
  * @route GET /api/tasks/standalone

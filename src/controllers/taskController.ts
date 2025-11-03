@@ -908,6 +908,335 @@ export const getTaskStatistics = async (
 };
 
 /**
+ * Get tasks grouped by project > product > recipe hierarchy
+ * GET /api/tasks/grouped
+ */
+export const getGroupedTasks = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const {
+      projectStatus,
+      taskStatus,
+      startDate,
+      endDate,
+      search,
+      page = 1,
+      limit = 10
+    } = req.query;
+
+    // Build task query
+    const taskQuery: any = {
+      projectId: { $exists: true, $ne: null }
+    };
+
+    if (taskStatus) taskQuery.status = taskStatus;
+
+    // Date range filter
+    if (startDate || endDate) {
+      taskQuery.createdAt = {};
+      if (startDate) taskQuery.createdAt.$gte = new Date(startDate as string);
+      if (endDate) taskQuery.createdAt.$lte = new Date(endDate as string);
+    }
+
+    // Text search support for project/recipe/product names
+    let projectIds: any[] = [];
+    let recipeIds: any[] = [];
+    let productIds: any[] = [];
+
+    if (search && typeof search === "string") {
+      const searchRegex = new RegExp(search, "i");
+
+      // Find matching projects
+      const projects = await Project.find({
+        name: searchRegex
+      }).select("_id");
+      projectIds = projects.map((p) => p._id);
+
+      // Find matching recipes
+      const recipes = await Recipe.find({
+        name: searchRegex
+      }).select("_id");
+      recipeIds = recipes.map((r) => r._id);
+
+      // Find matching products
+      const products = await Product.find({
+        name: searchRegex
+      }).select("_id");
+      productIds = products.map((p) => p._id);
+
+      // Add search conditions to task query
+      if (
+        projectIds.length > 0 ||
+        recipeIds.length > 0 ||
+        productIds.length > 0
+      ) {
+        taskQuery.$or = [];
+
+        if (projectIds.length > 0) {
+          taskQuery.$or.push({ projectId: { $in: projectIds } });
+        }
+
+        if (recipeIds.length > 0) {
+          taskQuery.$or.push({ recipeId: { $in: recipeIds } });
+        }
+
+        if (productIds.length > 0) {
+          taskQuery.$or.push({ productId: { $in: productIds } });
+        }
+      }
+    }
+
+    // Get distinct project IDs from tasks matching the query
+    const distinctProjectIds = await Task.distinct("projectId", taskQuery);
+
+    // Build project query
+    const projectQuery: any = {
+      _id: { $in: distinctProjectIds }
+    };
+
+    if (projectStatus) projectQuery.status = projectStatus;
+
+    // Pagination on project level
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get total count of projects
+    const totalProjects = await Project.countDocuments(projectQuery);
+
+    // Get paginated projects
+    const projects = await Project.find(projectQuery)
+      .populate("createdBy", "name email username")
+      .skip(skip)
+      .limit(limitNum)
+      .sort({ createdAt: -1 });
+
+    // Build grouped data structure
+    const groupedData: Record<string, any> = {};
+
+    for (const project of projects) {
+      const projectId = (project._id as any).toString();
+
+      // Get all tasks for this project matching the task query
+      const projectTaskQuery = {
+        ...taskQuery,
+        projectId: project._id
+      };
+
+      const tasks = await Task.find(projectTaskQuery)
+        .populate("workerId", "name username email")
+        .populate("deviceId", "name deviceName")
+        .populate("deviceTypeId", "name")
+        .populate("recipeSnapshotId", "name version")
+        .populate("productSnapshotId", "name version")
+        .sort({ createdAt: -1 });
+
+      // Initialize project structure
+      groupedData[projectId] = {
+        projectInfo: {
+          _id: project._id,
+          name: project.name,
+          description: project.description,
+          status: project.status,
+          priority: project.priority,
+          progress: project.progress,
+          startDate: project.startDate,
+          endDate: project.endDate,
+          deadline: project.deadline,
+          createdBy: project.createdBy,
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt
+        },
+        products: {},
+        standaloneRecipes: {},
+        summary: {
+          totalTasks: tasks.length,
+          byStatus: {
+            PENDING: 0,
+            ONGOING: 0,
+            PAUSED: 0,
+            COMPLETED: 0,
+            FAILED: 0
+          },
+          byPriority: {
+            LOW: 0,
+            MEDIUM: 0,
+            HIGH: 0,
+            URGENT: 0
+          }
+        }
+      };
+
+      // Group tasks by product and recipe
+      for (const task of tasks) {
+        // Update summary counts
+        groupedData[projectId].summary.byStatus[task.status]++;
+        groupedData[projectId].summary.byPriority[task.priority]++;
+
+        if (task.productId && task.productSnapshotId) {
+          // Task belongs to a product
+          const productSnapshot = task.productSnapshotId as any;
+          const productSnapshotId = productSnapshot._id.toString();
+
+          // Initialize product group if not exists
+          if (!groupedData[projectId].products[productSnapshotId]) {
+            groupedData[projectId].products[productSnapshotId] = {
+              productInfo: {
+                _id: productSnapshot._id,
+                name: productSnapshot.name,
+                version: productSnapshot.version,
+                productId: task.productId
+              },
+              recipes: {},
+              summary: {
+                totalTasks: 0,
+                byStatus: {
+                  PENDING: 0,
+                  ONGOING: 0,
+                  PAUSED: 0,
+                  COMPLETED: 0,
+                  FAILED: 0
+                }
+              }
+            };
+          }
+
+          // Update product summary
+          groupedData[projectId].products[productSnapshotId].summary
+            .totalTasks++;
+          groupedData[projectId].products[productSnapshotId].summary.byStatus[
+            task.status
+          ]++;
+
+          // Group by recipe within product
+          const recipeSnapshot = task.recipeSnapshotId as any;
+          const recipeSnapshotId = recipeSnapshot._id.toString();
+
+          if (
+            !groupedData[projectId].products[productSnapshotId].recipes[
+              recipeSnapshotId
+            ]
+          ) {
+            groupedData[projectId].products[productSnapshotId].recipes[
+              recipeSnapshotId
+            ] = {
+              recipeInfo: {
+                _id: recipeSnapshot._id,
+                name: recipeSnapshot.name,
+                version: recipeSnapshot.version,
+                recipeId: task.recipeId
+              },
+              tasks: [],
+              summary: {
+                totalTasks: 0,
+                totalExecutions: task.totalRecipeExecutions,
+                completedExecutions: 0,
+                byStatus: {
+                  PENDING: 0,
+                  ONGOING: 0,
+                  PAUSED: 0,
+                  COMPLETED: 0,
+                  FAILED: 0
+                }
+              }
+            };
+          }
+
+          // Add task to recipe group
+          groupedData[projectId].products[productSnapshotId].recipes[
+            recipeSnapshotId
+          ].tasks.push(task);
+          groupedData[projectId].products[productSnapshotId].recipes[
+            recipeSnapshotId
+          ].summary.totalTasks++;
+          groupedData[projectId].products[productSnapshotId].recipes[
+            recipeSnapshotId
+          ].summary.byStatus[task.status]++;
+
+          // Count completed executions (last step completed)
+          if (task.isLastStepInRecipe && task.status === "COMPLETED") {
+            groupedData[projectId].products[productSnapshotId].recipes[
+              recipeSnapshotId
+            ].summary.completedExecutions++;
+          }
+        } else {
+          // Standalone recipe (not part of a product)
+          const recipeSnapshot = task.recipeSnapshotId as any;
+          const recipeSnapshotId = recipeSnapshot._id.toString();
+
+          if (!groupedData[projectId].standaloneRecipes[recipeSnapshotId]) {
+            groupedData[projectId].standaloneRecipes[recipeSnapshotId] = {
+              recipeInfo: {
+                _id: recipeSnapshot._id,
+                name: recipeSnapshot.name,
+                version: recipeSnapshot.version,
+                recipeId: task.recipeId
+              },
+              tasks: [],
+              summary: {
+                totalTasks: 0,
+                totalExecutions: task.totalRecipeExecutions,
+                completedExecutions: 0,
+                byStatus: {
+                  PENDING: 0,
+                  ONGOING: 0,
+                  PAUSED: 0,
+                  COMPLETED: 0,
+                  FAILED: 0
+                }
+              }
+            };
+          }
+
+          // Add task to standalone recipe group
+          groupedData[projectId].standaloneRecipes[recipeSnapshotId].tasks.push(
+            task
+          );
+          groupedData[projectId].standaloneRecipes[recipeSnapshotId].summary
+            .totalTasks++;
+          groupedData[projectId].standaloneRecipes[recipeSnapshotId].summary
+            .byStatus[task.status]++;
+
+          // Count completed executions (last step completed)
+          if (task.isLastStepInRecipe && task.status === "COMPLETED") {
+            groupedData[projectId].standaloneRecipes[recipeSnapshotId].summary
+              .completedExecutions++;
+          }
+        }
+      }
+    }
+
+    const response: APIResponse = {
+      success: true,
+      message: "Grouped tasks retrieved successfully",
+      data: {
+        items: groupedData,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: totalProjects,
+          totalPages: Math.ceil(totalProjects / limitNum),
+          hasNext: pageNum * limitNum < totalProjects,
+          hasPrev: pageNum > 1
+        }
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get grouped tasks error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
  * Get standalone tasks (tasks not associated with any project)
  * GET /api/tasks/standalone
  */
