@@ -4,6 +4,7 @@ import { Recipe } from "../models/Recipe";
 import { Product } from "../models/Product";
 import { Task } from "../models/Task";
 import { APIResponse, AuthenticatedRequest } from "../types";
+import { SnapshotService } from "../services/snapshotService";
 
 /**
  * Get all projects with optional filtering and pagination
@@ -171,7 +172,7 @@ export const createProject = async (
       return;
     }
 
-    // Process products with snapshots
+    // Process products - just validate and store references
     const processedProducts = [];
     if (products && products.length > 0) {
       for (const item of products) {
@@ -189,7 +190,7 @@ export const createProject = async (
           return;
         }
 
-        // Validate product exists and fetch for snapshot
+        // Validate product exists
         const product = await Product.findById(item.productId);
         if (!product) {
           const response: APIResponse = {
@@ -201,68 +202,16 @@ export const createProject = async (
           return;
         }
 
-        // Fetch recipe details for snapshot
-        const recipeSnapshots = [];
-        if (product.recipes && product.recipes.length > 0) {
-          for (const productRecipe of product.recipes) {
-            const recipe = await Recipe.findById(
-              productRecipe.recipeId
-            ).populate("rawMaterials.materialId");
-            if (recipe) {
-              // Process raw materials with snapshots
-              const rawMaterialsWithSnapshots = [];
-              if (recipe.rawMaterials && recipe.rawMaterials.length > 0) {
-                for (const rawMat of recipe.rawMaterials) {
-                  const material = rawMat.materialId as any;
-                  if (material) {
-                    rawMaterialsWithSnapshots.push({
-                      materialId: material._id,
-                      snapshot: {
-                        materialCode: material.materialCode,
-                        name: material.name,
-                        specifications: material.specifications,
-                        supplier: material.supplier,
-                        unit: material.unit
-                      },
-                      quantityRequired: rawMat.quantityRequired,
-                      specification: rawMat.specification
-                    });
-                  }
-                }
-              }
-
-              recipeSnapshots.push({
-                recipeId: recipe._id,
-                recipeNumber: recipe.recipeNumber,
-                version: recipe.version,
-                name: recipe.name,
-                description: recipe.description,
-                rawMaterials: rawMaterialsWithSnapshots,
-                steps: recipe.steps,
-                estimatedDuration: recipe.estimatedDuration,
-                quantity: productRecipe.quantity
-              });
-            }
-          }
-        }
-
-        // Create snapshot
+        // Just store reference - no snapshot yet
         processedProducts.push({
           productId: product._id,
-          snapshot: {
-            designNumber: product.designNumber,
-            productName: product.productName,
-            customerName: product.customerName,
-            quantityUnit: product.quantityUnit,
-            recipes: recipeSnapshots
-          },
           targetQuantity: item.targetQuantity,
           producedQuantity: 0
         });
       }
     }
 
-    // Process recipes with snapshots
+    // Process recipes - just validate and store references
     const processedRecipes = [];
     if (recipes && recipes.length > 0) {
       for (const item of recipes) {
@@ -276,10 +225,8 @@ export const createProject = async (
           return;
         }
 
-        // Validate recipe exists and fetch for snapshot
-        const recipe = await Recipe.findById(item.recipeId).populate(
-          "rawMaterials.materialId"
-        );
+        // Validate recipe exists
+        const recipe = await Recipe.findById(item.recipeId);
         if (!recipe) {
           const response: APIResponse = {
             success: false,
@@ -290,47 +237,16 @@ export const createProject = async (
           return;
         }
 
-        // Process raw materials with snapshots
-        const rawMaterialsWithSnapshots = [];
-        if (recipe.rawMaterials && recipe.rawMaterials.length > 0) {
-          for (const rawMat of recipe.rawMaterials) {
-            const material = rawMat.materialId as any;
-            if (material) {
-              rawMaterialsWithSnapshots.push({
-                materialId: material._id,
-                snapshot: {
-                  materialCode: material.materialCode,
-                  name: material.name,
-                  specifications: material.specifications,
-                  supplier: material.supplier,
-                  unit: material.unit
-                },
-                quantityRequired: rawMat.quantityRequired,
-                specification: rawMat.specification
-              });
-            }
-          }
-        }
-
-        // Create snapshot
+        // Just store reference - no snapshot yet
         processedRecipes.push({
           recipeId: recipe._id,
-          snapshot: {
-            recipeNumber: recipe.recipeNumber,
-            version: recipe.version,
-            name: recipe.name,
-            description: recipe.description,
-            rawMaterials: rawMaterialsWithSnapshots,
-            steps: recipe.steps,
-            estimatedDuration: recipe.estimatedDuration
-          },
           targetQuantity: item.targetQuantity,
           producedQuantity: 0
         });
       }
     }
 
-    // Create project with snapshots
+    // Create project with live references only - snapshots created at activation
     const project = new Project({
       name,
       description,
@@ -477,69 +393,99 @@ export const updateProject = async (
 
     await project.save(); // Progress will be recalculated by pre-save hook
 
-    // Auto-create initial tasks when project becomes ACTIVE
+    // Auto-create snapshots and ALL first-step tasks when project becomes ACTIVE
     const createdTasks = [];
     if (isActivating) {
-      // Create initial tasks for each product's recipes
+      // Create ALL first-step tasks for each product's recipes
       if (project.products && project.products.length > 0) {
         for (const projectProduct of project.products) {
-          const productSnapshot = projectProduct.snapshot;
+          // Fetch the live product to get its recipes
+          const product = await Product.findById(
+            projectProduct.productId
+          ).populate("recipes.recipeId");
+          if (!product) continue;
 
-          // Iterate through each recipe in the product snapshot
-          if (productSnapshot.recipes && productSnapshot.recipes.length > 0) {
-            for (const productRecipe of productSnapshot.recipes) {
-              // Use snapshot data instead of fetching live Recipe
-              if (productRecipe.steps && productRecipe.steps.length > 0) {
-                // Find the first step (order = 1) from snapshot
-                const firstStep = productRecipe.steps.find(
-                  (step: any) => step.order === 1
-                );
+          // Process each recipe in this product
+          for (const productRecipe of product.recipes) {
+            // Calculate total executions: targetQuantity × recipe quantity
+            const totalExecutions =
+              projectProduct.targetQuantity * productRecipe.quantity;
 
-                if (firstStep) {
-                  // Validate deviceTypeId exists
-                  if (!firstStep.deviceTypeId) {
-                    const response: APIResponse = {
-                      success: false,
-                      error: "VALIDATION_ERROR",
-                      message: `First step of recipe in product "${productSnapshot.productName}" does not have a deviceTypeId`
-                    };
-                    res.status(400).json(response);
-                    return;
-                  }
+            // Create snapshot for this recipe (smart caching applies)
+            const recipeSnapshot =
+              await SnapshotService.getOrCreateRecipeSnapshot(
+                productRecipe.recipeId as any
+              );
 
-                  // Create task for the first step using snapshot data
-                  const newTask = new Task({
-                    title: `${firstStep.name} - ${productSnapshot.productName} - ${project.name}`,
-                    description: firstStep.description,
-                    projectId: project._id,
-                    productId: projectProduct.productId,
-                    recipeId: productRecipe.recipeId,
-                    recipeStepId: firstStep._id,
-                    deviceTypeId: firstStep.deviceTypeId,
-                    status: "PENDING",
-                    priority: project.priority,
-                    estimatedDuration: firstStep.estimatedDuration,
-                    progress: 0,
-                    pausedDuration: 0
-                  });
+            // Find the first step (order = 1) from snapshot
+            const firstStep = recipeSnapshot.steps.find(
+              (step) => step.order === 1
+            );
 
-                  await newTask.save();
-                  createdTasks.push(newTask);
-                }
+            if (firstStep) {
+              // Validate deviceTypeId exists
+              if (!firstStep.deviceTypeId) {
+                const response: APIResponse = {
+                  success: false,
+                  error: "VALIDATION_ERROR",
+                  message: `First step of recipe in product "${product.productName}" does not have a deviceTypeId`
+                };
+                res.status(400).json(response);
+                return;
+              }
+
+              // Determine if this is the last step
+              const maxStepOrder = Math.max(
+                ...recipeSnapshot.steps.map((s) => s.order)
+              );
+              const isLastStep = firstStep.order === maxStepOrder;
+
+              // Create ALL first-step tasks for ALL executions upfront
+              for (
+                let execution = 1;
+                execution <= totalExecutions;
+                execution++
+              ) {
+                const newTask = new Task({
+                  title: `${firstStep.name} - Exec ${execution}/${totalExecutions} - ${product.productName}`,
+                  description: firstStep.description,
+                  projectId: project._id,
+                  productId: projectProduct.productId,
+                  recipeId: productRecipe.recipeId as any,
+                  recipeSnapshotId: recipeSnapshot._id,
+                  recipeStepId: firstStep._id,
+                  recipeExecutionNumber: execution,
+                  totalRecipeExecutions: totalExecutions,
+                  stepOrder: firstStep.order,
+                  isLastStepInRecipe: isLastStep,
+                  deviceTypeId: firstStep.deviceTypeId,
+                  status: "PENDING",
+                  priority: project.priority,
+                  estimatedDuration: firstStep.estimatedDuration,
+                  progress: 0,
+                  pausedDuration: 0
+                });
+
+                await newTask.save();
+                createdTasks.push(newTask);
               }
             }
           }
         }
       }
 
-      // Create initial tasks for each standalone recipe's first step
+      // Create ALL first-step tasks for each standalone recipe
       for (const projectRecipe of project.recipes) {
-        const recipeSnapshot = projectRecipe.snapshot;
+        // Total executions = targetQuantity for standalone recipes
+        const totalExecutions = projectRecipe.targetQuantity;
+
+        // Create snapshot for this recipe (smart caching applies)
+        const recipeSnapshot = await SnapshotService.getOrCreateRecipeSnapshot(
+          projectRecipe.recipeId
+        );
 
         // Find the first step (order = 1)
-        const firstStep = recipeSnapshot.steps.find(
-          (step: any) => step.order === 1
-        );
+        const firstStep = recipeSnapshot.steps.find((step) => step.order === 1);
 
         if (firstStep) {
           // Validate deviceTypeId exists
@@ -553,23 +499,36 @@ export const updateProject = async (
             return;
           }
 
-          // Create task for the first step
-          const newTask = new Task({
-            title: `${firstStep.name} - ${project.name}`,
-            description: firstStep.description,
-            projectId: project._id,
-            recipeId: projectRecipe.recipeId,
-            recipeStepId: firstStep._id,
-            deviceTypeId: firstStep.deviceTypeId,
-            status: "PENDING",
-            priority: project.priority,
-            estimatedDuration: firstStep.estimatedDuration,
-            progress: 0,
-            pausedDuration: 0
-          });
+          // Determine if this is the last step
+          const maxStepOrder = Math.max(
+            ...recipeSnapshot.steps.map((s) => s.order)
+          );
+          const isLastStep = firstStep.order === maxStepOrder;
 
-          await newTask.save();
-          createdTasks.push(newTask);
+          // Create ALL first-step tasks for ALL executions upfront
+          for (let execution = 1; execution <= totalExecutions; execution++) {
+            const newTask = new Task({
+              title: `${firstStep.name} - Exec ${execution}/${totalExecutions} - ${project.name}`,
+              description: firstStep.description,
+              projectId: project._id,
+              recipeId: projectRecipe.recipeId,
+              recipeSnapshotId: recipeSnapshot._id,
+              recipeStepId: firstStep._id,
+              recipeExecutionNumber: execution,
+              totalRecipeExecutions: totalExecutions,
+              stepOrder: firstStep.order,
+              isLastStepInRecipe: isLastStep,
+              deviceTypeId: firstStep.deviceTypeId,
+              status: "PENDING",
+              priority: project.priority,
+              estimatedDuration: firstStep.estimatedDuration,
+              progress: 0,
+              pausedDuration: 0
+            });
+
+            await newTask.save();
+            createdTasks.push(newTask);
+          }
         }
       }
     }

@@ -5,7 +5,8 @@ import {
   createTask,
   updateTaskStatus,
   deleteTask,
-  completeTask
+  completeTask,
+  getStandaloneTasks
 } from "../controllers/taskController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -17,6 +18,13 @@ const router = Router();
  * @access Authenticated users
  */
 router.get("/", authenticateToken, getTasks);
+
+/**
+ * @route GET /api/tasks/standalone
+ * @desc Get standalone tasks (not associated with any project)
+ * @access Authenticated users
+ */
+router.get("/standalone", authenticateToken, getStandaloneTasks);
 
 /**
  * @route GET /api/tasks/:id

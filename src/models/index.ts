@@ -9,6 +9,19 @@ export { Product, IProduct, IProductRecipe } from "./Product";
 export { Project, IProject } from "./Project";
 export { Task, ITask } from "./Task";
 
+// Snapshots
+export {
+  default as RecipeSnapshot,
+  IRecipeSnapshot,
+  IRecipeStepSnapshot,
+  IRawMaterialSnapshotReference
+} from "./RecipeSnapshot";
+export {
+  default as ProductSnapshot,
+  IProductSnapshot,
+  IProductRecipeSnapshotReference
+} from "./ProductSnapshot";
+
 // Media
 export { Media, IMedia } from "./Media";
 
