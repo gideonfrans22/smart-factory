@@ -5,7 +5,7 @@ import mongoose from "mongoose";
 
 export const getAlerts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { type, isRead, severity, page = 1, limit = 10 } = req.query;
+    const { type, isRead, severity, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
 
     const query: any = {};
     if (type) query.type = type;
@@ -16,12 +16,17 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
+    // Build sort object
+    const sortField = sortBy as string;
+    const sortDirection = sortOrder === 'asc' ? 1 : -1;
+    const sortObject: any = { [sortField]: sortDirection };
+
     const total = await Alert.countDocuments(query);
     const alerts = await Alert.find(query)
       .populate("acknowledgedBy", "name username")
       .skip(skip)
       .limit(limitNum)
-      .sort({ createdAt: -1 });
+      .sort(sortObject);
 
     const response: APIResponse = {
       success: true,

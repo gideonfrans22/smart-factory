@@ -56,7 +56,7 @@ Content-Type: application/json
 
 ```json
 {
-  "emailOrUsername": "admin@smartfactory.com", // Email (admin) or username (worker)
+  "emailOrUsername": "", // Email (admin) or username (worker)
   "password": "admin123"
 }
 ```
