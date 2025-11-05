@@ -159,7 +159,6 @@ export const createTask = async (
       description,
       projectId,
       recipeId,
-      recipeStepId,
       deviceId,
       workerId,
       status,
@@ -170,11 +169,11 @@ export const createTask = async (
     } = req.body;
 
     // Validation
-    if (!title || !recipeId || !recipeStepId) {
+    if (!title || !recipeId) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Title, recipeId, and recipeStepId are required"
+        message: "Title and recipeId are required"
       };
       res.status(400).json(response);
       return;
@@ -221,19 +220,7 @@ export const createTask = async (
       recipeSnapshotId = recipeSnapshot._id;
 
       // Find recipe step in snapshot
-      recipeStep = recipeSnapshot.steps.find(
-        (step: any) => step._id.toString() === recipeStepId
-      );
-
-      if (!recipeStep) {
-        const response: APIResponse = {
-          success: false,
-          error: "NOT_FOUND",
-          message: `Recipe step '${recipeStepId}' not found in recipe snapshot`
-        };
-        res.status(404).json(response);
-        return;
-      }
+      recipeStep = recipeSnapshot.steps[0]; // Default to first step
 
       deviceTypeId = recipeStep.deviceTypeId;
       taskEstimatedDuration = estimatedDuration || recipeStep.estimatedDuration;
@@ -266,7 +253,7 @@ export const createTask = async (
       productId: undefined,
       recipeSnapshotId,
       productSnapshotId: undefined,
-      recipeStepId,
+      recipeStepId: recipeStep ? recipeStep._id : undefined,
       recipeExecutionNumber: 1, // Standalone tasks are single execution
       totalRecipeExecutions: 1,
       stepOrder,
