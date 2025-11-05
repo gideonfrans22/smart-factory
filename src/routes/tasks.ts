@@ -3,6 +3,7 @@ import {
   getTasks,
   getTaskById,
   createTask,
+  updateTask,
   updateTaskStatus,
   deleteTask,
   completeTask,
@@ -62,6 +63,13 @@ router.post("/", authenticateToken, requireAdmin, createTask);
  * @access Authenticated users
  */
 router.post("/:id/status", authenticateToken, updateTaskStatus);
+
+/**
+ * @route PATCH /api/tasks/:id
+ * @desc Partial update task (status, priority, notes, mediaFiles, deviceId, workerId, etc.)
+ * @access Authenticated users
+ */
+router.patch("/:id", authenticateToken, updateTask);
 
 /**
  * @route POST /api/tasks/:id/complete

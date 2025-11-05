@@ -159,6 +159,7 @@ export const createTask = async (
       description,
       projectId,
       recipeId,
+      productId,
       deviceId,
       workerId,
       status,
@@ -169,11 +170,23 @@ export const createTask = async (
     } = req.body;
 
     // Validation
-    if (!title || !recipeId) {
+    if (!title || (!recipeId && !productId)) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Title and recipeId are required"
+        message: "Title and either recipeId or productId are required"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Cannot provide both recipeId and productId
+    if (recipeId && productId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message:
+          "Cannot provide both recipeId and productId. Use one or the other."
       };
       res.status(400).json(response);
       return;
@@ -183,8 +196,11 @@ export const createTask = async (
     let deviceTypeId: any = null;
     let taskEstimatedDuration: number | undefined = estimatedDuration;
     let recipeSnapshotId: any = null;
+    let productSnapshotId: any = null;
     let stepOrder: number = 1;
     let isLastStepInRecipe: boolean = false;
+    let totalExecutions: number = 1;
+    let selectedRecipeId: any = recipeId;
 
     // Check if this is a project task or standalone task
     if (projectId) {
@@ -199,38 +215,115 @@ export const createTask = async (
       res.status(400).json(response);
       return;
     } else {
-      // STANDALONE TASK: Create snapshot and task
-      const recipe = await Recipe.findById(recipeId);
-
-      if (!recipe) {
-        const response: APIResponse = {
-          success: false,
-          error: "NOT_FOUND",
-          message: "Recipe not found"
-        };
-        res.status(404).json(response);
-        return;
-      }
-
-      // Create recipe snapshot using SnapshotService
+      // STANDALONE TASK: Can be either recipe or product
       const { SnapshotService } = await import("../services/snapshotService");
-      const recipeSnapshot = await SnapshotService.getOrCreateRecipeSnapshot(
-        recipeId
-      );
-      recipeSnapshotId = recipeSnapshot._id;
 
-      // Find recipe step in snapshot
-      recipeStep = recipeSnapshot.steps[0]; // Default to first step
+      if (productId) {
+        // STANDALONE PRODUCT TASK
+        const product = await Product.findById(productId);
 
-      deviceTypeId = recipeStep.deviceTypeId;
-      taskEstimatedDuration = estimatedDuration || recipeStep.estimatedDuration;
-      stepOrder = recipeStep.order;
+        if (!product) {
+          const response: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: "Product not found"
+          };
+          res.status(404).json(response);
+          return;
+        }
 
-      // Determine if this is the last step
-      const maxStepOrder = Math.max(
-        ...recipeSnapshot.steps.map((s: any) => s.order)
-      );
-      isLastStepInRecipe = stepOrder === maxStepOrder;
+        // Get first recipe from product
+        if (!product.recipes || product.recipes.length === 0) {
+          const response: APIResponse = {
+            success: false,
+            error: "VALIDATION_ERROR",
+            message: "Product does not have any recipes"
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        const firstProductRecipe = product.recipes[0];
+        selectedRecipeId = firstProductRecipe.recipeId;
+
+        // Fetch the recipe to validate
+        const recipe = await Recipe.findById(selectedRecipeId);
+
+        if (!recipe) {
+          const response: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: "First recipe in product not found"
+          };
+          res.status(404).json(response);
+          return;
+        }
+
+        // Create product snapshot
+        const productSnapshot =
+          await SnapshotService.getOrCreateProductSnapshot(productId);
+        productSnapshotId = productSnapshot._id;
+
+        // Create recipe snapshot
+        const recipeSnapshot = await SnapshotService.getOrCreateRecipeSnapshot(
+          selectedRecipeId
+        );
+        recipeSnapshotId = recipeSnapshot._id;
+
+        // For standalone product tasks, use fixed 1 execution
+        // (Project tasks use product.targetQuantity * recipe.quantity)
+        totalExecutions = 1;
+
+        // Find recipe step in snapshot
+        recipeStep = recipeSnapshot.steps[0]; // Default to first step
+
+        deviceTypeId = recipeStep.deviceTypeId;
+        taskEstimatedDuration =
+          estimatedDuration || recipeStep.estimatedDuration;
+        stepOrder = recipeStep.order;
+
+        // Determine if this is the last step
+        const maxStepOrder = Math.max(
+          ...recipeSnapshot.steps.map((s: any) => s.order)
+        );
+        isLastStepInRecipe = stepOrder === maxStepOrder;
+      } else {
+        // STANDALONE RECIPE TASK
+        const recipe = await Recipe.findById(recipeId);
+
+        if (!recipe) {
+          const response: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: "Recipe not found"
+          };
+          res.status(404).json(response);
+          return;
+        }
+
+        // Create recipe snapshot using SnapshotService
+        const recipeSnapshot = await SnapshotService.getOrCreateRecipeSnapshot(
+          recipeId
+        );
+        recipeSnapshotId = recipeSnapshot._id;
+
+        // Find recipe step in snapshot
+        recipeStep = recipeSnapshot.steps[0]; // Default to first step
+
+        deviceTypeId = recipeStep.deviceTypeId;
+        taskEstimatedDuration =
+          estimatedDuration || recipeStep.estimatedDuration;
+        stepOrder = recipeStep.order;
+
+        // Determine if this is the last step
+        const maxStepOrder = Math.max(
+          ...recipeSnapshot.steps.map((s: any) => s.order)
+        );
+        isLastStepInRecipe = stepOrder === maxStepOrder;
+
+        // Single execution for standalone recipe
+        totalExecutions = 1;
+      }
     }
 
     // Extract deviceTypeId from recipe step
@@ -249,18 +342,18 @@ export const createTask = async (
       title,
       description,
       projectId: undefined, // Standalone tasks have no projectId
-      recipeId,
-      productId: undefined,
+      recipeId: selectedRecipeId,
+      productId: productId || undefined,
       recipeSnapshotId,
-      productSnapshotId: undefined,
+      productSnapshotId: productSnapshotId || undefined,
       recipeStepId: recipeStep ? recipeStep._id : undefined,
-      recipeExecutionNumber: 1, // Standalone tasks are single execution
-      totalRecipeExecutions: 1,
+      recipeExecutionNumber: 1, // Standalone tasks start at execution 1
+      totalRecipeExecutions: totalExecutions,
       stepOrder,
       isLastStepInRecipe,
       deviceTypeId,
       deviceId,
-      workerId,
+      workerId: workerId || undefined,
       status: status || "PENDING",
       priority: priority || "MEDIUM",
       estimatedDuration: taskEstimatedDuration,
@@ -271,12 +364,24 @@ export const createTask = async (
     });
 
     await task.save();
-    await task.populate("workerId");
+    await task.populate([
+      { path: "workerId", select: "name username email" },
+      { path: "productSnapshotId", select: "name version" },
+      { path: "recipeSnapshotId", select: "name version" }
+    ]);
 
     const response: APIResponse = {
       success: true,
-      message: "Standalone task created successfully",
-      data: task
+      message: `Standalone task created successfully (Execution 1/${totalExecutions})`,
+      data: {
+        task,
+        executionInfo: {
+          executionNumber: 1,
+          totalExecutions: totalExecutions,
+          isProduct: !!productId,
+          isLastStep: isLastStepInRecipe
+        }
+      }
     };
 
     res.status(201).json(response);
@@ -340,6 +445,87 @@ export const updateTaskStatus = async (
       success: false,
       error: "INTERNAL_SERVER_ERROR",
       message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Update task with partial fields
+ * PATCH /api/tasks/:id
+ */
+export const updateTask = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const {
+      status,
+      priority,
+      notes,
+      mediaFiles,
+      deviceId,
+      workerId,
+      pausedDuration,
+      startedAt,
+      completedAt
+    } = req.body;
+
+    const task = await Task.findById(id);
+
+    if (!task) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Task not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Update allowed fields
+    if (status !== undefined) task.status = status;
+    if (priority !== undefined) task.priority = priority;
+    if (notes !== undefined) task.notes = notes;
+    if (mediaFiles !== undefined) task.mediaFiles = mediaFiles;
+    if (deviceId !== undefined) task.deviceId = deviceId;
+    if (workerId !== undefined) task.workerId = workerId;
+    if (pausedDuration !== undefined) task.pausedDuration = pausedDuration;
+    if (startedAt !== undefined)
+      task.startedAt = startedAt ? new Date(startedAt) : undefined;
+    if (completedAt !== undefined)
+      task.completedAt = completedAt ? new Date(completedAt) : undefined;
+
+    // Recalculate actual duration if both start and complete times are set
+    if (task.startedAt && task.completedAt) {
+      task.actualDuration = Math.floor(
+        (task.completedAt.getTime() - task.startedAt.getTime()) / 60000
+      );
+    }
+
+    await task.save();
+    await task.populate([
+      { path: "projectId", select: "name status" },
+      { path: "workerId", select: "name username email" },
+      { path: "deviceId", select: "name deviceName" },
+      { path: "recipeSnapshotId", select: "name version" },
+      { path: "productSnapshotId", select: "name version" }
+    ]);
+
+    const response: APIResponse = {
+      success: true,
+      message: "Task updated successfully",
+      data: task
+    };
+
+    res.json(response);
+  } catch (error: any) {
+    console.error("Update task error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: error.message || "Internal server error"
     };
     res.status(500).json(response);
   }
