@@ -43,6 +43,7 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
           email: user.email,
           role: user.role,
           isActive: user.isActive,
+          lastLoginAt: user.lastLoginAt,
           createdAt: user.createdAt.toISOString(),
           updatedAt: user.updatedAt.toISOString()
         })),
@@ -242,7 +243,7 @@ export const updateUser = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, email, isActive, role } = req.body;
+    const { name, email, isActive, role, lastLoginAt } = req.body;
 
     const user = await User.findById(id);
 
@@ -272,6 +273,9 @@ export const updateUser = async (
     }
     if (isActive !== undefined) user.isActive = isActive;
     if (role) user.role = role;
+    if (lastLoginAt !== undefined) {
+      user.lastLoginAt = lastLoginAt ? new Date(lastLoginAt) : undefined;
+    }
 
     await user.save();
 
@@ -285,6 +289,7 @@ export const updateUser = async (
         email: user.email,
         role: user.role,
         isActive: user.isActive,
+        lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString()
       }
