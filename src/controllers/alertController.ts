@@ -5,12 +5,12 @@ import mongoose from "mongoose";
 
 export const getAlerts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { type, isRead, severity, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+    const { type, status, level, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
 
     const query: any = {};
     if (type) query.type = type;
-    if (isRead !== undefined) query.isRead = isRead === "true";
-    if (severity) query.severity = severity;
+    if (status) query.status = status;
+    if (level) query.level = level;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -23,7 +23,7 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
 
     const total = await Alert.countDocuments(query);
     const alerts = await Alert.find(query)
-      .populate("acknowledgedBy", "name username")
+      .populate("acknowledgedBy", "name username email")
       .skip(skip)
       .limit(limitNum)
       .sort(sortObject);
@@ -103,7 +103,7 @@ export const createAlert = async (
   try {
     const {
       type,
-      severity,
+      level,
       title,
       message,
       source,
@@ -112,11 +112,11 @@ export const createAlert = async (
       metadata
     } = req.body;
 
-    if (!type || !severity || !title || !message || !source) {
+    if (!type || !level || !title || !message) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Type, severity, title, message, and source are required"
+        message: "Type, level, title, and message are required"
       };
       res.status(400).json(response);
       return;
@@ -124,14 +124,14 @@ export const createAlert = async (
 
     const alert = new Alert({
       type,
-      severity,
+      level,
       title,
       message,
       source,
       relatedEntityType,
       relatedEntityId,
       metadata,
-      isRead: false
+      status: "UNREAD"
     });
 
     await alert.save();
@@ -190,7 +190,7 @@ export const acknowledgeAlert = async (
     alert.acknowledgedAt = new Date();
 
     await alert.save();
-    await alert.populate("acknowledgedBy", "name username");
+    await alert.populate("acknowledgedBy", "name username email");
 
     const response: APIResponse = {
       success: true,
@@ -201,6 +201,267 @@ export const acknowledgeAlert = async (
     res.json(response);
   } catch (error) {
     console.error("Acknowledge alert error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Mark alert as read
+ * PATCH /api/alerts/:id/read
+ */
+export const readAlert = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const alert = await Alert.findById(id);
+
+    if (!alert) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Alert not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    alert.status = "READ";
+
+    await alert.save();
+    await alert.populate("acknowledgedBy", "name username email");
+
+    const response: APIResponse = {
+      success: true,
+      message: "Alert marked as read successfully",
+      data: alert
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Read alert error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Resolve alert
+ * PATCH /api/alerts/:id/resolve
+ */
+export const resolveAlert = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const alert = await Alert.findById(id);
+
+    if (!alert) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Alert not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    alert.status = "RESOLVED";
+    alert.resolvedAt = new Date();
+
+    await alert.save();
+    await alert.populate("acknowledgedBy", "name username email");
+
+    const response: APIResponse = {
+      success: true,
+      message: "Alert resolved successfully",
+      data: alert
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Resolve alert error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Bulk mark alerts as read
+ * POST /api/alerts/bulk-read
+ */
+export const bulkReadAlerts = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { alertIds } = req.body;
+
+    if (!alertIds || !Array.isArray(alertIds) || alertIds.length === 0) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "alertIds array is required and must not be empty"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    const result = await Alert.updateMany(
+      { _id: { $in: alertIds } },
+      { 
+        $set: { 
+          status: "READ"
+        } 
+      }
+    );
+
+    const response: APIResponse = {
+      success: true,
+      message: `${result.modifiedCount} alert(s) marked as read successfully`,
+      data: {
+        modifiedCount: result.modifiedCount,
+        matchedCount: result.matchedCount
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Bulk read alerts error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Bulk acknowledge alerts
+ * POST /api/alerts/bulk-acknowledge
+ */
+export const bulkAcknowledgeAlerts = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { alertIds } = req.body;
+
+    if (!req.user) {
+      const response: APIResponse = {
+        success: false,
+        error: "UNAUTHORIZED",
+        message: "Authentication required"
+      };
+      res.status(401).json(response);
+      return;
+    }
+
+    if (!alertIds || !Array.isArray(alertIds) || alertIds.length === 0) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "alertIds array is required and must not be empty"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    const userId = req.user._id as mongoose.Types.ObjectId;
+
+    const result = await Alert.updateMany(
+      { _id: { $in: alertIds } },
+      { 
+        $set: { 
+          status: "ACKNOWLEDGED",
+          acknowledgedBy: userId,
+          acknowledgedAt: new Date()
+        } 
+      }
+    );
+
+    const response: APIResponse = {
+      success: true,
+      message: `${result.modifiedCount} alert(s) acknowledged successfully`,
+      data: {
+        modifiedCount: result.modifiedCount,
+        matchedCount: result.matchedCount
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Bulk acknowledge alerts error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Bulk resolve alerts
+ * POST /api/alerts/bulk-resolve
+ */
+export const bulkResolveAlerts = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { alertIds } = req.body;
+
+    if (!alertIds || !Array.isArray(alertIds) || alertIds.length === 0) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "alertIds array is required and must not be empty"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    const result = await Alert.updateMany(
+      { _id: { $in: alertIds } },
+      { 
+        $set: { 
+          status: "RESOLVED",
+          resolvedAt: new Date()
+        } 
+      }
+    );
+
+    const response: APIResponse = {
+      success: true,
+      message: `${result.modifiedCount} alert(s) resolved successfully`,
+      data: {
+        modifiedCount: result.modifiedCount,
+        matchedCount: result.matchedCount
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Bulk resolve alerts error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",
