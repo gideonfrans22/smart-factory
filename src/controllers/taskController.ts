@@ -402,7 +402,8 @@ export const updateTaskStatus = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { status, notes, startTime, endTime, progress } = req.body;
+    const { status, notes, startTime, endTime, progress, workerId, deviceId } =
+      req.body;
 
     const task = await Task.findById(id);
 
@@ -413,6 +414,25 @@ export const updateTaskStatus = async (
         message: "Task not found"
       };
       res.status(404).json(response);
+      return;
+    }
+
+    if (status === "ONGOING" && !workerId && !task.workerId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "workerId is required to set task status to ONGOING"
+      };
+      res.status(400).json(response);
+      return;
+    }
+    if (status === "ONGOING" && !deviceId && !task.deviceId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "deviceId is required to set task status to ONGOING"
+      };
+      res.status(400).json(response);
       return;
     }
 
@@ -481,6 +501,25 @@ export const updateTask = async (
         message: "Task not found"
       };
       res.status(404).json(response);
+      return;
+    }
+
+    if (status === "ONGOING" && !workerId && !task.workerId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "workerId is required to set task status to ONGOING"
+      };
+      res.status(400).json(response);
+      return;
+    }
+    if (status === "ONGOING" && !deviceId && !task.deviceId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "deviceId is required to set task status to ONGOING"
+      };
+      res.status(400).json(response);
       return;
     }
 
