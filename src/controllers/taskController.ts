@@ -16,12 +16,26 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
       productId,
       workerId,
       search,
+      includePendingAndPartial, // ⭐ NEW: Support partial completion queries
       page = 1,
       limit = 10
     } = req.query;
 
     const query: any = {};
-    if (status) query.status = status;
+    
+    // ⭐ Special query for partial completions
+    if (includePendingAndPartial === "true") {
+      // Return PENDING, ONGOING, PAUSED tasks + COMPLETED tasks with progress < 100
+      query.$or = [
+        { status: "PENDING" },
+        { status: "ONGOING" },
+        { status: "PAUSED" },
+        { status: "COMPLETED", progress: { $lt: 100 } }
+      ];
+    } else if (status) {
+      query.status = status;
+    }
+    
     if (deviceId) query.deviceId = deviceId;
     if (deviceTypeId) query.deviceTypeId = deviceTypeId;
     if (projectId) query.projectId = projectId;
@@ -50,21 +64,40 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
 
       // Add search conditions to query
       if (recipeIds.length > 0 || productIds.length > 0) {
-        query.$or = [];
+        const searchConditions = [];
 
         if (recipeIds.length > 0) {
-          query.$or.push({ recipeId: { $in: recipeIds } });
+          searchConditions.push({ recipeId: { $in: recipeIds } });
         }
 
         if (productIds.length > 0) {
-          query.$or.push({ productId: { $in: productIds } });
+          searchConditions.push({ productId: { $in: productIds } });
         }
 
         // Also search in task title
-        query.$or.push({ title: searchRegex });
+        searchConditions.push({ title: searchRegex });
+        
+        // Merge with existing $or from includePendingAndPartial
+        if (query.$or) {
+          query.$and = [
+            { $or: query.$or },
+            { $or: searchConditions }
+          ];
+          delete query.$or;
+        } else {
+          query.$or = searchConditions;
+        }
       } else {
         // No matching recipes/products, but still search in task title
-        query.title = searchRegex;
+        if (query.$or) {
+          query.$and = [
+            { $or: query.$or },
+            { title: searchRegex }
+          ];
+          delete query.$or;
+        } else {
+          query.title = searchRegex;
+        }
       }
     }
 
@@ -475,6 +508,9 @@ export const updateTaskStatus = async (
 /**
  * Update task with partial fields
  * PATCH /api/tasks/:id
+ * 
+ * Used to update progress during task execution without changing status.
+ * Use dedicated endpoints (start, resume, pause, complete, fail) for status changes.
  */
 export const updateTask = async (
   req: AuthenticatedRequest,
@@ -491,7 +527,8 @@ export const updateTask = async (
       workerId,
       pausedDuration,
       startedAt,
-      completedAt
+      completedAt,
+      progress // ⭐ Support progress updates
     } = req.body;
 
     const task = await Task.findById(id);
@@ -537,6 +574,11 @@ export const updateTask = async (
       task.startedAt = startedAt ? new Date(startedAt) : undefined;
     if (completedAt !== undefined)
       task.completedAt = completedAt ? new Date(completedAt) : undefined;
+    
+    // ⭐ Support progress updates (e.g., worker updates from 30% to 50%)
+    if (progress !== undefined) {
+      task.progress = progress;
+    }
 
     // Recalculate actual duration if both start and complete times are set
     if (task.startedAt && task.completedAt) {
@@ -609,6 +651,301 @@ export const deleteTask = async (
 };
 
 /**
+ * Start a new task
+ * POST /api/tasks/:id/start
+ */
+export const startTask = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { workerId, deviceId } = req.body;
+
+    // Find task
+    const task = await Task.findById(id);
+    if (!task) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Task not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Validate task is in PENDING status
+    if (task.status !== "PENDING") {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: `Task is already ${task.status.toLowerCase()}. Only PENDING tasks can be started.`
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Validate workerId
+    if (!workerId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "workerId is required to start a task"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Update task to ONGOING
+    task.status = "ONGOING";
+    task.workerId = workerId;
+    if (deviceId) task.deviceId = deviceId;
+    task.startedAt = new Date();
+    
+    // Initialize progress to 0 only if not already set
+    if (task.progress === undefined || task.progress === null) {
+      task.progress = 0;
+    }
+
+    await task.save();
+    await task.populate([
+      { path: "projectId", select: "name status priority" },
+      { path: "workerId", select: "name username email" },
+      { path: "deviceId", select: "name deviceName ipAddress status" },
+      { path: "recipeSnapshotId", select: "name version steps" },
+      { path: "productSnapshotId", select: "name version" }
+    ]);
+
+    const response: APIResponse = {
+      success: true,
+      message: "Task started successfully",
+      data: task
+    };
+
+    res.json(response);
+  } catch (error: any) {
+    console.error("Start task error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: error.message || "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Resume a paused or partially completed task
+ * POST /api/tasks/:id/resume
+ * 
+ * ⚠️ CRITICAL: This endpoint MUST preserve the existing progress value!
+ */
+export const resumeTask = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { workerId, deviceId } = req.body;
+
+    // Find task
+    const task = await Task.findById(id);
+    if (!task) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Task not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Validate task can be resumed (PAUSED or COMPLETED with progress < 100 or FAILED)
+    if (!["PAUSED", "COMPLETED", "FAILED"].includes(task.status)) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: `Cannot resume task with status ${task.status}. Only PAUSED, COMPLETED (partial), or FAILED tasks can be resumed.`
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // For completed tasks, only allow resume if progress < 100
+    if (task.status === "COMPLETED" && task.progress >= 100) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Cannot resume a fully completed task (progress = 100%). Create a new task instead."
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // ⭐ CRITICAL: Only update status to ONGOING
+    // DO NOT modify progress - keep existing value!
+    task.status = "ONGOING";
+    
+    // Optionally update workerId/deviceId if provided
+    if (workerId) task.workerId = workerId;
+    if (deviceId) task.deviceId = deviceId;
+
+    await task.save();
+    await task.populate([
+      { path: "projectId", select: "name status priority" },
+      { path: "workerId", select: "name username email" },
+      { path: "deviceId", select: "name deviceName ipAddress status" },
+      { path: "recipeSnapshotId", select: "name version steps" },
+      { path: "productSnapshotId", select: "name version" }
+    ]);
+
+    const response: APIResponse = {
+      success: true,
+      message: `Task resumed successfully. Progress preserved at ${task.progress}%.`,
+      data: task
+    };
+
+    res.json(response);
+  } catch (error: any) {
+    console.error("Resume task error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: error.message || "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Pause an ongoing task
+ * POST /api/tasks/:id/pause
+ */
+export const pauseTask = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // Find task
+    const task = await Task.findById(id);
+    if (!task) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Task not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Validate task is ONGOING
+    if (task.status !== "ONGOING") {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: `Cannot pause task with status ${task.status}. Only ONGOING tasks can be paused.`
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Update task to PAUSED
+    task.status = "PAUSED";
+    
+    // Optionally track pause duration for accurate time tracking
+    // (Implementation can be enhanced later with pauseStartTime tracking)
+
+    await task.save();
+    await task.populate([
+      { path: "projectId", select: "name status priority" },
+      { path: "workerId", select: "name username email" },
+      { path: "deviceId", select: "name deviceName ipAddress status" },
+      { path: "recipeSnapshotId", select: "name version steps" },
+      { path: "productSnapshotId", select: "name version" }
+    ]);
+
+    const response: APIResponse = {
+      success: true,
+      message: `Task paused successfully at ${task.progress}% progress.`,
+      data: task
+    };
+
+    res.json(response);
+  } catch (error: any) {
+    console.error("Pause task error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: error.message || "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Mark task as failed
+ * POST /api/tasks/:id/fail
+ */
+export const failTask = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+
+    // Find task
+    const task = await Task.findById(id);
+    if (!task) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Task not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Update task to FAILED
+    task.status = "FAILED";
+    
+    // Save failure reason in notes
+    if (notes) {
+      task.notes = notes;
+    }
+    
+    // Preserve existing progress value (worker may have made partial progress before failure)
+
+    await task.save();
+    await task.populate([
+      { path: "projectId", select: "name status priority" },
+      { path: "workerId", select: "name username email" },
+      { path: "deviceId", select: "name deviceName ipAddress status" },
+      { path: "recipeSnapshotId", select: "name version steps" },
+      { path: "productSnapshotId", select: "name version" }
+    ]);
+
+    const response: APIResponse = {
+      success: true,
+      message: "Task marked as failed",
+      data: task
+    };
+
+    res.json(response);
+  } catch (error: any) {
+    console.error("Fail task error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: error.message || "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
  * Complete a task and handle next step logic
  * POST /api/tasks/:id/complete
  */
@@ -656,11 +993,15 @@ export const completeTask = async (
 
     const recipeSnapshot = task.recipeSnapshotId as any;
 
+    // ⭐ CRITICAL: Support partial completion!
+    // Use progress from qualityData if provided, otherwise default to 100
+    const completionProgress = qualityData?.progress ?? 100;
+
     // Update task to COMPLETED
     task.status = "COMPLETED";
     task.workerId = workerId || task.workerId;
     task.completedAt = new Date();
-    task.progress = 100;
+    task.progress = completionProgress; // ⭐ Can be 50, 75, or 100!
     if (notes) task.notes = notes;
     if (qualityData) task.qualityData = qualityData;
     if (actualDuration) task.actualDuration = actualDuration;
