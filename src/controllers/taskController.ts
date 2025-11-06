@@ -10,6 +10,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     const {
       status,
       deviceId,
+      deviceTypeId,
       projectId,
       recipeId,
       productId,
@@ -22,6 +23,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     const query: any = {};
     if (status) query.status = status;
     if (deviceId) query.deviceId = deviceId;
+    if (deviceTypeId) query.deviceTypeId = deviceTypeId;
     if (projectId) query.projectId = projectId;
     if (recipeId) query.recipeId = recipeId;
     if (productId) query.productId = productId;
