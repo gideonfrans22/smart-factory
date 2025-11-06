@@ -1,15 +1,15 @@
 import mongoose from "mongoose";
-import RecipeSnapshot, {
-  IRecipeSnapshot,
-  IRecipeStepSnapshot,
-  IRawMaterialSnapshotReference
-} from "../models/RecipeSnapshot";
+import { Product } from "../models/Product";
 import ProductSnapshot, {
-  IProductSnapshot,
-  IProductRecipeSnapshotReference
+  IProductRecipeSnapshotReference,
+  IProductSnapshot
 } from "../models/ProductSnapshot";
 import { Recipe } from "../models/Recipe";
-import { Product } from "../models/Product";
+import RecipeSnapshot, {
+  IRawMaterialSnapshotReference,
+  IRecipeSnapshot,
+  IRecipeStepSnapshot
+} from "../models/RecipeSnapshot";
 
 /**
  * SnapshotService
@@ -66,9 +66,9 @@ export class SnapshotService {
           rawMaterialNumber: material.materialCode || "",
           name: material.name,
           unit: material.unit,
-          unitPrice: material.unitPrice || 0,
           description: material.description,
-          quantity: rm.quantityRequired
+          quantityRequired: rm.quantityRequired,
+          specification: rm.specification
         };
       });
 

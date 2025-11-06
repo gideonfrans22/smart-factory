@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { ISpecifications } from "./RawMaterial";
 
 // Recipe Step interface for snapshot
 export interface IRecipeStepSnapshot {
@@ -19,9 +20,9 @@ export interface IRawMaterialSnapshotReference {
   rawMaterialNumber?: string;
   name: string;
   unit: string;
-  unitPrice: number;
   description?: string;
-  quantity: number; // Quantity needed for this recipe
+  quantityRequired: number; // Quantity needed per unit produced
+  specification?: ISpecifications; // Specifications like dimensions, weight, etc.
 }
 
 // RecipeSnapshot interface
@@ -82,9 +83,9 @@ const RawMaterialSnapshotReferenceSchema =
     rawMaterialNumber: { type: String },
     name: { type: String, required: true },
     unit: { type: String, required: true },
-    unitPrice: { type: Number, required: true },
     description: { type: String },
-    quantity: { type: Number, required: true }
+    quantityRequired: { type: Number, required: true, min: 0 },
+    specification: { type: Schema.Types.Mixed }
   });
 
 // RecipeSnapshot Schema
