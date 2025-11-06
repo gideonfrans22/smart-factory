@@ -746,7 +746,7 @@ export const resumeTask = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { workerId, deviceId } = req.body;
+    // ✅ NO REQUEST BODY NEEDED - Resume preserves existing worker/device assignment
 
     // Find task
     const task = await Task.findById(id);
@@ -784,11 +784,8 @@ export const resumeTask = async (
 
     // ⭐ CRITICAL: Only update status to ONGOING
     // DO NOT modify progress - keep existing value!
+    // DO NOT modify workerId/deviceId - already assigned when task was started!
     task.status = "ONGOING";
-    
-    // Optionally update workerId/deviceId if provided
-    if (workerId) task.workerId = workerId;
-    if (deviceId) task.deviceId = deviceId;
 
     await task.save();
     await task.populate([
