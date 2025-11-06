@@ -42,6 +42,7 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
           name: user.name,
           email: user.email,
           role: user.role,
+          department: user.department,
           isActive: user.isActive,
           lastLoginAt: user.lastLoginAt,
           createdAt: user.createdAt.toISOString(),
@@ -102,6 +103,7 @@ export const getUserById = async (
         name: user.name,
         email: user.email,
         role: user.role,
+        department: user.department,
         isActive: user.isActive,
         lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt.toISOString(),
@@ -130,7 +132,7 @@ export const createUser = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { username, name, email, password, role } = req.body;
+    const { username, name, email, password, role, department } = req.body;
 
     // Validation
     if (!name || !password || !role) {
@@ -202,7 +204,8 @@ export const createUser = async (
       name: sanitizeInput(name),
       email: email ? email.toLowerCase() : undefined,
       password: hashedPassword,
-      role
+      role,
+      department: department ? sanitizeInput(department) : undefined
     });
 
     await user.save();
@@ -216,6 +219,7 @@ export const createUser = async (
         name: user.name,
         email: user.email,
         role: user.role,
+        department: user.department,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString()
       }
@@ -243,7 +247,7 @@ export const updateUser = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, email, isActive, role, lastLoginAt } = req.body;
+    const { name, email, isActive, role, lastLoginAt, department } = req.body;
 
     const user = await User.findById(id);
 
@@ -276,6 +280,9 @@ export const updateUser = async (
     if (lastLoginAt !== undefined) {
       user.lastLoginAt = lastLoginAt ? new Date(lastLoginAt) : undefined;
     }
+    if (department !== undefined) {
+      user.department = department ? sanitizeInput(department) : undefined;
+    }
 
     await user.save();
 
@@ -288,6 +295,7 @@ export const updateUser = async (
         name: user.name,
         email: user.email,
         role: user.role,
+        department: user.department,
         isActive: user.isActive,
         lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt.toISOString(),

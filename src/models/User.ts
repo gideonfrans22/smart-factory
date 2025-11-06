@@ -6,6 +6,7 @@ export interface IUser extends Document {
   email?: string;
   password: string;
   role: "admin" | "worker";
+  department?: string;
   isActive: boolean;
   lastLoginAt?: Date;
   failedLoginAttempts: number;
@@ -47,6 +48,11 @@ const UserSchema: Schema = new Schema(
       type: String,
       required: true,
       enum: ["admin", "worker"]
+    },
+    department: {
+      type: String,
+      trim: true,
+      maxlength: 100
     },
     isActive: {
       type: Boolean,
