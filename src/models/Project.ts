@@ -1,78 +1,32 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { generateProjectNumber } from "../services/projectService";
 
-// Simplified Project Product - just live reference
-export interface IProjectProduct {
-  productId: mongoose.Types.ObjectId;
-  targetQuantity: number;
-  producedQuantity: number;
-}
-
-// Simplified Project Recipe - just live reference
-export interface IProjectRecipe {
-  recipeId: mongoose.Types.ObjectId;
-  targetQuantity: number;
-  producedQuantity: number;
-}
-
+/**
+ * Project Document Interface
+ * Single product OR recipe per project architecture
+ */
 export interface IProject extends Document {
-  name: string;
+  name: string; // Auto-generated: "Product/Recipe Name (Qty: X)"
+  projectNumber: string; // Auto-generated: "SUMAN-YYYY-MM-DD-XXX"
   description?: string;
-  products: IProjectProduct[];
-  recipes: IProjectRecipe[];
+
+  // Denormalized snapshots - EXACTLY ONE of these must be set
+  productSnapshot?: mongoose.Types.ObjectId; // Reference to ProductSnapshot
+  recipeSnapshot?: mongoose.Types.ObjectId; // Reference to RecipeSnapshot
+
+  targetQuantity: number; // How many units to produce
+  producedQuantity: number; // How many units completed
+
   status: "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   startDate?: Date;
   endDate?: Date;
   deadline?: Date;
-  progress: number;
+  progress: number; // Auto-calculated: (producedQuantity / targetQuantity) * 100
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
-
-// Simplified Product Schema - just reference and quantities
-const ProjectProductSchema = new Schema(
-  {
-    productId: {
-      type: Schema.Types.ObjectId,
-      ref: "Product",
-      required: true
-    },
-    targetQuantity: {
-      type: Number,
-      required: true,
-      min: 1
-    },
-    producedQuantity: {
-      type: Number,
-      default: 0,
-      min: 0
-    }
-  },
-  { _id: false }
-);
-
-// Simplified Recipe Schema - just reference and quantities
-const ProjectRecipeSchema = new Schema(
-  {
-    recipeId: {
-      type: Schema.Types.ObjectId,
-      ref: "Recipe",
-      required: true
-    },
-    targetQuantity: {
-      type: Number,
-      required: true,
-      min: 1
-    },
-    producedQuantity: {
-      type: Number,
-      default: 0,
-      min: 0
-    }
-  },
-  { _id: false }
-);
 
 const ProjectSchema: Schema = new Schema(
   {
@@ -82,31 +36,35 @@ const ProjectSchema: Schema = new Schema(
       trim: true,
       maxlength: 255
     },
+    projectNumber: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true
+    },
     description: {
       type: String,
       trim: true
     },
-    products: {
-      type: [ProjectProductSchema],
-      default: [],
-      validate: {
-        validator: function (products: IProjectProduct[]) {
-          const recipes = (this as any).recipes || [];
-          return products.length > 0 || recipes.length > 0;
-        },
-        message: "Project must have at least one product or one recipe"
-      }
+    productSnapshot: {
+      type: Schema.Types.ObjectId,
+      ref: "ProductSnapshot"
     },
-    recipes: {
-      type: [ProjectRecipeSchema],
-      default: [],
-      validate: {
-        validator: function (recipes: IProjectRecipe[]) {
-          const products = (this as any).products || [];
-          return recipes.length > 0 || products.length > 0;
-        },
-        message: "Project must have at least one product or one recipe"
-      }
+    recipeSnapshot: {
+      type: Schema.Types.ObjectId,
+      ref: "RecipeSnapshot"
+    },
+    targetQuantity: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 1
+    },
+    producedQuantity: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0
     },
     status: {
       type: String,
@@ -153,41 +111,86 @@ ProjectSchema.virtual("id").get(function (this: IProject) {
   return this._id;
 });
 
+// Custom validation: Exactly ONE of productSnapshot or recipeSnapshot must be set
+ProjectSchema.path("productSnapshot").validate(function (value: any) {
+  const doc = this as any;
+  const hasProduct = !!value;
+  const hasRecipe = !!doc.recipeSnapshot;
+
+  // Must have exactly one
+  if (!hasProduct && !hasRecipe) {
+    return false;
+  }
+  if (hasProduct && hasRecipe) {
+    return false;
+  }
+  return true;
+}, "Project must have exactly one product or one recipe (not both, not neither)");
+
+ProjectSchema.path("recipeSnapshot").validate(function (value: any) {
+  const doc = this as any;
+  const hasRecipe = !!value;
+  const hasProduct = !!doc.productSnapshot;
+
+  // Must have exactly one
+  if (!hasProduct && !hasRecipe) {
+    return false;
+  }
+  if (hasProduct && hasRecipe) {
+    return false;
+  }
+  return true;
+}, "Project must have exactly one product or one recipe (not both, not neither)");
+
 // Indexes
+ProjectSchema.index({ projectNumber: 1 }, { unique: true });
 ProjectSchema.index({ status: 1 });
 ProjectSchema.index({ priority: 1 });
 ProjectSchema.index({ startDate: 1, endDate: 1 });
 ProjectSchema.index({ createdBy: 1 });
-ProjectSchema.index({ "products.productId": 1 });
-ProjectSchema.index({ "recipes.recipeId": 1 });
+ProjectSchema.index({ productSnapshot: 1 });
+ProjectSchema.index({ recipeSnapshot: 1 });
 
-// Pre-save hook to calculate progress automatically
+// Pre-save hook: Auto-generate project number with retry logic
+ProjectSchema.pre("save", async function (next) {
+  const doc = this as unknown as IProject;
+
+  // Only generate project number for new documents
+  if (this.isNew && !doc.projectNumber) {
+    let retries = 0;
+    const maxRetries = 3;
+
+    while (retries < maxRetries) {
+      try {
+        doc.projectNumber = await generateProjectNumber(doc.createdAt);
+        break; // Success, exit loop
+      } catch (error: any) {
+        retries++;
+        if (retries >= maxRetries) {
+          return next(
+            new Error(
+              `Failed to generate unique project number after ${maxRetries} attempts`
+            )
+          );
+        }
+        // Wait a bit before retrying (10ms)
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+    }
+  }
+
+  next();
+});
+
+// Pre-save hook: Calculate progress automatically
 ProjectSchema.pre("save", function (next) {
   const doc = this as unknown as IProject;
 
-  // Calculate total produced and target quantities
-  let totalProduced = 0;
-  let totalTarget = 0;
-
-  // Sum up products
-  if (doc.products && doc.products.length > 0) {
-    doc.products.forEach((product) => {
-      totalProduced += product.producedQuantity || 0;
-      totalTarget += product.targetQuantity || 0;
-    });
-  }
-
-  // Sum up recipes
-  if (doc.recipes && doc.recipes.length > 0) {
-    doc.recipes.forEach((recipe) => {
-      totalProduced += recipe.producedQuantity || 0;
-      totalTarget += recipe.targetQuantity || 0;
-    });
-  }
-
   // Calculate progress percentage
-  if (totalTarget > 0) {
-    doc.progress = Math.round((totalProduced / totalTarget) * 100);
+  if (doc.targetQuantity > 0) {
+    doc.progress = Math.round(
+      (doc.producedQuantity / doc.targetQuantity) * 100
+    );
     // Ensure progress is between 0 and 100
     doc.progress = Math.min(100, Math.max(0, doc.progress));
   } else {
