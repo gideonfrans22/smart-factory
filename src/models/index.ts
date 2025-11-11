@@ -28,6 +28,7 @@ export { Media, IMedia } from "./Media";
 // Devices
 export { Device, IDevice } from "./Device";
 export { DeviceType, IDeviceType } from "./DeviceType";
+export { GridLayout, IGridLayout, IDevicePosition } from "./GridLayout";
 
 // Alerts and Emergency
 export { Alert, IAlert } from "./Alert";

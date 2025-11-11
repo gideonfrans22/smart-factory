@@ -9,6 +9,9 @@ export interface IDevice extends Document {
   ipAddress?: string;
   lastHeartbeat?: Date;
   config: Record<string, any>;
+  // Grid display properties (defaults for when device is not in a layout)
+  defaultRowSpan: number;
+  defaultColSpan: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,6 +51,18 @@ const DeviceSchema: Schema = new Schema(
     config: {
       type: Schema.Types.Mixed,
       default: {}
+    },
+    defaultRowSpan: {
+      type: Number,
+      default: 1,
+      min: 1,
+      comment: "Default row span when device is added to a grid layout"
+    },
+    defaultColSpan: {
+      type: Number,
+      default: 1,
+      min: 1,
+      comment: "Default column span when device is added to a grid layout"
     }
   },
   {
