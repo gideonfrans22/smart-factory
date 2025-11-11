@@ -493,7 +493,7 @@
           "response": []
         },
         {
-          "name": "Create Project",
+          "name": "Create Projects (Batch)",
           "event": [
             {
               "listen": "test",
@@ -501,7 +501,9 @@
                 "exec": [
                   "if (pm.response.code === 201) {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.collectionVariables.set('projectId', jsonData.data._id);",
+                  "    if (jsonData.data.projects && jsonData.data.projects.length > 0) {",
+                  "        pm.collectionVariables.set('projectId', jsonData.data.projects[0]._id);",
+                  "    }",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -518,14 +520,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Assembly Line Production\",\n  \"description\": \"Production run using Assembly Line Recipe\",\n  \"recipeId\": \"{{recipeId}}\",\n  \"status\": \"PLANNING\",\n  \"priority\": \"HIGH\",\n  \"startDate\": \"2025-11-01\",\n  \"endDate\": \"2025-12-31\",\n  \"deadline\": \"2025-12-31T23:59:59Z\",\n  \"assignedDevices\": [\"TABLET_001\", \"TABLET_002\"],\n  \"progress\": 0\n}"
+              "raw": "{\n  \"products\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"targetQuantity\": 10,\n      \"priority\": \"HIGH\",\n      \"status\": \"PLANNING\",\n      \"deadline\": \"2025-12-31T23:59:59Z\"\n    },\n    {\n      \"productId\": \"{{productId}}\",\n      \"targetQuantity\": 5,\n      \"priority\": \"MEDIUM\",\n      \"status\": \"ACTIVE\"\n    }\n  ],\n  \"recipes\": [\n    {\n      \"recipeId\": \"{{recipeId}}\",\n      \"targetQuantity\": 3,\n      \"priority\": \"URGENT\",\n      \"status\": \"PLANNING\"\n    }\n  ],\n  \"createdBy\": \"{{userId}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/projects",
               "host": ["{{baseUrl}}"],
               "path": ["api", "projects"]
             },
-            "description": "Create new project (Admin only)"
+            "description": "Create multiple projects in batch (max 40 items). Each project will have ONE product OR ONE recipe. Project names and numbers are auto-generated."
           },
           "response": []
         },
@@ -541,14 +543,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"ACTIVE\",\n  \"progress\": 25,\n  \"description\": \"Updated project description\"\n}"
+              "raw": "{\n  \"description\": \"Updated project description\",\n  \"deadline\": \"2025-12-31T23:59:59Z\",\n  \"status\": \"ACTIVE\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/projects/{{projectId}}",
               "host": ["{{baseUrl}}"],
               "path": ["api", "projects", "{{projectId}}"]
             },
-            "description": "Update project (Admin only)"
+            "description": "Update project (Admin only). ALWAYS EDITABLE: description, deadline, status. PLANNING ONLY: productId, recipeId, targetQuantity, priority. Changing to ACTIVE creates snapshots and tasks. Changing to PLANNING from ACTIVE deletes tasks and snapshots."
           },
           "response": []
         },
