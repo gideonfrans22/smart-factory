@@ -9,7 +9,7 @@ export interface IProduct extends Document {
   designNumber: string; // 설계번호
   productName: string; // 제품명
   customerName?: string; // 고객명
-  personInCharge: mongoose.Types.ObjectId; // 담당자 (User reference)
+  personInCharge?: string; // 담당자 (담당자명)
   quantityUnit?: string; // 수량 단위
   recipes: IProductRecipe[]; // Array of recipes with quantities
   deletedAt?: Date; // Soft delete timestamp
@@ -56,9 +56,10 @@ const ProductSchema: Schema = new Schema(
       maxlength: 200
     },
     personInCharge: {
-      type: Schema.Types.ObjectId,
-      required: true,
-      ref: "User"
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 100
     },
     quantityUnit: {
       type: String,
@@ -103,7 +104,6 @@ ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
 
 // Populate references before returning
 ProductSchema.pre<IProduct>("findOne", function (next) {
-  this.populate("personInCharge");
   this.populate("recipes.recipeId");
   this.populate({
     path: "recipes.recipeId",
@@ -115,7 +115,6 @@ ProductSchema.pre<IProduct>("findOne", function (next) {
   next();
 });
 ProductSchema.pre<IProduct>("find", function (next) {
-  this.populate("personInCharge");
   this.populate("recipes.recipeId");
   this.populate({
     path: "recipes.recipeId",
@@ -144,7 +143,6 @@ ProductSchema.pre("findOneAndDelete", async function (next) {
 // Indexes
 ProductSchema.index({ designNumber: 1 });
 ProductSchema.index({ productName: 1 });
-ProductSchema.index({ personInCharge: 1 });
 ProductSchema.index({ customerName: 1 });
 ProductSchema.index({ deletedAt: 1 }); // For soft delete queries
 

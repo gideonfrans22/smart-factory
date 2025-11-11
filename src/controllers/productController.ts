@@ -182,7 +182,7 @@ export const createProduct = async (
     }
 
     // Default to current user if personInCharge not provided
-    const assignedPersonInCharge = personInCharge || req.user?._id;
+    const assignedPersonInCharge = personInCharge || req.user?.username;
 
     const product = new Product({
       designNumber,
