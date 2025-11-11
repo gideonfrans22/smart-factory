@@ -186,8 +186,21 @@ export const createRecipe = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { recipeNumber, name, description, rawMaterials, product, steps } =
-      req.body;
+    const { 
+      recipeNumber, 
+      name, 
+      description, 
+      rawMaterials, 
+      product, 
+      steps,
+      partNo,
+      dwgNo,
+      material,
+      unit,
+      outsourcing,
+      remarks,
+      mediaIds
+    } = req.body;
 
     // Validate required fields
     if (!name || !product || !steps || steps.length === 0) {
@@ -195,6 +208,17 @@ export const createRecipe = async (
         success: false,
         error: "VALIDATION_ERROR",
         message: "Name, product, and at least one step are required"
+      };
+      res.status(400).json(errorResponse);
+      return;
+    }
+
+    // ✨ Validate new required field (only material is required)
+    if (!material) {
+      const errorResponse: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "material is required"
       };
       res.status(400).json(errorResponse);
       return;
@@ -289,7 +313,15 @@ export const createRecipe = async (
       rawMaterials: processedRawMaterials,
       product,
       steps: processedSteps,
-      estimatedDuration: 0 // Will be calculated by pre-save hook
+      estimatedDuration: 0, // Will be calculated by pre-save hook
+      // ✨ NEW FIELDS
+      partNo,
+      dwgNo,
+      material,
+      unit: unit || "EA", // Default to "EA" if not provided
+      outsourcing,
+      remarks,
+      mediaIds: mediaIds || []
     });
 
     // Auto-generate recipeNumber if not provided
@@ -323,7 +355,19 @@ export const updateRecipe = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, description, rawMaterials, steps } = req.body;
+    const { 
+      name, 
+      description, 
+      rawMaterials, 
+      steps,
+      partNo,
+      dwgNo,
+      material,
+      unit,
+      outsourcing,
+      remarks,
+      mediaIds
+    } = req.body;
 
     const recipe = await Recipe.findById(id);
 
@@ -340,6 +384,15 @@ export const updateRecipe = async (
     // Update fields
     if (name) recipe.name = name;
     if (description !== undefined) recipe.description = description;
+    
+    // ✨ Update new fields
+    if (partNo) recipe.partNo = partNo;
+    if (dwgNo) recipe.dwgNo = dwgNo;
+    if (material) recipe.material = material;
+    if (unit) recipe.unit = unit;
+    if (outsourcing) recipe.outsourcing = outsourcing;
+    if (remarks) recipe.remarks = remarks;
+    if (mediaIds !== undefined) recipe.mediaIds = mediaIds;
 
     // Update raw materials if provided
     if (rawMaterials !== undefined) {
