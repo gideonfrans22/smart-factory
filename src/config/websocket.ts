@@ -99,6 +99,25 @@ export const initializeWebSocket = (httpServer: HTTPServer): SocketIOServer => {
       console.log(`📋 Socket ${socket.id} left task room: ${taskId}`);
     });
 
+    // Join deviceType-specific room (for workers monitoring specific device types)
+    socket.on("join:devicetype", (deviceTypeId: string) => {
+      if (!deviceTypeId) return;
+      socket.join(`devicetype:${deviceTypeId}`);
+      console.log(
+        `🔧 Socket ${socket.id} joined deviceType room: ${deviceTypeId}`
+      );
+      socket.emit("joined", { room: "devicetype", id: deviceTypeId });
+    });
+
+    // Leave deviceType room
+    socket.on("leave:devicetype", (deviceTypeId: string) => {
+      if (!deviceTypeId) return;
+      socket.leave(`devicetype:${deviceTypeId}`);
+      console.log(
+        `🔧 Socket ${socket.id} left deviceType room: ${deviceTypeId}`
+      );
+    });
+
     // Join alerts room (for managers/supervisors)
     socket.on("join:alerts", () => {
       socket.join("alerts");
