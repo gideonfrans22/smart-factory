@@ -4,10 +4,13 @@ import helmet from "helmet";
 import * as dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 import path from "path";
+import http from "http";
 
 // Import configurations
 import { connectDB } from "./config/database";
 import { mqttService } from "./config/mqtt";
+import { initializeWebSocket } from "./config/websocket";
+import { realtimeService } from "./services/realtimeService";
 
 // Import routes
 import authRoutes from "./routes/auth";
@@ -97,6 +100,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
     database: "connected",
     mqtt: mqttService.isConnected() ? "connected" : "disconnected",
+    websocket: "connected",
     uptime: process.uptime(),
     memory: process.memoryUsage()
   });
@@ -121,15 +125,28 @@ const startServer = async (): Promise<void> => {
     // Connect to MongoDB
     await connectDB();
 
-    // Connect to MQTT broker (available for future real-time features)
+    // Connect to MQTT broker
     await mqttService.connect();
 
-    // Note: Legacy monitoring service removed - will be reimplemented with new schema
+    // Create HTTP server (needed for Socket.IO)
+    const httpServer = http.createServer(app);
 
-    // Start HTTP server
-    app.listen(PORT, () => {
+    // Initialize WebSocket server
+    initializeWebSocket(httpServer);
+    console.log("🔌 WebSocket server ready");
+
+    // Initialize MQTT message handlers (bridges MQTT → WebSocket)
+    realtimeService.initializeMQTTHandlers();
+    console.log("📡 Real-time service initialized");
+
+    // Start HTTP server (with WebSocket attached)
+    httpServer.listen(PORT, () => {
       console.log("🚀 Smart Factory Backend Server Started");
-      console.log(`📱 API available at http://localhost:${PORT}`);
+      console.log(`📱 REST API: http://localhost:${PORT}`);
+      console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
+      console.log(
+        `📡 MQTT: ${mqttService.isConnected() ? "Connected" : "Disconnected"}`
+      );
       console.log(`🏭 Environment: ${process.env.NODE_ENV || "development"}`);
       console.log("✅ All services initialized successfully");
     });
