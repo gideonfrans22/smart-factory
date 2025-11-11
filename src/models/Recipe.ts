@@ -27,6 +27,18 @@ export interface IRecipe extends Document {
   product: mongoose.Types.ObjectId; // Reference to Product._id (REQUIRED)
   steps: IRecipeStep[];
   estimatedDuration: number;
+  
+  // ✨ NEW FIELDS - Manufacturing metadata
+  partNo?: string; // Part number (optional)
+  dwgNo?: string; // Drawing number (optional)
+  material: string; // Material type (재질) e.g., "AL6061 (4면)" (required)
+  unit?: string; // Unit (EA, kg, m) - defaults to "EA" (optional)
+  outsourcing?: string; // Outsourcing vendor name (optional)
+  remarks?: string; // Remarks/notes (비고) (optional)
+  
+  // ✨ MEDIA FIELDS
+  mediaIds: mongoose.Types.ObjectId[]; // Media files (existing)
+  
   deletedAt?: Date; // Soft delete timestamp
   isDeleted: boolean; // Virtual field for soft delete check
   createdAt: Date;
@@ -147,6 +159,55 @@ const RecipeSchema: Schema = new Schema(
       required: true,
       min: 0,
       comment: "Total duration in minutes (sum of all steps)"
+    },
+    // ✨ NEW FIELDS - Manufacturing metadata
+    partNo: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 100,
+      comment: "Part number"
+    },
+    dwgNo: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 100,
+      comment: "Drawing number"
+    },
+    material: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 255,
+      comment: "Material type (재질) e.g., 'AL6061 (4면)'"
+    },
+    unit: {
+      type: String,
+      required: false,
+      trim: true,
+      default: "EA",
+      maxlength: 20,
+      comment: "Unit (EA, kg, m, etc.)"
+    },
+    outsourcing: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 255,
+      comment: "Outsourcing vendor name"
+    },
+    remarks: {
+      type: String,
+      required: false,
+      trim: true,
+      comment: "Remarks/notes (비고)"
+    },
+    // ✨ MEDIA FIELDS
+    mediaIds: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Media" }],
+      default: [],
+      comment: "Media files"
     },
     deletedAt: {
       type: Date,
