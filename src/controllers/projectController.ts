@@ -211,6 +211,7 @@ export const createProjectsBatch = async (
         name: projectName,
         description: "", // Leave empty
         targetQuantity,
+        product: productId,
         producedQuantity: 0,
         status,
         priority,
@@ -297,6 +298,7 @@ export const createProjectsBatch = async (
         name: projectName,
         description: "", // Leave empty
         targetQuantity,
+        recipe: recipeId,
         producedQuantity: 0,
         status,
         priority,
@@ -408,6 +410,21 @@ export const updateProject = async (
       project.deadline = deadline ? new Date(deadline) : undefined;
     if (status !== undefined) project.status = status;
 
+    // If product/recipe is not mentioned in body, retain existing
+    // This is important for ACTIVE projects to know which snapshot to use
+    let productIdToUse: string;
+    let recipeIdToUse: string;
+    if (recipeId) {
+      productIdToUse = "";
+      recipeIdToUse = recipeId;
+    } else if (productId) {
+      productIdToUse = productId;
+      recipeIdToUse = "";
+    } else {
+      productIdToUse = project.product?.toString() || "";
+      recipeIdToUse = project.recipe?.toString() || "";
+    }
+
     // Handle deactivation: ACTIVE/ON_HOLD → PLANNING
     if (isDeactivating) {
       // Delete all tasks
@@ -425,15 +442,15 @@ export const updateProject = async (
     }
 
     // Fields that can be updated ONLY in PLANNING status
-    if (isPlanning || isDeactivating) {
+    if ((isPlanning || isDeactivating) && !isActivating) {
       // Allow changing product/recipe
-      if (productId !== undefined) {
+      if (!!productIdToUse) {
         const product = await Product.findById(productId);
         if (!product) {
           const response: APIResponse = {
             success: false,
             error: "NOT_FOUND",
-            message: `Product not found: ${productId}`
+            message: `Product not found: ${productIdToUse}`
           };
           res.status(404).json(response);
           return;
@@ -441,6 +458,9 @@ export const updateProject = async (
 
         // Clear recipe if switching to product
         project.recipeSnapshot = undefined;
+        project.productSnapshot = undefined;
+        project.recipe = undefined;
+        project.product = productIdToUse as any;
 
         // Regenerate project name
         project.name = generateProjectName(
@@ -450,13 +470,13 @@ export const updateProject = async (
         );
       }
 
-      if (recipeId !== undefined) {
-        const recipe = await Recipe.findById(recipeId);
+      if (!!recipeIdToUse) {
+        const recipe = await Recipe.findById(recipeIdToUse);
         if (!recipe) {
           const response: APIResponse = {
             success: false,
             error: "NOT_FOUND",
-            message: `Recipe not found: ${recipeId}`
+            message: `Recipe not found: ${recipeIdToUse}`
           };
           res.status(404).json(response);
           return;
@@ -464,6 +484,9 @@ export const updateProject = async (
 
         // Clear product if switching to recipe
         project.productSnapshot = undefined;
+        project.recipeSnapshot = undefined;
+        project.product = undefined;
+        project.recipe = recipeIdToUse as any;
 
         // Regenerate project name
         project.name = generateProjectName(
@@ -487,9 +510,9 @@ export const updateProject = async (
 
         // Regenerate project name with new quantity
         // Determine if it's a product or recipe project
-        const isProduct = !!productId || !!project.productSnapshot;
-        if (isProduct && productId) {
-          const product = await Product.findById(productId);
+        const isProduct = !!productIdToUse || !!project.productSnapshot;
+        if (isProduct && productIdToUse) {
+          const product = await Product.findById(productIdToUse);
           if (product) {
             project.name = generateProjectName(
               product.productName,
@@ -497,8 +520,8 @@ export const updateProject = async (
               targetQuantity
             );
           }
-        } else if (!isProduct && recipeId) {
-          const recipe = await Recipe.findById(recipeId);
+        } else if (!isProduct && recipeIdToUse) {
+          const recipe = await Recipe.findById(recipeIdToUse);
           if (recipe) {
             project.name = generateProjectName(
               undefined,
@@ -522,10 +545,12 @@ export const updateProject = async (
 
       // Determine if product or recipe project
       // Need to fetch the actual product/recipe to create snapshots
-      if (productId) {
+      if (productIdToUse !== undefined) {
         // Create product snapshot
         const productSnapshot =
-          await SnapshotService.getOrCreateProductSnapshot(productId);
+          await SnapshotService.getOrCreateProductSnapshot(
+            productIdToUse as any
+          );
         project.productSnapshot = productSnapshot._id;
 
         // Save first to get project._id
@@ -537,10 +562,10 @@ export const updateProject = async (
           productSnapshot,
           undefined
         );
-      } else if (recipeId) {
+      } else if (recipeIdToUse !== undefined) {
         // Create recipe snapshot
         const recipeSnapshot = await SnapshotService.getOrCreateRecipeSnapshot(
-          recipeId
+          recipeIdToUse as any
         );
         project.recipeSnapshot = recipeSnapshot._id;
 

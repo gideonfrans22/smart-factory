@@ -1575,6 +1575,9 @@ export const getGroupedTasks = async (
       .sort({ createdAt: -1 });
 
     // Build grouped data structure
+    // Since Project model now has ONLY ONE product OR ONE recipe:
+    // - Projects with product: group tasks by recipe within that product
+    // - Projects with recipe: group tasks directly by execution
     const groupedData: Record<string, any> = {};
 
     for (const project of projects) {
@@ -1610,8 +1613,7 @@ export const getGroupedTasks = async (
           createdAt: project.createdAt,
           updatedAt: project.updatedAt
         },
-        products: {},
-        standaloneRecipes: {},
+        recipes: {}, // Group by recipe (only used if project has a product)
         summary: {
           totalTasks: tasks.length,
           byStatus: {
@@ -1630,141 +1632,51 @@ export const getGroupedTasks = async (
         }
       };
 
-      // Group tasks by product and recipe
+      // Group tasks by recipe (for product projects or standalone recipe projects)
       for (const task of tasks) {
         // Update summary counts
         groupedData[projectId].summary.byStatus[task.status]++;
         groupedData[projectId].summary.byPriority[task.priority]++;
 
-        if (task.productId && task.productSnapshotId) {
-          // Task belongs to a product
-          const productSnapshot = task.productSnapshotId as any;
-          const productSnapshotId = productSnapshot._id.toString();
+        // Group by recipe snapshot
+        const recipeSnapshot = task.recipeSnapshotId as any;
+        const recipeSnapshotId = recipeSnapshot._id.toString();
 
-          // Initialize product group if not exists
-          if (!groupedData[projectId].products[productSnapshotId]) {
-            groupedData[projectId].products[productSnapshotId] = {
-              productInfo: {
-                _id: productSnapshot._id,
-                name: productSnapshot.name,
-                version: productSnapshot.version,
-                productId: task.productId
-              },
-              recipes: {},
-              summary: {
-                totalTasks: 0,
-                byStatus: {
-                  PENDING: 0,
-                  ONGOING: 0,
-                  PAUSED: 0,
-                  COMPLETED: 0,
-                  FAILED: 0
-                }
+        if (!groupedData[projectId].recipes[recipeSnapshotId]) {
+          groupedData[projectId].recipes[recipeSnapshotId] = {
+            recipeInfo: {
+              _id: recipeSnapshot._id,
+              name: recipeSnapshot.name,
+              version: recipeSnapshot.version,
+              recipeId: task.recipeId
+            },
+            tasks: [],
+            summary: {
+              totalTasks: 0,
+              totalExecutions: task.totalRecipeExecutions,
+              completedExecutions: 0,
+              byStatus: {
+                PENDING: 0,
+                ONGOING: 0,
+                PAUSED: 0,
+                COMPLETED: 0,
+                FAILED: 0
               }
-            };
-          }
+            }
+          };
+        }
 
-          // Update product summary
-          groupedData[projectId].products[productSnapshotId].summary
-            .totalTasks++;
-          groupedData[projectId].products[productSnapshotId].summary.byStatus[
-            task.status
-          ]++;
+        // Add task to recipe group
+        groupedData[projectId].recipes[recipeSnapshotId].tasks.push(task);
+        groupedData[projectId].recipes[recipeSnapshotId].summary.totalTasks++;
+        groupedData[projectId].recipes[recipeSnapshotId].summary.byStatus[
+          task.status
+        ]++;
 
-          // Group by recipe within product
-          const recipeSnapshot = task.recipeSnapshotId as any;
-          const recipeSnapshotId = recipeSnapshot._id.toString();
-
-          if (
-            !groupedData[projectId].products[productSnapshotId].recipes[
-              recipeSnapshotId
-            ]
-          ) {
-            groupedData[projectId].products[productSnapshotId].recipes[
-              recipeSnapshotId
-            ] = {
-              recipeInfo: {
-                _id: recipeSnapshot._id,
-                name: recipeSnapshot.name,
-                version: recipeSnapshot.version,
-                recipeId: task.recipeId
-              },
-              tasks: [],
-              summary: {
-                totalTasks: 0,
-                totalExecutions: task.totalRecipeExecutions,
-                completedExecutions: 0,
-                byStatus: {
-                  PENDING: 0,
-                  ONGOING: 0,
-                  PAUSED: 0,
-                  COMPLETED: 0,
-                  FAILED: 0
-                }
-              }
-            };
-          }
-
-          // Add task to recipe group
-          groupedData[projectId].products[productSnapshotId].recipes[
-            recipeSnapshotId
-          ].tasks.push(task);
-          groupedData[projectId].products[productSnapshotId].recipes[
-            recipeSnapshotId
-          ].summary.totalTasks++;
-          groupedData[projectId].products[productSnapshotId].recipes[
-            recipeSnapshotId
-          ].summary.byStatus[task.status]++;
-
-          // Count completed executions (last step completed)
-          if (task.isLastStepInRecipe && task.status === "COMPLETED") {
-            groupedData[projectId].products[productSnapshotId].recipes[
-              recipeSnapshotId
-            ].summary.completedExecutions++;
-          }
-        } else {
-          // Standalone recipe (not part of a product)
-          const recipeSnapshot = task.recipeSnapshotId as any;
-          const recipeSnapshotId = recipeSnapshot._id.toString();
-
-          if (!groupedData[projectId].standaloneRecipes[recipeSnapshotId]) {
-            groupedData[projectId].standaloneRecipes[recipeSnapshotId] = {
-              recipeInfo: {
-                _id: recipeSnapshot._id,
-                name: recipeSnapshot.name,
-                version: recipeSnapshot.version,
-                recipeId: task.recipeId
-              },
-              tasks: [],
-              summary: {
-                totalTasks: 0,
-                totalExecutions: task.totalRecipeExecutions,
-                completedExecutions: 0,
-                byStatus: {
-                  PENDING: 0,
-                  ONGOING: 0,
-                  PAUSED: 0,
-                  COMPLETED: 0,
-                  FAILED: 0
-                }
-              }
-            };
-          }
-
-          // Add task to standalone recipe group
-          groupedData[projectId].standaloneRecipes[recipeSnapshotId].tasks.push(
-            task
-          );
-          groupedData[projectId].standaloneRecipes[recipeSnapshotId].summary
-            .totalTasks++;
-          groupedData[projectId].standaloneRecipes[recipeSnapshotId].summary
-            .byStatus[task.status]++;
-
-          // Count completed executions (last step completed)
-          if (task.isLastStepInRecipe && task.status === "COMPLETED") {
-            groupedData[projectId].standaloneRecipes[recipeSnapshotId].summary
-              .completedExecutions++;
-          }
+        // Count completed executions (last step completed)
+        if (task.isLastStepInRecipe && task.status === "COMPLETED") {
+          groupedData[projectId].recipes[recipeSnapshotId].summary
+            .completedExecutions++;
         }
       }
     }

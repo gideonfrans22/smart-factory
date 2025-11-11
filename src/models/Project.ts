@@ -10,6 +10,10 @@ export interface IProject extends Document {
   projectNumber: string; // Auto-generated: "SUMAN-YYYY-MM-DD-XXX"
   description?: string;
 
+  // Product or Recipe references
+  product?: mongoose.Types.ObjectId; // Reference to Product
+  recipe?: mongoose.Types.ObjectId; // Reference to Recipe
+
   // Denormalized snapshots - EXACTLY ONE of these must be set
   productSnapshot?: mongoose.Types.ObjectId; // Reference to ProductSnapshot
   recipeSnapshot?: mongoose.Types.ObjectId; // Reference to RecipeSnapshot
@@ -38,13 +42,20 @@ const ProjectSchema: Schema = new Schema(
     },
     projectNumber: {
       type: String,
-      required: true,
       unique: true,
       index: true
     },
     description: {
       type: String,
       trim: true
+    },
+    product: {
+      type: Schema.Types.ObjectId,
+      ref: "Product"
+    },
+    recipe: {
+      type: Schema.Types.ObjectId,
+      ref: "Recipe"
     },
     productSnapshot: {
       type: Schema.Types.ObjectId,
@@ -148,6 +159,8 @@ ProjectSchema.index({ status: 1 });
 ProjectSchema.index({ priority: 1 });
 ProjectSchema.index({ startDate: 1, endDate: 1 });
 ProjectSchema.index({ createdBy: 1 });
+ProjectSchema.index({ recipe: 1 });
+ProjectSchema.index({ product: 1 });
 ProjectSchema.index({ productSnapshot: 1 });
 ProjectSchema.index({ recipeSnapshot: 1 });
 

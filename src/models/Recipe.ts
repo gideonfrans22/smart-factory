@@ -24,6 +24,7 @@ export interface IRecipe extends Document {
   name: string;
   description?: string;
   rawMaterials: IRawMaterialReference[]; // Array of raw materials required
+  product?: mongoose.Types.ObjectId; // Reference to Product._id if this recipe is tied to a specific product
   steps: IRecipeStep[];
   estimatedDuration: number;
   deletedAt?: Date; // Soft delete timestamp
@@ -125,6 +126,12 @@ const RecipeSchema: Schema = new Schema(
         }
       }
     ],
+    product: {
+      type: Schema.Types.ObjectId,
+      ref: "Product",
+      comment:
+        "Reference to Product._id if this recipe is tied to a specific product"
+    },
     steps: {
       type: [RecipeStepSchema],
       required: true,
@@ -183,6 +190,7 @@ RecipeSchema.pre<IRecipe>("find", function (next) {
 RecipeSchema.index({ name: 1 });
 RecipeSchema.index({ recipeNumber: 1 });
 RecipeSchema.index({ deletedAt: 1 }); // For soft delete queries
+RecipeSchema.index({ Product: 1 }); // For querying recipes by product
 // Unique compound index on recipeNumber and version (sparse to allow null recipeNumbers)
 RecipeSchema.index(
   { recipeNumber: 1, version: 1 },

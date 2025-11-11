@@ -185,8 +185,15 @@ export const createRecipe = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { recipeNumber, version, name, description, rawMaterials, steps } =
-      req.body;
+    const {
+      recipeNumber,
+      version,
+      name,
+      description,
+      rawMaterials,
+      product,
+      steps
+    } = req.body;
 
     // Validate required fields
     if (!name || !steps || steps.length === 0) {
@@ -286,6 +293,7 @@ export const createRecipe = async (
       name,
       description,
       rawMaterials: processedRawMaterials,
+      product,
       steps: processedSteps,
       estimatedDuration: 0 // Will be calculated by pre-save hook
     });
