@@ -9,6 +9,7 @@ import {
   generateTasksForProject,
   deleteProjectTasks
 } from "../services/taskService";
+import { realtimeService } from "../services/realtimeService";
 
 /**
  * Get all projects with optional filtering and pagination
@@ -595,6 +596,9 @@ export const updateProject = async (
     await project.populate("createdBy", "name email username");
     await project.populate("productSnapshot", "name version");
     await project.populate("recipeSnapshot", "name version");
+
+    // 🆕 Broadcast project update in real-time
+    await realtimeService.broadcastProjectUpdate(project.toObject());
 
     const response: APIResponse = {
       success: true,

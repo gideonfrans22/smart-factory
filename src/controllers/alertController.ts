@@ -2,10 +2,19 @@ import { Request, Response } from "express";
 import { Alert } from "../models/Alert";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import mongoose from "mongoose";
+import { realtimeService } from "../services/realtimeService";
 
 export const getAlerts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { type, status, level, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+    const {
+      type,
+      status,
+      level,
+      page = 1,
+      limit = 10,
+      sortBy = "createdAt",
+      sortOrder = "desc"
+    } = req.query;
 
     const query: any = {};
     if (type) query.type = type;
@@ -18,7 +27,7 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
 
     // Build sort object
     const sortField = sortBy as string;
-    const sortDirection = sortOrder === 'asc' ? 1 : -1;
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
     const sortObject: any = { [sortField]: sortDirection };
 
     const total = await Alert.countDocuments(query);
@@ -135,6 +144,9 @@ export const createAlert = async (
     });
 
     await alert.save();
+
+    // 🆕 Broadcast new alert in real-time
+    await realtimeService.broadcastAlert(alert.toObject());
 
     const response: APIResponse = {
       success: true,
@@ -326,10 +338,10 @@ export const bulkReadAlerts = async (
 
     const result = await Alert.updateMany(
       { _id: { $in: alertIds } },
-      { 
-        $set: { 
+      {
+        $set: {
           status: "READ"
-        } 
+        }
       }
     );
 
@@ -389,12 +401,12 @@ export const bulkAcknowledgeAlerts = async (
 
     const result = await Alert.updateMany(
       { _id: { $in: alertIds } },
-      { 
-        $set: { 
+      {
+        $set: {
           status: "ACKNOWLEDGED",
           acknowledgedBy: userId,
           acknowledgedAt: new Date()
-        } 
+        }
       }
     );
 
@@ -442,11 +454,11 @@ export const bulkResolveAlerts = async (
 
     const result = await Alert.updateMany(
       { _id: { $in: alertIds } },
-      { 
-        $set: { 
+      {
+        $set: {
           status: "RESOLVED",
           resolvedAt: new Date()
-        } 
+        }
       }
     );
 

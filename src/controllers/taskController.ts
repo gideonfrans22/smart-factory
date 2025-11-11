@@ -5,6 +5,7 @@ import { Recipe } from "../models/Recipe";
 import { Product } from "../models/Product";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import { ProductSnapshot } from "../models";
+import { realtimeService } from "../services/realtimeService";
 
 export const getTasks = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -414,6 +415,9 @@ export const createTask = async (
       { path: "recipeSnapshotId", select: "name version" }
     ]);
 
+    // 🆕 Broadcast task creation in real-time
+    await realtimeService.broadcastTaskAssignment(task.toObject());
+
     const response: APIResponse = {
       success: true,
       message: `Standalone task created successfully (Execution 1/${totalExecutions})`,
@@ -604,6 +608,11 @@ export const updateTask = async (
       { path: "recipeSnapshotId", select: "name version" },
       { path: "productSnapshotId", select: "name version" }
     ]);
+
+    // 🆕 Broadcast task status change in real-time
+    if (status !== undefined) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
 
     const response: APIResponse = {
       success: true,
@@ -1137,6 +1146,13 @@ export const completeTask = async (
     }
 
     await task.populate("projectId workerId");
+
+    // 🆕 Broadcast task completion in real-time
+    await realtimeService.broadcastTaskCompletion(
+      task.toObject(),
+      nextTask?.toObject() || null,
+      project?.progress
+    );
 
     const responseData: any = {
       completedTask: task,

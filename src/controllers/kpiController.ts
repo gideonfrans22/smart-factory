@@ -4,6 +4,7 @@ import { Project } from "../models/Project";
 import { Task } from "../models/Task";
 import { Alert } from "../models/Alert";
 import { APIResponse } from "../types";
+import { realtimeService } from "../services/realtimeService";
 
 export const getRealtimeKPI = async (
   _req: Request,
@@ -145,6 +146,9 @@ export const createKPIData = async (
     });
 
     await kpiData.save();
+
+    // 🆕 Broadcast KPI update in real-time
+    await realtimeService.broadcastKPIUpdate(kpiData.toObject());
 
     const response: APIResponse = {
       success: true,
