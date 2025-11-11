@@ -274,4 +274,20 @@ RecipeSchema.pre("save", function (next) {
   next();
 });
 
+// Pre-delete hook to soft delete recipe by setting deletedAt
+RecipeSchema.pre("findOneAndDelete", async function (next) {
+  try {
+    const recipeId = this.getQuery()._id;
+
+    // Soft delete by setting deletedAt
+    await this.model.updateOne(
+      { _id: recipeId },
+      { $set: { deletedAt: new Date() } }
+    );
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
+});
+
 export const Recipe = mongoose.model<IRecipe>("Recipe", RecipeSchema);

@@ -127,6 +127,20 @@ ProductSchema.pre<IProduct>("find", function (next) {
   next();
 });
 
+// Pre-delete hook to soft delete product
+ProductSchema.pre("findOneAndDelete", async function (next) {
+  try {
+    const docToDelete = await this.model.findOne(this.getFilter());
+    if (docToDelete) {
+      docToDelete.deletedAt = new Date();
+      await docToDelete.save();
+    }
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
+});
+
 // Indexes
 ProductSchema.index({ designNumber: 1 });
 ProductSchema.index({ productName: 1 });
