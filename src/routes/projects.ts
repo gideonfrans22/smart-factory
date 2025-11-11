@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   getProjects,
   getProjectById,
-  createProject,
+  createProjectsBatch,
   updateProject,
   deleteProject
 } from "../controllers/projectController";
@@ -26,10 +26,10 @@ router.get("/:id", authenticateToken, getProjectById);
 
 /**
  * @route   POST /api/projects
- * @desc    Create new project
+ * @desc    Create multiple projects in batch (products and/or recipes)
  * @access  Private (Admin only)
  */
-router.post("/", authenticateToken, requireAdmin, createProject);
+router.post("/", authenticateToken, requireAdmin, createProjectsBatch);
 
 /**
  * @route   PUT /api/projects/:id
