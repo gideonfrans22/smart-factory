@@ -19,12 +19,12 @@ export interface IRawMaterialReference {
 }
 
 export interface IRecipe extends Document {
-  recipeNumber?: string;
-  version: number;
+  recipeNumber?: string; // Auto-generated format: "{Product.designNumber}-{count}" (only when product is linked)
+  version: number; // Auto-generated, defaults to 1 on creation, increments on each update
   name: string;
   description?: string;
   rawMaterials: IRawMaterialReference[]; // Array of raw materials required
-  product?: mongoose.Types.ObjectId; // Reference to Product._id if this recipe is tied to a specific product
+  product: mongoose.Types.ObjectId; // Reference to Product._id (REQUIRED)
   steps: IRecipeStep[];
   estimatedDuration: number;
   deletedAt?: Date; // Soft delete timestamp
@@ -129,8 +129,8 @@ const RecipeSchema: Schema = new Schema(
     product: {
       type: Schema.Types.ObjectId,
       ref: "Product",
-      comment:
-        "Reference to Product._id if this recipe is tied to a specific product"
+      required: true,
+      comment: "Reference to Product._id (REQUIRED)"
     },
     steps: {
       type: [RecipeStepSchema],

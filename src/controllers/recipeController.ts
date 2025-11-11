@@ -4,6 +4,7 @@ import { RawMaterial } from "../models/RawMaterial";
 import { DeviceType } from "../models/DeviceType";
 import { Project } from "../models/Project";
 import { APIResponse } from "../types";
+import { RecipeService } from "../services/recipeService";
 
 /**
  * Get all recipes with pagination and filtering
@@ -185,22 +186,15 @@ export const createRecipe = async (
   res: Response
 ): Promise<void> => {
   try {
-    const {
-      recipeNumber,
-      version,
-      name,
-      description,
-      rawMaterials,
-      product,
-      steps
-    } = req.body;
+    const { recipeNumber, name, description, rawMaterials, product, steps } =
+      req.body;
 
     // Validate required fields
-    if (!name || !steps || steps.length === 0) {
+    if (!name || !product || !steps || steps.length === 0) {
       const errorResponse: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Name and at least one step are required"
+        message: "Name, product, and at least one step are required"
       };
       res.status(400).json(errorResponse);
       return;
@@ -289,7 +283,7 @@ export const createRecipe = async (
 
     const recipe = new Recipe({
       recipeNumber,
-      version: version || 1,
+      version: 1, // New recipes always start at version 1
       name,
       description,
       rawMaterials: processedRawMaterials,
@@ -297,6 +291,9 @@ export const createRecipe = async (
       steps: processedSteps,
       estimatedDuration: 0 // Will be calculated by pre-save hook
     });
+
+    // Auto-generate recipeNumber if not provided
+    await RecipeService.prepareRecipeForSave(recipe, true);
 
     await recipe.save();
 
@@ -427,6 +424,9 @@ export const updateRecipe = async (
 
       recipe.steps = processedSteps;
     }
+
+    // Increment version on update
+    await RecipeService.prepareRecipeForSave(recipe, false);
 
     await recipe.save();
 
