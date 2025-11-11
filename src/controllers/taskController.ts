@@ -4,6 +4,7 @@ import { Project } from "../models/Project";
 import { Recipe } from "../models/Recipe";
 import { Product } from "../models/Product";
 import { APIResponse, AuthenticatedRequest } from "../types";
+import { ProductSnapshot } from "../models";
 
 export const getTasks = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -22,7 +23,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     } = req.query;
 
     const query: any = {};
-    
+
     // ⭐ Special query for partial completions
     if (includePendingAndPartial === "true") {
       // Return PENDING, ONGOING, PAUSED tasks + COMPLETED tasks with progress < 100
@@ -35,7 +36,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     } else if (status) {
       query.status = status;
     }
-    
+
     if (deviceId) query.deviceId = deviceId;
     if (deviceTypeId) query.deviceTypeId = deviceTypeId;
     if (projectId) query.projectId = projectId;
@@ -76,13 +77,10 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
 
         // Also search in task title
         searchConditions.push({ title: searchRegex });
-        
+
         // Merge with existing $or from includePendingAndPartial
         if (query.$or) {
-          query.$and = [
-            { $or: query.$or },
-            { $or: searchConditions }
-          ];
+          query.$and = [{ $or: query.$or }, { $or: searchConditions }];
           delete query.$or;
         } else {
           query.$or = searchConditions;
@@ -90,10 +88,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
       } else {
         // No matching recipes/products, but still search in task title
         if (query.$or) {
-          query.$and = [
-            { $or: query.$or },
-            { title: searchRegex }
-          ];
+          query.$and = [{ $or: query.$or }, { title: searchRegex }];
           delete query.$or;
         } else {
           query.title = searchRegex;
@@ -522,7 +517,7 @@ export const updateTaskStatus = async (
 /**
  * Update task with partial fields
  * PATCH /api/tasks/:id
- * 
+ *
  * Used to update progress during task execution without changing status.
  * Use dedicated endpoints (start, resume, pause, complete, fail) for status changes.
  */
@@ -588,7 +583,7 @@ export const updateTask = async (
       task.startedAt = startedAt ? new Date(startedAt) : undefined;
     if (completedAt !== undefined)
       task.completedAt = completedAt ? new Date(completedAt) : undefined;
-    
+
     // ⭐ Support progress updates (e.g., worker updates from 30% to 50%)
     if (progress !== undefined) {
       task.progress = progress;
@@ -715,7 +710,7 @@ export const startTask = async (
     task.workerId = workerId;
     if (deviceId) task.deviceId = deviceId;
     task.startedAt = new Date();
-    
+
     // Initialize progress to 0 only if not already set
     if (task.progress === undefined || task.progress === null) {
       task.progress = 0;
@@ -751,7 +746,7 @@ export const startTask = async (
 /**
  * Resume a paused or partially completed task
  * POST /api/tasks/:id/resume
- * 
+ *
  * ⚠️ CRITICAL: This endpoint MUST preserve the existing progress value!
  */
 export const resumeTask = async (
@@ -790,7 +785,8 @@ export const resumeTask = async (
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Cannot resume a fully completed task (progress = 100%). Create a new task instead."
+        message:
+          "Cannot resume a fully completed task (progress = 100%). Create a new task instead."
       };
       res.status(400).json(response);
       return;
@@ -864,7 +860,7 @@ export const pauseTask = async (
 
     // Update task to PAUSED
     task.status = "PAUSED";
-    
+
     // Optionally track pause duration for accurate time tracking
     // (Implementation can be enhanced later with pauseStartTime tracking)
 
@@ -921,12 +917,12 @@ export const failTask = async (
 
     // Update task to FAILED
     task.status = "FAILED";
-    
+
     // Save failure reason in notes
     if (notes) {
       task.notes = notes;
     }
-    
+
     // Preserve existing progress value (worker may have made partial progress before failure)
 
     await task.save();
@@ -1094,24 +1090,26 @@ export const completeTask = async (
       if (project) {
         if (task.productId) {
           // Task is part of a product - complex calculation
-          const productIndex = project.products.findIndex(
-            (p: any) => p.productId.toString() === task.productId!.toString()
-          );
+          const productIndex = project.productSnapshot;
 
-          if (productIndex !== -1) {
+          if (productIndex) {
             // Get product to find recipe quantity
-            const product = await Product.findById(task.productId);
-            if (product) {
-              const productRecipe = product.recipes.find(
-                (r: any) => r.recipeId.toString() === task.recipeId.toString()
+            const productSnapshot = await ProductSnapshot.findById(
+              productIndex
+            );
+            if (productSnapshot) {
+              const productRecipe = productSnapshot.recipes.find(
+                (r) =>
+                  r.recipeSnapshotId.toString() ===
+                  task.recipeSnapshotId?.toString()
               );
 
               if (productRecipe) {
                 // Count how many executions of this recipe are completed
                 const completedExecutions = await Task.countDocuments({
                   projectId: task.projectId,
-                  productId: task.productId,
-                  recipeId: task.recipeId,
+                  productSnapshotId: task.productSnapshotId,
+                  recipeSnapshotId: task.recipeSnapshotId,
                   isLastStepInRecipe: true,
                   status: "COMPLETED"
                 });
@@ -1121,19 +1119,16 @@ export const completeTask = async (
                 const completedUnits = Math.floor(
                   completedExecutions / executionsPerUnit
                 );
-                project.products[productIndex].producedQuantity =
-                  completedUnits;
+                project.producedQuantity = completedUnits;
               }
             }
           }
         } else {
           // Standalone recipe in project - direct increment
-          const recipeIndex = project.recipes.findIndex(
-            (r: any) => r.recipeId.toString() === task.recipeId.toString()
-          );
+          const recipeIndex = project.recipeSnapshot;
 
-          if (recipeIndex !== -1) {
-            project.recipes[recipeIndex].producedQuantity += 1;
+          if (recipeIndex) {
+            project.producedQuantity += 1;
           }
         }
 
