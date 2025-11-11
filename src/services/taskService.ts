@@ -3,6 +3,7 @@ import { IProject } from "../models/Project";
 import { IProductSnapshot } from "../models/ProductSnapshot";
 import { IRecipeSnapshot } from "../models/RecipeSnapshot";
 import mongoose from "mongoose";
+import { realtimeService } from "./realtimeService";
 
 /**
  * Generate all first-step tasks for a project when it becomes ACTIVE
@@ -132,6 +133,15 @@ export const generateTasksForProject = async (
       await newTask.save();
       createdTasks.push(newTask);
     }
+  }
+
+  // Broadcast task generation to affected device types
+  if (createdTasks.length > 0) {
+    await realtimeService.broadcastTasksGeneratedForDeviceTypes(
+      createdTasks,
+      (project._id as mongoose.Types.ObjectId).toString(),
+      project.name
+    );
   }
 
   return createdTasks;

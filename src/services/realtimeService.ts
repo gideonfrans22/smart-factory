@@ -437,6 +437,95 @@ class RealtimeService {
       console.error("❌ Error broadcasting announcement:", error);
     }
   }
+
+  /**
+   * Broadcast bulk task generation notifications to device types
+   * Called when project is activated and tasks are auto-generated
+   */
+  public async broadcastTasksGeneratedForDeviceTypes(
+    tasks: any[],
+    projectId: string,
+    projectName: string
+  ): Promise<void> {
+    try {
+      const io = getIO();
+
+      // Group tasks by deviceTypeId
+      const tasksByDeviceType = new Map<string, any[]>();
+
+      tasks.forEach((task) => {
+        if (!task.deviceTypeId) return;
+
+        const deviceTypeId = task.deviceTypeId.toString();
+        if (!tasksByDeviceType.has(deviceTypeId)) {
+          tasksByDeviceType.set(deviceTypeId, []);
+        }
+        tasksByDeviceType.get(deviceTypeId)!.push(task);
+      });
+
+      // Broadcast to each device type
+      for (const [
+        deviceTypeId,
+        deviceTypeTasks
+      ] of tasksByDeviceType.entries()) {
+        const payload = {
+          deviceTypeId,
+          projectId,
+          projectName,
+          taskCount: deviceTypeTasks.length,
+          tasks: deviceTypeTasks.map((t) => ({
+            taskId: t._id?.toString(),
+            title: t.title,
+            priority: t.priority,
+            estimatedDuration: t.estimatedDuration,
+            status: t.status,
+            recipeExecutionNumber: t.recipeExecutionNumber,
+            totalRecipeExecutions: t.totalRecipeExecutions
+          })),
+          timestamp: new Date().toISOString()
+        };
+
+        // Publish to MQTT for devices of this type
+        mqttService.publish(`devicetype/${deviceTypeId}/tasks/new`, payload);
+
+        // Broadcast via WebSocket to deviceType room
+        io.to(`devicetype:${deviceTypeId}`).emit(
+          "devicetype:tasks:new",
+          payload
+        );
+
+        console.log(
+          `📤 Task generation broadcasted to DeviceType ${deviceTypeId}: ${deviceTypeTasks.length} tasks`
+        );
+      }
+
+      // Also broadcast summary to global/project rooms
+      const summaryPayload = {
+        projectId,
+        projectName,
+        totalTasks: tasks.length,
+        deviceTypeBreakdown: Array.from(tasksByDeviceType.entries()).map(
+          ([deviceTypeId, tasks]) => ({
+            deviceTypeId,
+            taskCount: tasks.length
+          })
+        ),
+        timestamp: new Date().toISOString()
+      };
+
+      io.to(`project:${projectId}`).emit(
+        "project:tasks:generated",
+        summaryPayload
+      );
+      io.to("global").emit("project:tasks:generated", summaryPayload);
+
+      console.log(
+        `📤 Task generation summary broadcasted: ${tasks.length} total tasks for ${tasksByDeviceType.size} device types`
+      );
+    } catch (error) {
+      console.error("❌ Error broadcasting task generation:", error);
+    }
+  }
 }
 
 // Export singleton instance
