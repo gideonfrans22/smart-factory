@@ -129,6 +129,18 @@ export const registerDevice = async (
       return;
     }
 
+    // Duplicate check: device name/number must be unique
+    const existingDevice = await Device.findOne({ name });
+    if (existingDevice) {
+      const response: APIResponse = {
+        success: false,
+        error: "DUPLICATE_DEVICE_NUMBER",
+        message: "Device number is duplicated"
+      };
+      res.status(409).json(response);
+      return;
+    }
+
     const device = new Device({
       name,
       deviceTypeId,
@@ -196,7 +208,20 @@ export const updateDevice = async (
       device.deviceTypeId = deviceTypeId;
     }
 
-    if (name) device.name = name;
+    // Duplicate check: device name/number must be unique (if name is being updated)
+    if (name && name !== device.name) {
+      const existingDevice = await Device.findOne({ name });
+      if (existingDevice && existingDevice._id.toString() !== device._id.toString()) {
+        const response: APIResponse = {
+          success: false,
+          error: "DUPLICATE_DEVICE_NUMBER",
+          message: "Device number is duplicated"
+        };
+        res.status(409).json(response);
+        return;
+      }
+      device.name = name;
+    }
     if (location) device.location = location;
     if (status) device.status = status;
     if (ipAddress) device.ipAddress = ipAddress;

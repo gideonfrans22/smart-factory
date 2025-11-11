@@ -237,10 +237,10 @@ export const createDeviceType = async (
     if (existingDeviceType) {
       const response: APIResponse = {
         success: false,
-        error: "VALIDATION_ERROR",
-        message: `Device type with name "${name}" already exists`
+        error: "DUPLICATE_DEVICE_TYPE_NAME",
+        message: "Type name is duplicated"
       };
-      res.status(400).json(response);
+      res.status(409).json(response);
       return;
     }
 
@@ -322,10 +322,10 @@ export const updateDeviceType = async (
       if (existingDeviceType) {
         const response: APIResponse = {
           success: false,
-          error: "VALIDATION_ERROR",
-          message: `Device type with name "${name}" already exists`
+          error: "DUPLICATE_DEVICE_TYPE_NAME",
+          message: "Type name is duplicated"
         };
-        res.status(400).json(response);
+        res.status(409).json(response);
         return;
       }
     }
