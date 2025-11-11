@@ -135,11 +135,11 @@ export const createUser = async (
     const { username, name, email, password, role, department } = req.body;
 
     // Validation
-    if (!name || !password || !role) {
+    if (!name || !role) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Name, password, and role are required"
+        message: "Name, and role are required"
       };
       res.status(400).json(response);
       return;
@@ -195,8 +195,11 @@ export const createUser = async (
       return;
     }
 
-    // Hash password
-    const hashedPassword = await hashPassword(password);
+    let hashedPassword = "";
+    if (password) {
+      // Hash password
+      hashedPassword = await hashPassword(password);
+    }
 
     // Create user
     const user = new User({
