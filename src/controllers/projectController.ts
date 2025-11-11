@@ -2,9 +2,13 @@ import { Request, Response } from "express";
 import { Project } from "../models/Project";
 import { Recipe } from "../models/Recipe";
 import { Product } from "../models/Product";
-import { Task } from "../models/Task";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import { SnapshotService } from "../services/snapshotService";
+import { generateProjectName } from "../services/projectService";
+import {
+  generateTasksForProject,
+  deleteProjectTasks
+} from "../services/taskService";
 
 /**
  * Get all projects with optional filtering and pagination
@@ -78,12 +82,8 @@ export const getProjectById = async (
 
     const project = await Project.findById(id)
       .populate("createdBy", "name email username")
-      .populate({
-        path: "products.productId"
-      })
-      .populate({
-        path: "recipes.recipeId"
-      });
+      .populate("productSnapshot", "name version originalProductId")
+      .populate("recipeSnapshot", "name version originalRecipeId");
 
     if (!project) {
       const response: APIResponse = {
@@ -114,44 +114,22 @@ export const getProjectById = async (
 };
 
 /**
- * Create new project with product and recipe snapshots
+ * Create multiple projects in batch (products and/or recipes)
  * POST /api/projects
  * Body: {
- *   name, description, status, priority, startDate, endDate, deadline,
- *   products: [{ productId, targetQuantity }],
- *   recipes: [{ recipeId, targetQuantity }]
+ *   products: [{ productId, targetQuantity?, priority?, status?, deadline? }],
+ *   recipes: [{ recipeId, targetQuantity?, priority?, status?, deadline? }],
+ *   createdBy: string
  * }
  */
-export const createProject = async (
+export const createProjectsBatch = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
-    const {
-      name,
-      description,
-      products,
-      recipes,
-      status,
-      priority,
-      startDate,
-      endDate,
-      deadline,
-      createdBy
-    } = req.body;
+    const { products = [], recipes = [], createdBy } = req.body;
 
-    // Validation
-    if (!name) {
-      const response: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Project name is required"
-      };
-      res.status(400).json(response);
-      return;
-    }
-
-    // Validate createdBy
+    // Validation: createdBy required
     if (!createdBy) {
       const response: APIResponse = {
         success: false,
@@ -162,121 +140,214 @@ export const createProject = async (
       return;
     }
 
-    // Validate at least one product or recipe
-    if (
-      (!products || products.length === 0) &&
-      (!recipes || recipes.length === 0)
-    ) {
+    // Validation: At least one item required
+    if (products.length === 0 && recipes.length === 0) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Project must have at least one product or one recipe"
+        message: "At least one product or recipe is required"
       };
       res.status(400).json(response);
       return;
     }
 
-    // Process products - just validate and store references
-    const processedProducts = [];
-    if (products && products.length > 0) {
-      for (const item of products) {
-        if (
-          !item.productId ||
-          !item.targetQuantity ||
-          item.targetQuantity < 1
-        ) {
-          const response: APIResponse = {
-            success: false,
-            error: "VALIDATION_ERROR",
-            message: "Each product must have productId and targetQuantity >= 1"
-          };
-          res.status(400).json(response);
-          return;
-        }
-
-        // Validate product exists
-        const product = await Product.findById(item.productId);
-        if (!product) {
-          const response: APIResponse = {
-            success: false,
-            error: "NOT_FOUND",
-            message: `Product not found: ${item.productId}`
-          };
-          res.status(404).json(response);
-          return;
-        }
-
-        // Just store reference - no snapshot yet
-        processedProducts.push({
-          productId: product._id,
-          targetQuantity: item.targetQuantity,
-          producedQuantity: 0
-        });
-      }
+    // Validation: Batch size limit (40 max)
+    const totalItems = products.length + recipes.length;
+    if (totalItems > 40) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Batch size limit exceeded. Maximum 40 projects per request"
+      };
+      res.status(400).json(response);
+      return;
     }
 
-    // Process recipes - just validate and store references
-    const processedRecipes = [];
-    if (recipes && recipes.length > 0) {
-      for (const item of recipes) {
-        if (!item.recipeId || !item.targetQuantity || item.targetQuantity < 1) {
-          const response: APIResponse = {
-            success: false,
-            error: "VALIDATION_ERROR",
-            message: "Each recipe must have recipeId and targetQuantity >= 1"
-          };
-          res.status(400).json(response);
-          return;
-        }
+    const createdProjects: any[] = [];
+    const taskCounts: Record<string, number> = {};
 
-        // Validate recipe exists
-        const recipe = await Recipe.findById(item.recipeId);
-        if (!recipe) {
-          const response: APIResponse = {
-            success: false,
-            error: "NOT_FOUND",
-            message: `Recipe not found: ${item.recipeId}`
-          };
-          res.status(404).json(response);
-          return;
-        }
+    // Process products
+    for (const item of products) {
+      const {
+        productId,
+        targetQuantity = 1,
+        priority = "MEDIUM",
+        status = "PLANNING",
+        deadline
+      } = item;
 
-        // Just store reference - no snapshot yet
-        processedRecipes.push({
-          recipeId: recipe._id,
-          targetQuantity: item.targetQuantity,
-          producedQuantity: 0
-        });
+      // Validate productId
+      if (!productId) {
+        const response: APIResponse = {
+          success: false,
+          error: "VALIDATION_ERROR",
+          message: "Each product must have productId"
+        };
+        res.status(400).json(response);
+        return;
       }
+
+      // Fetch product to get name
+      const product = await Product.findById(productId);
+      if (!product) {
+        const response: APIResponse = {
+          success: false,
+          error: "NOT_FOUND",
+          message: `Product not found: ${productId}`
+        };
+        res.status(404).json(response);
+        return;
+      }
+
+      // Generate project name
+      const projectName = generateProjectName(
+        product.productName,
+        undefined,
+        targetQuantity
+      );
+
+      // Create project (snapshots deferred until ACTIVE)
+      const project = new Project({
+        name: projectName,
+        description: "", // Leave empty
+        targetQuantity,
+        producedQuantity: 0,
+        status,
+        priority,
+        deadline: deadline ? new Date(deadline) : undefined,
+        createdBy
+      });
+
+      // If status is ACTIVE, create snapshots and tasks immediately
+      if (status === "ACTIVE") {
+        // Create product snapshot
+        const productSnapshot =
+          await SnapshotService.getOrCreateProductSnapshot(productId);
+        project.productSnapshot = productSnapshot._id;
+
+        // Auto-set startDate
+        if (!project.startDate) {
+          project.startDate = new Date();
+        }
+
+        // Save project first (to get _id for tasks)
+        await project.save();
+
+        // Generate tasks
+        const tasks = await generateTasksForProject(
+          project,
+          productSnapshot,
+          undefined
+        );
+        taskCounts[(project._id as any).toString()] = tasks.length;
+      } else {
+        // For PLANNING status, just store reference temporarily
+        // We need to set productSnapshot field but without creating snapshot
+        // Actually, we can't set it yet since snapshots are created on ACTIVE
+        // So leave it undefined for PLANNING
+        await project.save();
+      }
+
+      await project.populate("createdBy", "name email username");
+      createdProjects.push(project);
     }
 
-    // Create project with live references only - snapshots created at activation
-    const project = new Project({
-      name,
-      description,
-      products: processedProducts,
-      recipes: processedRecipes,
-      status: status || "PLANNING",
-      priority: priority || "MEDIUM",
-      startDate,
-      endDate,
-      deadline,
-      progress: 0, // Will be calculated by pre-save hook
-      createdBy: createdBy
-    });
+    // Process recipes
+    for (const item of recipes) {
+      const {
+        recipeId,
+        targetQuantity = 1,
+        priority = "MEDIUM",
+        status = "PLANNING",
+        deadline
+      } = item;
 
-    await project.save();
-    await project.populate("createdBy", "name email username");
+      // Validate recipeId
+      if (!recipeId) {
+        const response: APIResponse = {
+          success: false,
+          error: "VALIDATION_ERROR",
+          message: "Each recipe must have recipeId"
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      // Fetch recipe to get name
+      const recipe = await Recipe.findById(recipeId);
+      if (!recipe) {
+        const response: APIResponse = {
+          success: false,
+          error: "NOT_FOUND",
+          message: `Recipe not found: ${recipeId}`
+        };
+        res.status(404).json(response);
+        return;
+      }
+
+      // Generate project name
+      const projectName = generateProjectName(
+        undefined,
+        recipe.name,
+        targetQuantity
+      );
+
+      // Create project (snapshots deferred until ACTIVE)
+      const project = new Project({
+        name: projectName,
+        description: "", // Leave empty
+        targetQuantity,
+        producedQuantity: 0,
+        status,
+        priority,
+        deadline: deadline ? new Date(deadline) : undefined,
+        createdBy
+      });
+
+      // If status is ACTIVE, create snapshots and tasks immediately
+      if (status === "ACTIVE") {
+        // Create recipe snapshot
+        const recipeSnapshot = await SnapshotService.getOrCreateRecipeSnapshot(
+          recipeId
+        );
+        project.recipeSnapshot = recipeSnapshot._id;
+
+        // Auto-set startDate
+        if (!project.startDate) {
+          project.startDate = new Date();
+        }
+
+        // Save project first (to get _id for tasks)
+        await project.save();
+
+        // Generate tasks
+        const tasks = await generateTasksForProject(
+          project,
+          undefined,
+          recipeSnapshot
+        );
+        taskCounts[(project._id as any).toString()] = tasks.length;
+      } else {
+        // For PLANNING status, leave snapshot undefined
+        await project.save();
+      }
+
+      await project.populate("createdBy", "name email username");
+      createdProjects.push(project);
+    }
 
     const response: APIResponse = {
       success: true,
-      message: "Project created successfully",
-      data: project
+      message: `${createdProjects.length} project(s) created successfully`,
+      data: {
+        projects: createdProjects,
+        taskCounts
+      }
     };
 
     res.status(201).json(response);
   } catch (error: any) {
-    console.error("Create project error:", error);
+    console.error("Create projects batch error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",
@@ -289,8 +360,12 @@ export const createProject = async (
 /**
  * Update project
  * PUT /api/projects/:id
- * Note: Products/recipes snapshots cannot be changed once created (immutable)
- * Only quantities can be updated
+ *
+ * Rules:
+ * - If status is PLANNING: ALL fields can be changed
+ * - If status is ACTIVE/ON_HOLD: Only description, deadline, status can be changed
+ * - If changing from ACTIVE/ON_HOLD → PLANNING: Delete tasks, clear snapshots, enable full editing
+ * - If changing to ACTIVE: Create snapshots and tasks
  */
 export const updateProject = async (
   req: AuthenticatedRequest,
@@ -299,15 +374,13 @@ export const updateProject = async (
   try {
     const { id } = req.params;
     const {
-      name,
+      productId, // For changing product in PLANNING
+      recipeId, // For changing recipe in PLANNING
+      targetQuantity,
       description,
-      status,
-      priority,
-      startDate,
-      endDate,
       deadline,
-      products,
-      recipes
+      status,
+      priority
     } = req.body;
 
     const project = await Project.findById(id);
@@ -322,236 +395,193 @@ export const updateProject = async (
       return;
     }
 
-    // Track if status is changing to ACTIVE
     const oldStatus = project.status;
+    const isPlanning = oldStatus === "PLANNING";
     const isActivating = status === "ACTIVE" && oldStatus !== "ACTIVE";
+    const isDeactivating =
+      status === "PLANNING" &&
+      (oldStatus === "ACTIVE" || oldStatus === "ON_HOLD");
 
-    // Update basic fields
-    if (name !== undefined) project.name = name;
+    // Fields that can ALWAYS be updated
     if (description !== undefined) project.description = description;
-    if (status !== undefined) project.status = status;
-    if (priority !== undefined) project.priority = priority;
-    if (startDate !== undefined) project.startDate = new Date(startDate);
-    if (endDate !== undefined) project.endDate = new Date(endDate);
     if (deadline !== undefined)
       project.deadline = deadline ? new Date(deadline) : undefined;
+    if (status !== undefined) project.status = status;
 
-    // Auto-set startDate when activating project
-    if (isActivating && !project.startDate) {
-      project.startDate = new Date();
+    // Handle deactivation: ACTIVE/ON_HOLD → PLANNING
+    if (isDeactivating) {
+      // Delete all tasks
+      const deletedCount = await deleteProjectTasks(project._id as any);
+      console.log(`Deleted ${deletedCount} tasks for project ${project._id}`);
+
+      // Clear snapshots
+      project.productSnapshot = undefined;
+      project.recipeSnapshot = undefined;
+
+      // Reset producedQuantity
+      project.producedQuantity = 0;
+
+      // Now all fields are editable again (will be handled below)
     }
 
-    // Update product quantities (snapshots remain immutable)
-    if (products && Array.isArray(products)) {
-      for (const updatedProduct of products) {
-        const existingProduct = project.products.find(
-          (p) => p.productId.toString() === updatedProduct.productId
-        );
+    // Fields that can be updated ONLY in PLANNING status
+    if (isPlanning || isDeactivating) {
+      // Allow changing product/recipe
+      if (productId !== undefined) {
+        const product = await Product.findById(productId);
+        if (!product) {
+          const response: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: `Product not found: ${productId}`
+          };
+          res.status(404).json(response);
+          return;
+        }
 
-        if (existingProduct) {
-          if (updatedProduct.targetQuantity !== undefined) {
-            if (updatedProduct.targetQuantity < 1) {
-              const response: APIResponse = {
-                success: false,
-                error: "VALIDATION_ERROR",
-                message: "Target quantity must be at least 1"
-              };
-              res.status(400).json(response);
-              return;
-            }
-            existingProduct.targetQuantity = updatedProduct.targetQuantity;
+        // Clear recipe if switching to product
+        project.recipeSnapshot = undefined;
+
+        // Regenerate project name
+        project.name = generateProjectName(
+          product.productName,
+          undefined,
+          targetQuantity || project.targetQuantity
+        );
+      }
+
+      if (recipeId !== undefined) {
+        const recipe = await Recipe.findById(recipeId);
+        if (!recipe) {
+          const response: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: `Recipe not found: ${recipeId}`
+          };
+          res.status(404).json(response);
+          return;
+        }
+
+        // Clear product if switching to recipe
+        project.productSnapshot = undefined;
+
+        // Regenerate project name
+        project.name = generateProjectName(
+          undefined,
+          recipe.name,
+          targetQuantity || project.targetQuantity
+        );
+      }
+
+      if (targetQuantity !== undefined) {
+        if (targetQuantity < 1) {
+          const response: APIResponse = {
+            success: false,
+            error: "VALIDATION_ERROR",
+            message: "Target quantity must be at least 1"
+          };
+          res.status(400).json(response);
+          return;
+        }
+        project.targetQuantity = targetQuantity;
+
+        // Regenerate project name with new quantity
+        // Determine if it's a product or recipe project
+        const isProduct = !!productId || !!project.productSnapshot;
+        if (isProduct && productId) {
+          const product = await Product.findById(productId);
+          if (product) {
+            project.name = generateProjectName(
+              product.productName,
+              undefined,
+              targetQuantity
+            );
           }
-          if (updatedProduct.producedQuantity !== undefined) {
-            existingProduct.producedQuantity = updatedProduct.producedQuantity;
+        } else if (!isProduct && recipeId) {
+          const recipe = await Recipe.findById(recipeId);
+          if (recipe) {
+            project.name = generateProjectName(
+              undefined,
+              recipe.name,
+              targetQuantity
+            );
           }
         }
       }
+
+      if (priority !== undefined) project.priority = priority;
     }
 
-    // Update recipe quantities (snapshots remain immutable)
-    if (recipes && Array.isArray(recipes)) {
-      for (const updatedRecipe of recipes) {
-        const existingRecipe = project.recipes.find(
-          (r) => r.recipeId.toString() === updatedRecipe.recipeId
-        );
-
-        if (existingRecipe) {
-          if (updatedRecipe.targetQuantity !== undefined) {
-            if (updatedRecipe.targetQuantity < 1) {
-              const response: APIResponse = {
-                success: false,
-                error: "VALIDATION_ERROR",
-                message: "Target quantity must be at least 1"
-              };
-              res.status(400).json(response);
-              return;
-            }
-            existingRecipe.targetQuantity = updatedRecipe.targetQuantity;
-          }
-          if (updatedRecipe.producedQuantity !== undefined) {
-            existingRecipe.producedQuantity = updatedRecipe.producedQuantity;
-          }
-        }
-      }
-    }
-
-    await project.save(); // Progress will be recalculated by pre-save hook
-
-    // Auto-create snapshots and ALL first-step tasks when project becomes ACTIVE
-    const createdTasks = [];
+    // Handle activation: → ACTIVE
+    let createdTasks: any[] = [];
     if (isActivating) {
-      // Create ALL first-step tasks for each product's recipes
-      if (project.products && project.products.length > 0) {
-        for (const projectProduct of project.products) {
-          // Fetch the live product to get its recipes
-          const product = await Product.findById(
-            projectProduct.productId
-          ).populate("recipes.recipeId");
-          if (!product) continue;
-          const productSnapshot =
-            await SnapshotService.getOrCreateProductSnapshot(
-              projectProduct.productId
-            );
-
-          // Process each recipe in this product
-          for (const productRecipe of product.recipes) {
-            // Calculate total executions: targetQuantity × recipe quantity
-            const totalExecutions =
-              projectProduct.targetQuantity * productRecipe.quantity;
-
-            // Create snapshot for this recipe (smart caching applies)
-            const recipeSnapshot =
-              await SnapshotService.getOrCreateRecipeSnapshot(
-                productRecipe.recipeId as any
-              );
-
-            // Find the first step (order = 1) from snapshot
-            const firstStep = recipeSnapshot.steps.find(
-              (step) => step.order === 1
-            );
-
-            if (firstStep) {
-              // Validate deviceTypeId exists
-              if (!firstStep.deviceTypeId) {
-                const response: APIResponse = {
-                  success: false,
-                  error: "VALIDATION_ERROR",
-                  message: `First step of recipe in product "${product.productName}" does not have a deviceTypeId`
-                };
-                res.status(400).json(response);
-                return;
-              }
-
-              // Determine if this is the last step
-              const maxStepOrder = Math.max(
-                ...recipeSnapshot.steps.map((s) => s.order)
-              );
-              const isLastStep = firstStep.order === maxStepOrder;
-
-              // Create ALL first-step tasks for ALL executions upfront
-              for (
-                let execution = 1;
-                execution <= totalExecutions;
-                execution++
-              ) {
-                const newTask = new Task({
-                  title: `${firstStep.name} - Exec ${execution}/${totalExecutions} - ${product.productName}`,
-                  description: firstStep.description,
-                  projectId: project._id,
-                  productId: projectProduct.productId,
-                  productSnapshotId: productSnapshot._id,
-                  recipeId: productRecipe.recipeId as any,
-                  recipeSnapshotId: recipeSnapshot._id,
-                  recipeStepId: firstStep._id,
-                  recipeExecutionNumber: execution,
-                  totalRecipeExecutions: totalExecutions,
-                  stepOrder: firstStep.order,
-                  isLastStepInRecipe: isLastStep,
-                  deviceTypeId: firstStep.deviceTypeId,
-                  status: "PENDING",
-                  priority: project.priority,
-                  estimatedDuration: firstStep.estimatedDuration,
-                  progress: 0,
-                  pausedDuration: 0
-                });
-
-                await newTask.save();
-                createdTasks.push(newTask);
-              }
-            }
-          }
-        }
+      // Auto-set startDate
+      if (!project.startDate) {
+        project.startDate = new Date();
       }
 
-      // Create ALL first-step tasks for each standalone recipe
-      for (const projectRecipe of project.recipes) {
-        // Total executions = targetQuantity for standalone recipes
-        const totalExecutions = projectRecipe.targetQuantity;
+      // Determine if product or recipe project
+      // Need to fetch the actual product/recipe to create snapshots
+      if (productId) {
+        // Create product snapshot
+        const productSnapshot =
+          await SnapshotService.getOrCreateProductSnapshot(productId);
+        project.productSnapshot = productSnapshot._id;
 
-        // Create snapshot for this recipe (smart caching applies)
-        const recipeSnapshot = await SnapshotService.getOrCreateRecipeSnapshot(
-          projectRecipe.recipeId
+        // Save first to get project._id
+        await project.save();
+
+        // Generate tasks
+        createdTasks = await generateTasksForProject(
+          project,
+          productSnapshot,
+          undefined
         );
+      } else if (recipeId) {
+        // Create recipe snapshot
+        const recipeSnapshot = await SnapshotService.getOrCreateRecipeSnapshot(
+          recipeId
+        );
+        project.recipeSnapshot = recipeSnapshot._id;
 
-        // Find the first step (order = 1)
-        const firstStep = recipeSnapshot.steps.find((step) => step.order === 1);
+        // Save first to get project._id
+        await project.save();
 
-        if (firstStep) {
-          // Validate deviceTypeId exists
-          if (!firstStep.deviceTypeId) {
-            const response: APIResponse = {
-              success: false,
-              error: "VALIDATION_ERROR",
-              message: `First step of recipe "${recipeSnapshot.name}" does not have a deviceTypeId`
-            };
-            res.status(400).json(response);
-            return;
-          }
-
-          // Determine if this is the last step
-          const maxStepOrder = Math.max(
-            ...recipeSnapshot.steps.map((s) => s.order)
-          );
-          const isLastStep = firstStep.order === maxStepOrder;
-
-          // Create ALL first-step tasks for ALL executions upfront
-          for (let execution = 1; execution <= totalExecutions; execution++) {
-            const newTask = new Task({
-              title: `${firstStep.name} - Exec ${execution}/${totalExecutions} - ${project.name}`,
-              description: firstStep.description,
-              projectId: project._id,
-              recipeId: projectRecipe.recipeId,
-              recipeSnapshotId: recipeSnapshot._id,
-              recipeStepId: firstStep._id,
-              recipeExecutionNumber: execution,
-              totalRecipeExecutions: totalExecutions,
-              stepOrder: firstStep.order,
-              isLastStepInRecipe: isLastStep,
-              deviceTypeId: firstStep.deviceTypeId,
-              status: "PENDING",
-              priority: project.priority,
-              estimatedDuration: firstStep.estimatedDuration,
-              progress: 0,
-              pausedDuration: 0
-            });
-
-            await newTask.save();
-            createdTasks.push(newTask);
-          }
-        }
+        // Generate tasks
+        createdTasks = await generateTasksForProject(
+          project,
+          undefined,
+          recipeSnapshot
+        );
+      } else {
+        // Project must have been created with productId or recipeId
+        // This shouldn't happen, but handle it
+        const response: APIResponse = {
+          success: false,
+          error: "VALIDATION_ERROR",
+          message: "Cannot activate project without product or recipe"
+        };
+        res.status(400).json(response);
+        return;
       }
     }
 
+    await project.save();
     await project.populate("createdBy", "name email username");
+    await project.populate("productSnapshot", "name version");
+    await project.populate("recipeSnapshot", "name version");
 
     const response: APIResponse = {
       success: true,
       message: isActivating
         ? `Project activated successfully. ${createdTasks.length} initial task(s) created.`
+        : isDeactivating
+        ? "Project deactivated successfully. All tasks deleted."
         : "Project updated successfully",
       data: {
         project,
-        ...(isActivating && { createdTasks })
+        ...(isActivating && { tasksCreated: createdTasks.length }),
+        ...(isDeactivating && { tasksDeleted: true })
       }
     };
 
@@ -570,6 +600,7 @@ export const updateProject = async (
 /**
  * Delete project
  * DELETE /api/projects/:id
+ * Also deletes all associated tasks
  */
 export const deleteProject = async (
   req: AuthenticatedRequest,
@@ -590,11 +621,15 @@ export const deleteProject = async (
       return;
     }
 
+    // Delete all associated tasks first
+    const deletedTaskCount = await deleteProjectTasks(project._id as any);
+
+    // Delete project
     await Project.findByIdAndDelete(id);
 
     const response: APIResponse = {
       success: true,
-      message: "Project deleted successfully"
+      message: `Project deleted successfully. ${deletedTaskCount} task(s) deleted.`
     };
 
     res.json(response);
