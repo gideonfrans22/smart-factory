@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { User } from "../models/User";
+import { Task } from "../models/Task";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import { hashPassword, sanitizeInput, validateEmail } from "../utils/helpers";
 
@@ -351,6 +352,215 @@ export const deleteUser = async (
     res.json(response);
   } catch (error) {
     console.error("Delete user error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Get worker statistics with performance metrics
+ * @route GET /api/workers/statistics
+ * @query timeRange: daily | weekly | monthly (default: daily)
+ * @query status: ACTIVE | ON_LEAVE | OFFLINE (optional)
+ * @query department: string (optional)
+ * @query limit: number (default: 100)
+ */
+export const getWorkerStatistics = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const {
+      timeRange = "daily",
+      department: departmentFilter,
+      limit = 100
+    } = req.query;
+
+    // Calculate time range
+    const now = new Date();
+    let startDate = new Date();
+
+    if (timeRange === "weekly") {
+      startDate.setDate(now.getDate() - 7);
+    } else if (timeRange === "monthly") {
+      startDate.setMonth(now.getMonth() - 1);
+    } else {
+      // daily
+      startDate.setDate(now.getDate() - 1);
+    }
+
+    // Build worker query
+    const workerQuery: any = { role: "worker" };
+    if (departmentFilter) workerQuery.department = departmentFilter;
+
+    // Fetch all workers
+    const workers = await User.find(workerQuery)
+      .limit(parseInt(limit as string))
+      .select("-password");
+
+    // Calculate statistics for each worker
+    const workerStats = await Promise.all(
+      workers.map(async (worker) => {
+        // Get all tasks for this worker in the time range
+        const allTasks = await Task.find({
+          workerId: worker._id,
+          createdAt: { $gte: startDate, $lte: now }
+        });
+
+        const assignedTasks = allTasks.length;
+        const completedTasks = allTasks.filter(
+          (t) => t.status === "COMPLETED"
+        ).length;
+        const inProgressTasks = allTasks.filter(
+          (t) => t.status === "ONGOING"
+        ).length;
+        const failedTasks = allTasks.filter(
+          (t) => t.status === "FAILED"
+        ).length;
+
+        // Calculate completion rate
+        const completionRate =
+          assignedTasks > 0 ? (completedTasks / assignedTasks) * 100 : 0;
+
+        // Calculate average duration
+        const completedTasksWithDuration = allTasks
+          .filter((t) => t.status === "COMPLETED" && t.actualDuration)
+          .map((t) => t.actualDuration || 0);
+        const avgDuration =
+          completedTasksWithDuration.length > 0
+            ? completedTasksWithDuration.reduce((a, b) => a + b, 0) /
+              completedTasksWithDuration.length
+            : 0;
+
+        // Calculate quality score (error-free tasks / completed tasks)
+        const errorFreeTasks = completedTasks - failedTasks;
+        const qualityScore =
+          completedTasks > 0
+            ? (Math.max(0, errorFreeTasks) / completedTasks) * 100
+            : 0;
+
+        // Get current task
+        const currentTask = allTasks.find((t) => t.status === "ONGOING");
+
+        // Calculate productivity (on-time completed / total assigned)
+        // Assuming on-time means completed before estimated duration
+        const onTimeCompleted = allTasks.filter((t) => {
+          if (t.status !== "COMPLETED") return false;
+          if (t.actualDuration && t.estimatedDuration) {
+            return t.actualDuration <= t.estimatedDuration;
+          }
+          return true;
+        }).length;
+        const productivity =
+          assignedTasks > 0 ? (onTimeCompleted / assignedTasks) * 100 : 0;
+
+        // Calculate total hours worked (sum of actualDuration)
+        const totalMinutesWorked = allTasks
+          .filter((t) => t.actualDuration)
+          .reduce((sum, t) => sum + (t.actualDuration || 0), 0);
+        const totalHoursWorked = totalMinutesWorked / 60;
+
+        // Tasks per hour
+        const tasksPerHour =
+          totalHoursWorked > 0
+            ? completedTasks / totalHoursWorked
+            : completedTasks;
+
+        // Performance rating based on metrics
+        const avgMetric = (completionRate + qualityScore + productivity) / 3;
+        let performanceRating = "AVERAGE";
+        if (avgMetric >= 85) {
+          performanceRating = "EXCELLENT";
+        } else if (avgMetric >= 70) {
+          performanceRating = "GOOD";
+        } else if (avgMetric >= 50) {
+          performanceRating = "AVERAGE";
+        } else {
+          performanceRating = "POOR";
+        }
+
+        return {
+          workerId: worker._id,
+          workerName: worker.name,
+          department: worker.department || "N/A",
+          status: worker.isActive ? "ACTIVE" : "OFFLINE",
+          completionRate: Math.round(completionRate),
+          avgDuration: Math.round(avgDuration),
+          qualityScore: Math.round(qualityScore),
+          taskCount: {
+            assigned: assignedTasks,
+            completed: completedTasks,
+            inProgress: inProgressTasks,
+            failed: failedTasks
+          },
+          currentTask: currentTask
+            ? {
+                taskId: currentTask._id,
+                taskName: currentTask.title,
+                device: currentTask.deviceId ? currentTask.deviceId.toString() : "N/A",
+                progress: currentTask.progress,
+                startTime: currentTask.startedAt
+              }
+            : null,
+          productivity: Math.round(productivity),
+          totalHoursWorked: Math.round(totalHoursWorked),
+          tasksPerHour: Math.round(tasksPerHour * 10) / 10,
+          lastActivityTime:
+            allTasks.length > 0
+              ? new Date(
+                  Math.max(
+                    ...allTasks.map((t) => new Date(t.updatedAt).getTime())
+                  )
+                )
+              : null,
+          performanceRating
+        };
+      })
+    );
+
+    // Calculate summary
+    const totalWorkers = workerStats.length;
+    const activeWorkers = workerStats.filter(
+      (w) => w.status === "ACTIVE"
+    ).length;
+    const avgCompletionRate =
+      totalWorkers > 0
+        ? workerStats.reduce((sum, w) => sum + w.completionRate, 0) /
+          totalWorkers
+        : 0;
+    const avgQualityScore =
+      totalWorkers > 0
+        ? workerStats.reduce((sum, w) => sum + w.qualityScore, 0) /
+          totalWorkers
+        : 0;
+    const avgProductivity =
+      totalWorkers > 0
+        ? workerStats.reduce((sum, w) => sum + w.productivity, 0) /
+          totalWorkers
+        : 0;
+
+    const response: APIResponse = {
+      success: true,
+      message: "Worker statistics retrieved successfully",
+      data: {
+        items: workerStats,
+        summary: {
+          totalWorkers,
+          activeWorkers,
+          avgCompletionRate: Math.round(avgCompletionRate),
+          avgQualityScore: Math.round(avgQualityScore),
+          avgProductivity: Math.round(avgProductivity)
+        }
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get worker statistics error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",
