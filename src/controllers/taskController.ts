@@ -4,7 +4,7 @@ import { Project } from "../models/Project";
 import { Recipe } from "../models/Recipe";
 import { Product } from "../models/Product";
 import { APIResponse, AuthenticatedRequest } from "../types";
-import { ProductSnapshot } from "../models";
+import { IRecipeSnapshot, ProductSnapshot } from "../models";
 import { realtimeService } from "../services/realtimeService";
 
 export const getTasks = async (req: Request, res: Response): Promise<void> => {
@@ -1593,7 +1593,7 @@ export const getGroupedTasks = async (
       .populate("recipeSnapshot", "name recipeNumber version")
       .skip(skip)
       .limit(limitNum)
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: 1 });
 
     // Build grouped data structure
     // Since Project model now has ONLY ONE product OR ONE recipe:
@@ -1614,9 +1614,12 @@ export const getGroupedTasks = async (
         .populate("workerId", "name username email")
         .populate("deviceId", "name deviceName")
         .populate("deviceTypeId", "name")
-        .populate("recipeSnapshotId", "name version")
+        .populate({
+          path: "recipeSnapshotId",
+          populate: { path: "rawMaterials" }
+        })
         .populate("productSnapshotId", "name version")
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: 1 });
 
       // Initialize project structure
       groupedData[projectId] = {
@@ -1664,12 +1667,13 @@ export const getGroupedTasks = async (
         groupedData[projectId].summary.byPriority[task.priority]++;
 
         // Group by recipe snapshot
-        const recipeSnapshot = task.recipeSnapshotId as any;
+        const recipeSnapshot = task.recipeSnapshotId as any as IRecipeSnapshot;
         const recipeSnapshotId = recipeSnapshot._id.toString();
 
         if (!groupedData[projectId].recipes[recipeSnapshotId]) {
           groupedData[projectId].recipes[recipeSnapshotId] = {
             recipeInfo: {
+              ...recipeSnapshot.toObject(),
               _id: recipeSnapshot._id,
               name: recipeSnapshot.name,
               version: recipeSnapshot.version,
