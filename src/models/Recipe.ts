@@ -324,6 +324,17 @@ RecipeSchema.pre("save", function (next) {
       return next(new Error(validation.error));
     }
   }
+  // Create snapshot on update
+  if (!doc.isNew && doc.isModified() && doc._id) {
+    // Import here to avoid circular dependency
+    import("../services/snapshotService").then(({ SnapshotService }) => {
+      SnapshotService.getOrCreateRecipeSnapshot(
+        doc._id as mongoose.Types.ObjectId
+      )
+        .then(() => next())
+        .catch((err) => next(err));
+    });
+  }
 
   next();
 });
