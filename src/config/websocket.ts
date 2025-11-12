@@ -10,6 +10,7 @@ let io: SocketIOServer;
  */
 export const initializeWebSocket = (httpServer: HTTPServer): SocketIOServer => {
   io = new SocketIOServer(httpServer, {
+    path: "/ws",
     cors: {
       origin: process.env.CORS_ORIGIN?.split(",") || "*",
       credentials: true
