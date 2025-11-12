@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Device } from "../models/Device";
 import { DeviceType } from "../models/DeviceType";
+import { Task } from "../models/Task";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 export const getDevices = async (
@@ -291,6 +292,303 @@ export const deleteDevice = async (
       return;
     }
 
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Get device statistics with health metrics
+ * @route GET /api/devices/statistics
+ * @query timeRange: daily | weekly | monthly (default: daily)
+ * @query status: ONLINE | OFFLINE | MAINTENANCE | ERROR (optional)
+ * @query limit: number (default: 100)
+ */
+export const getDeviceStatistics = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const {
+      timeRange = "daily",
+      status: statusFilter,
+      limit = 100
+    } = req.query;
+
+    // Calculate time range
+    const now = new Date();
+    let startDate = new Date();
+
+    if (timeRange === "weekly") {
+      startDate.setDate(now.getDate() - 7);
+    } else if (timeRange === "monthly") {
+      startDate.setMonth(now.getMonth() - 1);
+    } else {
+      // daily
+      startDate.setDate(now.getDate() - 1);
+    }
+
+    // Build device query
+    const deviceQuery: any = {};
+    if (statusFilter) deviceQuery.status = statusFilter;
+
+    // Fetch all devices
+    const devices = await Device.find(deviceQuery)
+      .limit(parseInt(limit as string))
+      .populate("deviceType", "name");
+
+    // Aggregate statistics for each device
+    const deviceStats = await Promise.all(
+      devices.map(async (device) => {
+        // Get all tasks for this device in the time range
+        const allTasks = await Task.find({
+          deviceId: device._id,
+          createdAt: { $gte: startDate, $lte: now }
+        });
+
+        const activeTasks = allTasks.filter((t) => t.status === "ONGOING");
+        const completedTasks = allTasks.filter((t) => t.status === "COMPLETED");
+        const failedTasks = allTasks.filter((t) => t.status === "FAILED");
+
+        // Calculate metrics
+        const workload = activeTasks.length;
+        const totalTasks = allTasks.length;
+        const failureCount = failedTasks.length;
+        const failureRate =
+          totalTasks > 0 ? (failureCount / totalTasks) * 100 : 0;
+
+        // Calculate average task duration (in minutes)
+        const completedDurations = completedTasks
+          .filter((t) => t.actualDuration)
+          .map((t) => t.actualDuration || 0);
+        const avgTaskDuration =
+          completedDurations.length > 0
+            ? completedDurations.reduce((a, b) => a + b, 0) /
+              completedDurations.length
+            : 0;
+
+        // Calculate efficiency
+        const efficiency =
+          totalTasks > 0 ? ((totalTasks - failureCount) / totalTasks) * 100 : 0;
+
+        // Calculate uptime (based on status history)
+        const onlineTasks = allTasks.filter((t) => t.status !== "FAILED");
+        const uptime =
+          totalTasks > 0 ? (onlineTasks.length / totalTasks) * 100 : 100;
+
+        // Utilization: assume max capacity of 5 tasks per device
+        const maxCapacity = 5;
+        const utilization = Math.min((workload / maxCapacity) * 100, 100);
+
+        // Health score: (100 - failureRate) with uptime adjustment
+        const healthScore =
+          (100 - failureRate) * (uptime / 100);
+
+        return {
+          deviceId: device._id,
+          deviceName: device.name,
+          status: device.status,
+          utilization: Math.round(utilization),
+          workload,
+          healthScore: Math.round(healthScore),
+          uptime: Math.round(uptime),
+          efficiency: Math.round(efficiency),
+          lastStatusChange: device.updatedAt,
+          totalTasksProcessed: completedTasks.length,
+          avgTaskDuration: Math.round(avgTaskDuration),
+          failureRate: Math.round(failureRate)
+        };
+      })
+    );
+
+    // Calculate summary
+    const totalDevices = deviceStats.length;
+    const onlineCount = deviceStats.filter((d) => d.status === "ONLINE").length;
+    const offlineCount = deviceStats.filter(
+      (d) => d.status === "OFFLINE"
+    ).length;
+    const avgUtilization =
+      totalDevices > 0
+        ? deviceStats.reduce((sum, d) => sum + d.utilization, 0) /
+          totalDevices
+        : 0;
+    const avgHealthScore =
+      totalDevices > 0
+        ? deviceStats.reduce((sum, d) => sum + d.healthScore, 0) / totalDevices
+        : 0;
+
+    const response: APIResponse = {
+      success: true,
+      message: "Device statistics retrieved successfully",
+      data: {
+        items: deviceStats,
+        summary: {
+          totalDevices,
+          onlineCount,
+          offlineCount,
+          avgUtilization: Math.round(avgUtilization),
+          avgHealthScore: Math.round(avgHealthScore)
+        }
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get device statistics error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Get devices grouped by tasks (device-centric view)
+ * @route GET /api/devices/by-task
+ * @query status: PENDING | IN_PROGRESS | COMPLETED (optional)
+ * @query limit: number (default: 50)
+ * @query sortBy: workload | status | name (default: workload)
+ */
+export const getDevicesByTask = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const {
+      status: taskStatusFilter,
+      limit = 50,
+      sortBy = "workload"
+    } = req.query;
+
+    // Build task query
+    const taskQuery: any = {};
+    if (taskStatusFilter) {
+      // Map status names
+      if (taskStatusFilter === "IN_PROGRESS") {
+        taskQuery.status = "ONGOING";
+      } else if (taskStatusFilter === "PENDING") {
+        taskQuery.status = "PENDING";
+      } else if (taskStatusFilter === "COMPLETED") {
+        taskQuery.status = "COMPLETED";
+      }
+    }
+
+    // Fetch all devices
+    const devices = await Device.find({})
+      .limit(parseInt(limit as string))
+      .populate("deviceType", "name");
+
+    // Group tasks by device and include device info
+    const deviceWithTasks = await Promise.all(
+      devices.map(async (device) => {
+        // Get tasks for this device
+        let tasksForDevice = await Task.find({
+          deviceId: device._id
+        })
+          .populate("workerId", "name username")
+          .populate("recipeId", "name")
+          .select(
+            "_id title status progress startedAt estimatedDuration priority workerId recipeId"
+          );
+
+        // Filter by status if provided
+        if (taskStatusFilter) {
+          tasksForDevice = tasksForDevice.filter((t) => {
+            if (
+              taskStatusFilter === "IN_PROGRESS" &&
+              t.status === "ONGOING"
+            ) {
+              return true;
+            } else if (
+              taskStatusFilter === "PENDING" &&
+              t.status === "PENDING"
+            ) {
+              return true;
+            } else if (
+              taskStatusFilter === "COMPLETED" &&
+              t.status === "COMPLETED"
+            ) {
+              return true;
+            }
+            return false;
+          });
+        }
+
+        const activeTaskCount = tasksForDevice.filter(
+          (t) => t.status === "ONGOING"
+        ).length;
+        const pendingTaskCount = tasksForDevice.filter(
+          (t) => t.status === "PENDING"
+        ).length;
+        const totalWorkload = tasksForDevice.length;
+
+        return {
+          deviceId: device._id,
+          deviceName: device.name,
+          status: device.status,
+          tasks: tasksForDevice.map((t) => ({
+            taskId: t._id,
+            taskName: t.title,
+            status: t.status,
+            assignedWorker: t.workerId
+              ? {
+                  workerId: (t.workerId as any)._id,
+                  workerName: (t.workerId as any).name
+                }
+              : null,
+            progress: t.progress,
+            startTime: t.startedAt,
+            estimatedEndTime: t.estimatedDuration
+              ? new Date(
+                  new Date(t.startedAt || new Date()).getTime() +
+                    t.estimatedDuration
+                )
+              : null,
+            priority: t.priority
+          })),
+          activeTaskCount,
+          pendingTaskCount,
+          totalWorkload
+        };
+      })
+    );
+
+    // Sort based on sortBy parameter
+    const sorted = [...deviceWithTasks].sort((a, b) => {
+      if (sortBy === "status") {
+        return a.status.localeCompare(b.status);
+      } else if (sortBy === "name") {
+        return a.deviceName.localeCompare(b.deviceName);
+      } else {
+        // default: workload
+        return b.totalWorkload - a.totalWorkload;
+      }
+    });
+
+    const totalDevices = sorted.length;
+    const totalTasks = sorted.reduce((sum, d) => sum + d.totalWorkload, 0);
+
+    const response: APIResponse = {
+      success: true,
+      message: "Devices with tasks retrieved successfully",
+      data: {
+        items: sorted,
+        meta: {
+          totalDevices,
+          totalTasks
+        }
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get devices by task error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",
