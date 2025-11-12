@@ -4,7 +4,9 @@ import {
   getDeviceById,
   registerDevice,
   updateDevice,
-  deleteDevice
+  deleteDevice,
+  getDeviceStatistics,
+  getDevicesByTask
 } from "../controllers/deviceController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -15,6 +17,20 @@ const router = Router();
  * @desc Get all devices with filtering
  */
 router.get("/", getDevices);
+
+/**
+ * @route GET /api/devices/statistics
+ * @desc Get device health and performance metrics
+ * @access Admin only
+ */
+router.get("/statistics", authenticateToken, requireAdmin, getDeviceStatistics);
+
+/**
+ * @route GET /api/devices/by-task
+ * @desc Get devices grouped by tasks (device-centric view)
+ * @access Admin only
+ */
+router.get("/by-task", authenticateToken, requireAdmin, getDevicesByTask);
 
 /**
  * @route GET /api/devices/:id
