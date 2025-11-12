@@ -82,6 +82,10 @@ export class SnapshotService {
       rawMaterials: rawMaterialSnapshots,
       estimatedDuration: recipe.estimatedDuration,
       mediaIds: (recipe as any).mediaIds || [],
+      dwgNo: (recipe as any).dwgNo,
+      unit: (recipe as any).unit,
+      outsourcing: (recipe as any).outsourcing,
+      remarks: (recipe as any).remarks,
       updatedAt: recipe.updatedAt
     };
 
