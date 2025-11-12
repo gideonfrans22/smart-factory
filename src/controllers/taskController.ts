@@ -1586,6 +1586,8 @@ export const getGroupedTasks = async (
     // Get paginated projects
     const projects = await Project.find(projectQuery)
       .populate("createdBy", "name email username")
+      .populate("productSnapshot", "name productNumber version")
+      .populate("recipeSnapshot", "name recipeNumber version")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -1621,6 +1623,10 @@ export const getGroupedTasks = async (
           description: project.description,
           status: project.status,
           priority: project.priority,
+          recipeSnapshot: project.recipeSnapshot,
+          productSnapshot: project.productSnapshot,
+          producedQuantity: project.producedQuantity,
+          targetQuantity: project.targetQuantity,
           progress: project.progress,
           startDate: project.startDate,
           endDate: project.endDate,

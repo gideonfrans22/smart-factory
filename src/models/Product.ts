@@ -104,7 +104,10 @@ ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
 
 // Populate references before returning
 ProductSchema.pre<IProduct>("findOne", function (next) {
-  this.populate("recipes.recipeId");
+  this.populate({
+    path: "recipes.recipeId",
+    options: { sort: { createdAt: 1 } }
+  });
   this.populate({
     path: "recipes.recipeId",
     populate: {
@@ -115,7 +118,10 @@ ProductSchema.pre<IProduct>("findOne", function (next) {
   next();
 });
 ProductSchema.pre<IProduct>("find", function (next) {
-  this.populate("recipes.recipeId");
+  this.populate({
+    path: "recipes.recipeId",
+    options: { sort: { createdAt: 1 } }
+  });
   this.populate({
     path: "recipes.recipeId",
     populate: {
