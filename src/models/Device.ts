@@ -7,6 +7,7 @@ export interface IDevice extends Document {
   location?: string;
   status: "ONLINE" | "OFFLINE" | "MAINTENANCE" | "ERROR";
   ipAddress?: string;
+  macAddress?: string; // MAC address for network identification
   lastHeartbeat?: Date;
   config: Record<string, any>;
   // Grid display properties (defaults for when device is not in a layout)
@@ -44,6 +45,12 @@ const DeviceSchema: Schema = new Schema(
     ipAddress: {
       type: String,
       trim: true
+    },
+    macAddress: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      comment: "MAC address for network identification"
     },
     lastHeartbeat: {
       type: Date
