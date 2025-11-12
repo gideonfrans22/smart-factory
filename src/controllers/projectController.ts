@@ -446,7 +446,7 @@ export const updateProject = async (
     if ((isPlanning || isDeactivating) && !isActivating) {
       // Allow changing product/recipe
       if (!!productIdToUse) {
-        const product = await Product.findById(productId);
+        const product = await Product.findById(productIdToUse);
         if (!product) {
           const response: APIResponse = {
             success: false,
