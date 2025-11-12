@@ -37,16 +37,18 @@ export interface IRecipeSnapshot extends Document {
   steps: IRecipeStepSnapshot[];
   rawMaterials: IRawMaterialSnapshotReference[];
   estimatedDuration: number; // Total duration in minutes
-
+  
   // ✨ NEW FIELDS - Manufacturing metadata
+  partNo?: string;
   dwgNo?: string;
+  material: string;
   unit?: string;
   outsourcing?: string;
   remarks?: string;
-
+  
   // ✨ MEDIA FIELDS
   mediaIds?: mongoose.Types.ObjectId[];
-
+  
   createdAt: Date; // For smart caching: compare with Recipe.updatedAt
   updatedAt: Date;
 }
@@ -129,7 +131,9 @@ const RecipeSnapshotSchema = new Schema<IRecipeSnapshot>(
     rawMaterials: [RawMaterialSnapshotReferenceSchema],
     estimatedDuration: { type: Number, required: true },
     // ✨ NEW FIELDS - Manufacturing metadata
+    partNo: { type: String, required: false },
     dwgNo: { type: String, required: false },
+    material: { type: String, required: true },
     unit: { type: String, required: false, default: "EA" },
     outsourcing: { type: String, required: false },
     remarks: { type: String, required: false },
