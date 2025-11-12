@@ -16,7 +16,7 @@ export interface IGridLayout extends Document {
   rows: number;
   devices: IDevicePosition[];
   isDefault: boolean;
-  createdBy: mongoose.Types.ObjectId;
+  createdBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -100,7 +100,6 @@ const GridLayoutSchema: Schema = new Schema(
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
       comment: "User who created this layout"
     }
   },
