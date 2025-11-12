@@ -14,6 +14,8 @@ export interface IProductSnapshot extends Document {
   productNumber?: string;
   name: string;
   description?: string;
+  customerName?: string; // 고객명
+  personInCharge?: string; // 담당자 (담당자명)
   recipes: IProductRecipeSnapshotReference[]; // References to RecipeSnapshots
   createdAt: Date; // For smart caching: compare with Product.updatedAt
   updatedAt: Date;
@@ -60,6 +62,8 @@ const ProductSnapshotSchema = new Schema<IProductSnapshot>(
     productNumber: { type: String },
     name: { type: String, required: true },
     description: { type: String },
+    customerName: { type: String },
+    personInCharge: { type: String },
     recipes: {
       type: [ProductRecipeSnapshotReferenceSchema],
       required: true,
