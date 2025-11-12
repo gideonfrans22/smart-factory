@@ -31,7 +31,6 @@ export interface IRecipe extends Document {
   // ✨ NEW FIELDS - Manufacturing metadata
   partNo?: string; // Part number (optional)
   dwgNo?: string; // Drawing number (optional)
-  material: string; // Material type (재질) e.g., "AL6061 (4면)" (required)
   unit?: string; // Unit (EA, kg, m) - defaults to "EA" (optional)
   outsourcing?: string; // Outsourcing vendor name (optional)
   remarks?: string; // Remarks/notes (비고) (optional)
@@ -174,13 +173,6 @@ const RecipeSchema: Schema = new Schema(
       trim: true,
       maxlength: 100,
       comment: "Drawing number"
-    },
-    material: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 255,
-      comment: "Material type (재질) e.g., 'AL6061 (4면)'"
     },
     unit: {
       type: String,
