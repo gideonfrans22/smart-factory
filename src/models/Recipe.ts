@@ -27,18 +27,16 @@ export interface IRecipe extends Document {
   product: mongoose.Types.ObjectId; // Reference to Product._id (REQUIRED)
   steps: IRecipeStep[];
   estimatedDuration: number;
-  
+
   // ✨ NEW FIELDS - Manufacturing metadata
-  partNo?: string; // Part number (optional)
   dwgNo?: string; // Drawing number (optional)
-  material: string; // Material type (재질) e.g., "AL6061 (4면)" (required)
   unit?: string; // Unit (EA, kg, m) - defaults to "EA" (optional)
   outsourcing?: string; // Outsourcing vendor name (optional)
   remarks?: string; // Remarks/notes (비고) (optional)
-  
+
   // ✨ MEDIA FIELDS
   mediaIds: mongoose.Types.ObjectId[]; // Media files (existing)
-  
+
   deletedAt?: Date; // Soft delete timestamp
   isDeleted: boolean; // Virtual field for soft delete check
   createdAt: Date;
@@ -161,26 +159,12 @@ const RecipeSchema: Schema = new Schema(
       comment: "Total duration in minutes (sum of all steps)"
     },
     // ✨ NEW FIELDS - Manufacturing metadata
-    partNo: {
-      type: String,
-      required: false,
-      trim: true,
-      maxlength: 100,
-      comment: "Part number"
-    },
     dwgNo: {
       type: String,
       required: false,
       trim: true,
       maxlength: 100,
       comment: "Drawing number"
-    },
-    material: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 255,
-      comment: "Material type (재질) e.g., 'AL6061 (4면)'"
     },
     unit: {
       type: String,
@@ -252,6 +236,7 @@ RecipeSchema.index({ name: 1 });
 RecipeSchema.index({ recipeNumber: 1 });
 RecipeSchema.index({ deletedAt: 1 }); // For soft delete queries
 RecipeSchema.index({ Product: 1 }); // For querying recipes by product
+RecipeSchema.index({ createdAt: -1 }); // For sorting by creation date
 // Unique compound index on recipeNumber and version (sparse to allow null recipeNumbers)
 RecipeSchema.index(
   { recipeNumber: 1, version: 1 },
