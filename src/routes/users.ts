@@ -4,7 +4,8 @@ import {
   getUserById,
   createUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  getWorkerStatistics
 } from "../controllers/userController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -27,6 +28,17 @@ const router = Router();
  * @access  Private (Admin only)
  */
 router.get("/", getUsers);
+
+/**
+ * @route   GET /api/workers/statistics
+ * @desc    Get worker performance metrics and productivity data
+ * @query   timeRange - Filter by time range: "daily" | "weekly" | "monthly" (default: daily)
+ * @query   department - Filter by department (optional)
+ * @query   limit - Number of workers to return (default: 100)
+ * @response Returns array of workers with performance metrics: completionRate, avgDuration, qualityScore, taskCount, currentTask, productivity, etc.
+ * @access  Private (Admin only)
+ */
+router.get("/statistics", authenticateToken, requireAdmin, getWorkerStatistics);
 
 /**
  * @route   GET /api/users/:id
