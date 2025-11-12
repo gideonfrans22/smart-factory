@@ -38,6 +38,11 @@ export const getProjects = async (
     // Get projects (snapshots contain all data, no need to populate products/recipes)
     const projects = await Project.find(query)
       .populate("createdBy", "name email username")
+      .populate("product")
+      .populate({
+        path: "recipe",
+        populate: { path: "rawMaterials.materialId" }
+      })
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -546,7 +551,7 @@ export const updateProject = async (
 
       // Determine if product or recipe project
       // Need to fetch the actual product/recipe to create snapshots
-      if (productIdToUse !== undefined) {
+      if (!!productIdToUse) {
         // Create product snapshot
         const productSnapshot =
           await SnapshotService.getOrCreateProductSnapshot(
@@ -563,7 +568,7 @@ export const updateProject = async (
           productSnapshot,
           undefined
         );
-      } else if (recipeIdToUse !== undefined) {
+      } else if (!!recipeIdToUse) {
         // Create recipe snapshot
         const recipeSnapshot = await SnapshotService.getOrCreateRecipeSnapshot(
           recipeIdToUse as any
