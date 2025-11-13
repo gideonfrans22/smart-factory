@@ -186,14 +186,13 @@ export const createRecipe = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { 
-      recipeNumber, 
-      name, 
-      description, 
-      rawMaterials, 
-      product, 
+    const {
+      recipeNumber,
+      name,
+      description,
+      rawMaterials,
+      product,
       steps,
-      partNo,
       dwgNo,
       material,
       unit,
@@ -315,7 +314,6 @@ export const createRecipe = async (
       steps: processedSteps,
       estimatedDuration: 0, // Will be calculated by pre-save hook
       // ✨ NEW FIELDS
-      partNo,
       dwgNo,
       material,
       unit: unit || "EA", // Default to "EA" if not provided
@@ -355,14 +353,12 @@ export const updateRecipe = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { 
-      name, 
-      description, 
-      rawMaterials, 
+    const {
+      name,
+      description,
+      rawMaterials,
       steps,
-      partNo,
       dwgNo,
-      material,
       unit,
       outsourcing,
       remarks,
@@ -384,11 +380,9 @@ export const updateRecipe = async (
     // Update fields
     if (name) recipe.name = name;
     if (description !== undefined) recipe.description = description;
-    
+
     // ✨ Update new fields
-    if (partNo) recipe.partNo = partNo;
     if (dwgNo) recipe.dwgNo = dwgNo;
-    if (material) recipe.material = material;
     if (unit) recipe.unit = unit;
     if (outsourcing) recipe.outsourcing = outsourcing;
     if (remarks) recipe.remarks = remarks;

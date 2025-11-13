@@ -27,17 +27,16 @@ export interface IRecipe extends Document {
   product: mongoose.Types.ObjectId; // Reference to Product._id (REQUIRED)
   steps: IRecipeStep[];
   estimatedDuration: number;
-  
+
   // ✨ NEW FIELDS - Manufacturing metadata
-  partNo?: string; // Part number (optional)
   dwgNo?: string; // Drawing number (optional)
   unit?: string; // Unit (EA, kg, m) - defaults to "EA" (optional)
   outsourcing?: string; // Outsourcing vendor name (optional)
   remarks?: string; // Remarks/notes (비고) (optional)
-  
+
   // ✨ MEDIA FIELDS
   mediaIds: mongoose.Types.ObjectId[]; // Media files (existing)
-  
+
   deletedAt?: Date; // Soft delete timestamp
   isDeleted: boolean; // Virtual field for soft delete check
   createdAt: Date;
@@ -160,13 +159,6 @@ const RecipeSchema: Schema = new Schema(
       comment: "Total duration in minutes (sum of all steps)"
     },
     // ✨ NEW FIELDS - Manufacturing metadata
-    partNo: {
-      type: String,
-      required: false,
-      trim: true,
-      maxlength: 100,
-      comment: "Part number"
-    },
     dwgNo: {
       type: String,
       required: false,
