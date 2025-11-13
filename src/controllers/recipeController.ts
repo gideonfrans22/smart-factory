@@ -194,7 +194,6 @@ export const createRecipe = async (
       product,
       steps,
       dwgNo,
-      material,
       unit,
       outsourcing,
       remarks,
@@ -207,17 +206,6 @@ export const createRecipe = async (
         success: false,
         error: "VALIDATION_ERROR",
         message: "Name, product, and at least one step are required"
-      };
-      res.status(400).json(errorResponse);
-      return;
-    }
-
-    // ✨ Validate new required field (only material is required)
-    if (!material) {
-      const errorResponse: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "material is required"
       };
       res.status(400).json(errorResponse);
       return;
@@ -315,7 +303,6 @@ export const createRecipe = async (
       estimatedDuration: 0, // Will be calculated by pre-save hook
       // ✨ NEW FIELDS
       dwgNo,
-      material,
       unit: unit || "EA", // Default to "EA" if not provided
       outsourcing,
       remarks,
