@@ -1629,6 +1629,7 @@ export const getGroupedTasks = async (
           description: project.description,
           status: project.status,
           priority: project.priority,
+          projectNumber: project.projectNumber,
           recipeSnapshot: project.recipeSnapshot,
           productSnapshot: project.productSnapshot,
           producedQuantity: project.producedQuantity,
