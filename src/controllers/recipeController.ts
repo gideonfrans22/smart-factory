@@ -94,7 +94,8 @@ export const getRecipeById = async (
       .populate(
         "steps.mediaIds",
         "filename originalName mimeType fileSize filePath"
-      );
+      )
+      .populate("mediaIds", "filename originalName mimeType fileSize filePath");
 
     if (!recipe) {
       const errorResponse: APIResponse = {
