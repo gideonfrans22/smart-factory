@@ -1134,7 +1134,7 @@ export const completeTask = async (
               const productRecipe = productSnapshot.recipes.find(
                 (r) =>
                   r.recipeSnapshotId.toString() ===
-                  task.recipeSnapshotId?.toString()
+                  task.recipeSnapshotId?._id.toString()
               );
 
               if (productRecipe) {
@@ -1153,6 +1153,8 @@ export const completeTask = async (
                   completedExecutions / executionsPerUnit
                 );
                 project.producedQuantity = completedUnits;
+                project.progress =
+                  (completedUnits / project.targetQuantity) * 100;
               }
             }
           }
@@ -1162,6 +1164,8 @@ export const completeTask = async (
 
           if (recipeIndex) {
             project.producedQuantity += 1;
+            project.progress =
+              (project.producedQuantity / project.targetQuantity) * 100;
           }
         }
 
@@ -1195,6 +1199,7 @@ export const completeTask = async (
         _id: project._id,
         progress: project.progress
       };
+      await realtimeService.broadcastProjectUpdate(project.toObject());
     }
 
     const response: APIResponse = {

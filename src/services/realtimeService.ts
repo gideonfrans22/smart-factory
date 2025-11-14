@@ -347,15 +347,16 @@ class RealtimeService {
         updatedAt: project.updatedAt
       };
 
+      const projectId = project._id?.toString();
       // Publish to MQTT
-      mqttService.publish(`project/${project._id}/status`, payload);
+      mqttService.publish(`project/${projectId}/status`, payload);
 
       // Broadcast via WebSocket
-      io.to(`project:${project._id}`).emit("project:updated", payload);
+      io.to(`project:${projectId}`).emit("project:updated", payload);
       io.to("global").emit("project:updated", payload);
 
       console.log(
-        `📤 Project update broadcasted: ${project._id} - ${project.status}`
+        `📤 Project update broadcasted: ${projectId} - ${project.status}`
       );
     } catch (error) {
       console.error("❌ Error broadcasting project update:", error);
