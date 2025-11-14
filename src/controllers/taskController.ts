@@ -25,6 +25,10 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
 
     const query: any = {};
 
+    // Exclude tasks assigned to devices or workers (only get unassigned tasks)
+    query.deviceId = null;
+    query.workerId = null;
+
     // ⭐ Special query for partial completions
     if (includePendingAndPartial === "true") {
       // Return PENDING, ONGOING, PAUSED tasks + COMPLETED tasks with progress < 100
