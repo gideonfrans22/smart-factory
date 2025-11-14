@@ -660,6 +660,10 @@ export const deleteTask = async (
       message: "Task deleted successfully"
     };
 
+    if (task) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
+
     res.json(response);
   } catch (error) {
     console.error("Delete task error:", error);
@@ -744,6 +748,10 @@ export const startTask = async (
       data: task
     };
 
+    if (task) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
+
     res.json(response);
   } catch (error: any) {
     console.error("Start task error:", error);
@@ -825,6 +833,10 @@ export const resumeTask = async (
       data: task
     };
 
+    if (task) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
+
     res.json(response);
   } catch (error: any) {
     console.error("Resume task error:", error);
@@ -892,6 +904,10 @@ export const pauseTask = async (
       data: task
     };
 
+    if (task) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
+
     res.json(response);
   } catch (error: any) {
     console.error("Pause task error:", error);
@@ -952,6 +968,10 @@ export const failTask = async (
       message: "Task marked as failed",
       data: task
     };
+
+    if (task) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
 
     res.json(response);
   } catch (error: any) {
@@ -1186,6 +1206,10 @@ export const completeTask = async (
         : "Task completed",
       data: responseData
     };
+
+    if (task) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
 
     res.json(response);
   } catch (error: any) {
