@@ -244,6 +244,7 @@ class RealtimeService {
         taskId: task._id?.toString(),
         status: task.status,
         deviceId: task.deviceId,
+        deviceTypeId: task.deviceTypeId,
         workerId: task.workerId,
         projectId: task.projectId,
         updatedAt: task.updatedAt
@@ -252,16 +253,30 @@ class RealtimeService {
       // Publish to MQTT
       mqttService.publish(`task/${task._id}/status`, payload);
       if (task.deviceId) {
-        mqttService.publish(`device/${task.deviceId}/task/status`, payload);
+        const deviceId =
+          task.deviceId._id || (task.deviceId as any)?.toString();
+        mqttService.publish(`device/${deviceId}/task/status`, payload);
       }
 
       // Broadcast via WebSocket
       io.to(`task:${task._id}`).emit("task:status", payload);
       if (task.deviceId) {
-        io.to(`device:${task.deviceId}`).emit("task:status", payload);
+        const deviceId =
+          task.deviceId._id || (task.deviceId as any)?.toString();
+        io.to(`device:${deviceId}`).emit("task:status", payload);
       }
       if (task.projectId) {
-        io.to(`project:${task.projectId}`).emit("task:status", payload);
+        const projectId =
+          task.projectId._id || (task.projectId as any)?.toString();
+        io.to(`project:${projectId}`).emit("task:status", payload);
+      }
+      if (task.deviceTypeId) {
+        const deviceTypeId =
+          task.deviceTypeId._id || (task.deviceTypeId as any)?.toString();
+        io.to(`devicetype:${deviceTypeId}`).emit(
+          "devicetype:task:status",
+          payload
+        );
       }
 
       console.log(
