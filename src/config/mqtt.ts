@@ -1,5 +1,5 @@
-import * as mqtt from 'mqtt';
-import * as dotenv from 'dotenv';
+import * as mqtt from "mqtt";
+import * as dotenv from "dotenv";
 
 dotenv.config();
 
@@ -16,10 +16,10 @@ class MQTTService {
 
   constructor() {
     this.config = {
-      brokerUrl: process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883',
+      brokerUrl: process.env.MQTT_BROKER_URL || "mqtt://localhost:1883",
       username: process.env.MQTT_USERNAME,
       password: process.env.MQTT_PASSWORD,
-      clientId: process.env.MQTT_CLIENT_ID || 'smart_factory_backend'
+      clientId: process.env.MQTT_CLIENT_ID || "smart_factory_backend"
     };
   }
 
@@ -32,29 +32,28 @@ class MQTTService {
           connectTimeout: 4000,
           username: this.config.username,
           password: this.config.password,
-          reconnectPeriod: 1000,
+          reconnectPeriod: 1000
         };
 
         this.client = mqtt.connect(this.config.brokerUrl, options);
 
-        this.client.on('connect', () => {
-          console.log('✅ MQTT Connected to broker');
+        this.client.on("connect", () => {
+          console.log("✅ MQTT Connected to broker");
           resolve();
         });
 
-        this.client.on('error', (error) => {
-          console.error('❌ MQTT Connection error:', error);
+        this.client.on("error", (error) => {
+          console.error("❌ MQTT Connection error:", error);
           reject(error);
         });
 
-        this.client.on('offline', () => {
-          console.log('📴 MQTT Client offline');
+        this.client.on("offline", () => {
+          console.log("📴 MQTT Client offline");
         });
 
-        this.client.on('reconnect', () => {
-          console.log('🔄 MQTT Reconnecting...');
+        this.client.on("reconnect", () => {
+          console.log("🔄 MQTT Reconnecting...");
         });
-
       } catch (error) {
         reject(error);
       }
@@ -64,30 +63,37 @@ class MQTTService {
   public disconnect(): void {
     if (this.client) {
       this.client.end();
-      console.log('📤 MQTT Disconnected');
+      console.log("📤 MQTT Disconnected");
     }
   }
 
   public publish(topic: string, message: string | object): void {
     if (!this.client || !this.client.connected) {
-      console.error('❌ MQTT Client not connected');
+      console.error("❌ MQTT Client not connected");
       return;
     }
 
-    const payload = typeof message === 'string' ? message : JSON.stringify(message);
-    
+    const payload =
+      typeof message === "string" ? message : JSON.stringify(message);
+
     this.client.publish(topic, payload, { qos: 1 }, (error) => {
       if (error) {
         console.error(`❌ MQTT Publish error for topic ${topic}:`, error);
       } else {
-        console.log(`📤 MQTT Published to ${topic}:`, payload);
+        console.log(
+          `📤 MQTT Published to ${topic}:`,
+          payload.toString().substring(0, 30)
+        );
       }
     });
   }
 
-  public subscribe(topic: string, callback: (topic: string, message: string) => void): void {
+  public subscribe(
+    topic: string,
+    callback: (topic: string, message: string) => void
+  ): void {
     if (!this.client || !this.client.connected) {
-      console.error('❌ MQTT Client not connected');
+      console.error("❌ MQTT Client not connected");
       return;
     }
 
@@ -99,7 +105,7 @@ class MQTTService {
       }
     });
 
-    this.client.on('message', (receivedTopic, message) => {
+    this.client.on("message", (receivedTopic, message) => {
       if (receivedTopic === topic) {
         callback(receivedTopic, message.toString());
       }
@@ -116,10 +122,10 @@ export const mqttService = new MQTTService();
 
 // MQTT Topics for the smart factory
 export const MQTT_TOPICS = {
-  PROCESS_LINE_STATUS: 'factory/process-line/status',
-  PART_PROGRESS: 'factory/part/progress',
-  WORKER_ACTION: 'factory/worker/action',
-  MANAGER_COMMAND: 'factory/manager/command',
-  SYSTEM_ALERTS: 'factory/system/alerts',
-  PRODUCTION_METRICS: 'factory/metrics/production'
+  PROCESS_LINE_STATUS: "factory/process-line/status",
+  PART_PROGRESS: "factory/part/progress",
+  WORKER_ACTION: "factory/worker/action",
+  MANAGER_COMMAND: "factory/manager/command",
+  SYSTEM_ALERTS: "factory/system/alerts",
+  PRODUCTION_METRICS: "factory/metrics/production"
 } as const;
