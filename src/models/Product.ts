@@ -115,6 +115,12 @@ ProductSchema.pre<IProduct>("findOne", function (next) {
       select: "materialCode name specifications supplier unit"
     }
   });
+  this.populate({
+    path: "recipes.recipeId",
+    populate: {
+      path: "mediaIds"
+    }
+  });
   next();
 });
 ProductSchema.pre<IProduct>("find", function (next) {
@@ -127,6 +133,12 @@ ProductSchema.pre<IProduct>("find", function (next) {
     populate: {
       path: "rawMaterials.materialId",
       select: "materialCode name specifications supplier unit"
+    }
+  });
+  this.populate({
+    path: "recipes.recipeId",
+    populate: {
+      path: "mediaIds"
     }
   });
   next();
