@@ -1169,6 +1169,10 @@ export const completeTask = async (
           }
         }
 
+        if (project.producedQuantity >= project.targetQuantity) {
+          project.status = "COMPLETED";
+          project.progress = 100;
+        }
         await project.save(); // Progress auto-calculated by pre-save hook
       }
     }
