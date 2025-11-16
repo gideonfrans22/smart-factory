@@ -1,6 +1,6 @@
 import { mqttService, MQTT_TOPICS } from "../config/mqtt";
 import { getIO } from "../config/websocket";
-import { Alert, Task, Device } from "../models";
+import { Alert, Task, Device, IDevice } from "../models";
 import { ITask } from "../models/Task";
 import { IAlert } from "../models/Alert";
 import { IProject } from "../models/Project";
@@ -423,6 +423,31 @@ class RealtimeService {
       );
     } catch (error) {
       console.error("❌ Error broadcasting KPI update:", error);
+    }
+  }
+
+  public async broadcastDeviceUpdate(device: IDevice): Promise<void> {
+    try {
+      const io = getIO();
+
+      const payload = {
+        deviceId: device._id?.toString(),
+        name: device.name,
+        status: device.status,
+        currentUser: device.currentUser,
+        deviceTypeId: device.deviceTypeId,
+        lastHeartbeat: device.lastHeartbeat
+      };
+
+      // Publish to MQTT
+      mqttService.publish(`device/${device._id}/updated`, payload);
+
+      // Broadcast via WebSocket
+      io.to(`device:${device._id}`).emit("device:updated", payload);
+      io.to("global").emit("device:updated", payload);
+      console.log(`📤 Device update broadcasted: ${device._id}`);
+    } catch (error) {
+      console.error("❌ Error broadcasting device update:", error);
     }
   }
 
