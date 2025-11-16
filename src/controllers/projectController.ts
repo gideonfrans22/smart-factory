@@ -10,6 +10,7 @@ import {
   deleteProjectTasks
 } from "../services/taskService";
 import { realtimeService } from "../services/realtimeService";
+import { Task } from "../models";
 
 /**
  * Get all projects with optional filtering and pagination
@@ -669,6 +670,119 @@ export const deleteProject = async (
     res.json(response);
   } catch (error) {
     console.error("Delete project error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Get real-time monitoring data for all active projects
+ * This endpoint provides a dashboard view of currently running projects with their tasks
+ * GET /api/projects/monitor/active
+ */
+export const getActiveProjectMonitorData = async (
+  _: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    // Step 1: Get all projects that are currently ACTIVE (running)
+    // We populate snapshots to get the frozen recipe/product data that tasks are based on
+    const activeProjects = await Project.find({ status: "ACTIVE" })
+      .populate({
+        path: "productSnapshot", // For product-based projects
+        select: "name version", // Only need basic info
+        populate: { path: "recipes.recipeSnapshotId" } // Get recipe snapshots within products
+      })
+      .populate("recipeSnapshot") // For standalone recipe projects
+      .sort({ deadline: 1, createdAt: 1 }); // Sort by deadline first, then creation date
+
+    // Step 2: Get ALL tasks for these active projects
+    // We need to know what tasks exist and their current status
+    const tasks = await Task.find({
+      projectId: { $in: activeProjects.map((p) => p._id) } // Tasks belonging to active projects
+    })
+      .populate("deviceId", "name") // Get device name
+      .populate("deviceTypeId", "name") // Get device type name
+      .populate("workerId", "name"); // Get worker name
+
+    // Step 3: Process each project to create monitoring data
+    // For each project, we need to group tasks by recipe and create summaries
+    const projectTasks = activeProjects.map((project) => {
+      // Determine which recipes this project contains
+      // Products have multiple recipes, standalone recipes have one
+      const recipes = project.productSnapshot
+        ? // For products: extract recipe snapshot IDs from the product's recipes array
+          (project.productSnapshot as any).recipes.map((r: any) =>
+            r.recipeSnapshotId._id.toString()
+          )
+        : // For standalone recipes: just the single recipe snapshot ID
+          [project.recipeSnapshot?._id.toString()];
+
+      // Get all tasks that belong to this specific project
+      const projectTaskList = tasks.filter(
+        (task) => task.projectId?.toString() === project.id.toString()
+      );
+
+      // Step 4: Group tasks by recipe within this project
+      // Each recipe in a project has its own set of tasks
+      const recipeTasks = recipes.map((recipe: any) => {
+        // Get recipe information (name, etc.) for display
+        const recipeInfo = project.productSnapshot
+          ? // For products: find this recipe in the product's recipe list
+            (project.productSnapshot as any).recipes.find(
+              (r: any) => r.recipeSnapshotId._id.toString() === recipe
+            ).recipeSnapshotId
+          : // For standalone recipes: use the recipe snapshot directly
+            project.recipeSnapshot;
+
+        // Get all tasks that belong to this specific recipe
+        const tasksForThisRecipe = projectTaskList.filter(
+          (task) => task.recipeSnapshotId?.toString() === recipe
+        );
+
+        return {
+          recipeInfo, // Recipe details for display
+          tasks: tasksForThisRecipe // All tasks for this recipe
+        };
+      });
+
+      // Step 5: Create a summary of task counts by status for this project
+      const taskSummary = {
+        total: projectTaskList.length, // Total tasks in project
+        byStatus: {
+          PENDING: projectTaskList.filter((t) => t.status === "PENDING").length,
+          ONGOING: projectTaskList.filter((t) => t.status === "ONGOING").length,
+          COMPLETED: projectTaskList.filter((t) => t.status === "COMPLETED")
+            .length,
+          PAUSED: projectTaskList.filter((t) => t.status === "PAUSED").length,
+          FAILED: projectTaskList.filter((t) => t.status === "FAILED").length
+        }
+      };
+
+      // Return structured data for this project
+      return {
+        projectInfo: project, // Basic project details
+        recipeTasks: recipeTasks, // Tasks grouped by recipe
+        taskSummary // Overall task counts
+      };
+    });
+
+    // Step 6: Return the monitoring data
+    const response: APIResponse = {
+      success: true,
+      message: "Active project monitor data retrieved successfully",
+      data: {
+        items: projectTasks // Array of project monitoring data
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get active project monitor data error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",
