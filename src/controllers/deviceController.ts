@@ -98,15 +98,8 @@ export const registerDevice = async (
   res: Response
 ): Promise<void> => {
   try {
-    const {
-      name,
-      deviceTypeId,
-      location,
-      status,
-      ipAddress,
-      macAddress,
-      config
-    } = req.body;
+    const { name, deviceTypeId, status, ipAddress, macAddress, config } =
+      req.body;
 
     if (!name || !deviceTypeId) {
       const response: APIResponse = {
@@ -145,7 +138,6 @@ export const registerDevice = async (
     const device = new Device({
       name,
       deviceTypeId,
-      location,
       ipAddress,
       macAddress,
       status,
@@ -179,7 +171,7 @@ export const updateDevice = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, deviceTypeId, location, status, ipAddress, config } =
+    const { name, deviceTypeId, status, currentUser, ipAddress, config } =
       req.body;
 
     const device = await Device.findById(id);
@@ -212,7 +204,10 @@ export const updateDevice = async (
     // Duplicate check: device name/number must be unique (if name is being updated)
     if (name && name !== device.name) {
       const existingDevice = await Device.findOne({ name });
-      if (existingDevice && existingDevice._id.toString() !== device._id.toString()) {
+      if (
+        existingDevice &&
+        existingDevice._id.toString() !== device._id.toString()
+      ) {
         const response: APIResponse = {
           success: false,
           error: "DUPLICATE_DEVICE_NUMBER",
@@ -223,7 +218,6 @@ export const updateDevice = async (
       }
       device.name = name;
     }
-    if (location) device.location = location;
     if (status) device.status = status;
     if (ipAddress) device.ipAddress = ipAddress;
     if (config) device.config = config;
@@ -231,6 +225,12 @@ export const updateDevice = async (
     // Update heartbeat if status is being updated
     if (status) {
       device.lastHeartbeat = new Date();
+    }
+
+    if (currentUser) {
+      device.currentUser = currentUser;
+    } else if (currentUser === null) {
+      device.currentUser = undefined;
     }
 
     await device.save();
@@ -385,8 +385,7 @@ export const getDeviceStatistics = async (
         const utilization = Math.min((workload / maxCapacity) * 100, 100);
 
         // Health score: (100 - failureRate) with uptime adjustment
-        const healthScore =
-          (100 - failureRate) * (uptime / 100);
+        const healthScore = (100 - failureRate) * (uptime / 100);
 
         return {
           deviceId: device._id,
@@ -413,8 +412,7 @@ export const getDeviceStatistics = async (
     ).length;
     const avgUtilization =
       totalDevices > 0
-        ? deviceStats.reduce((sum, d) => sum + d.utilization, 0) /
-          totalDevices
+        ? deviceStats.reduce((sum, d) => sum + d.utilization, 0) / totalDevices
         : 0;
     const avgHealthScore =
       totalDevices > 0
@@ -500,10 +498,7 @@ export const getDevicesByTask = async (
         // Filter by status if provided
         if (taskStatusFilter) {
           tasksForDevice = tasksForDevice.filter((t) => {
-            if (
-              taskStatusFilter === "IN_PROGRESS" &&
-              t.status === "ONGOING"
-            ) {
+            if (taskStatusFilter === "IN_PROGRESS" && t.status === "ONGOING") {
               return true;
             } else if (
               taskStatusFilter === "PENDING" &&
