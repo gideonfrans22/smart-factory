@@ -195,22 +195,4 @@ ProjectSchema.pre("save", async function (next) {
   next();
 });
 
-// Pre-save hook: Calculate progress automatically
-ProjectSchema.pre("save", function (next) {
-  const doc = this as unknown as IProject;
-
-  // Calculate progress percentage
-  if (doc.targetQuantity > 0) {
-    doc.progress = Math.round(
-      (doc.producedQuantity / doc.targetQuantity) * 100
-    );
-    // Ensure progress is between 0 and 100
-    doc.progress = Math.min(100, Math.max(0, doc.progress));
-  } else {
-    doc.progress = 0;
-  }
-
-  next();
-});
-
 export const Project = mongoose.model<IProject>("Project", ProjectSchema);
