@@ -6,7 +6,8 @@ import {
   updateDevice,
   deleteDevice,
   getDeviceStatistics,
-  getDevicesByTask
+  getDevicesByTask,
+  getDevicesMonitorData
 } from "../controllers/deviceController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -59,5 +60,12 @@ router.put("/:id", authenticateToken, requireAdmin, updateDevice);
  * @access Admin only
  */
 router.delete("/:id", authenticateToken, requireAdmin, deleteDevice);
+
+/**
+ * @route GET /api/devices/monitor-layout/:id
+ * @desc Get devices in a grid layout for monitoring
+ * @access Authenticated users
+ */
+router.get("/monitor-layout/:id", authenticateToken, getDevicesMonitorData);
 
 export default router;

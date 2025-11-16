@@ -4,6 +4,7 @@ import { DeviceType } from "../models/DeviceType";
 import { Task } from "../models/Task";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import { realtimeService } from "../services/realtimeService";
+import { GridLayout } from "../models";
 
 export const getDevices = async (
   req: Request,
@@ -589,6 +590,90 @@ export const getDevicesByTask = async (
     res.json(response);
   } catch (error) {
     console.error("Get devices by task error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Get Devices Monitor Data for Grid Layout
+ * Retrieves device monitoring information for a specific grid layout, including device status,
+ * current tasks, and user assignments. Used for real-time dashboard monitoring.
+ *
+ * @route GET /api/devices/monitor-layout/:id
+ * @param id - Grid layout ID from URL parameters
+ * @returns Grid layout with populated device data and status summary
+ */
+export const getDevicesMonitorData = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    // Step 1: Fetch the grid layout and deeply populate all device information
+    // This includes device details, device types, current tasks, and assigned users
+    const gridLayout = await GridLayout.findById(id).populate({
+      path: "devices.deviceId",
+      populate: [
+        {
+          path: "deviceType",
+          select: "name"
+        },
+        {
+          path: "currentTask",
+          select: "title status startedAt"
+        },
+        {
+          path: "currentUser",
+          select: "name username"
+        }
+      ]
+    });
+
+    if (!gridLayout) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Grid layout not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Step 2: Calculate device status summary for dashboard overview
+    const summary = {
+      totalDevices: gridLayout.devices.length,
+      onlineDevices: gridLayout.devices.filter(
+        (d) => d.deviceId && (d.deviceId as any).status === "ONLINE"
+      ).length,
+      offlineDevices: gridLayout.devices.filter(
+        (d) => d.deviceId && (d.deviceId as any).status === "OFFLINE"
+      ).length,
+      maintenanceDevices: gridLayout.devices.filter(
+        (d) => d.deviceId && (d.deviceId as any).status === "MAINTENANCE"
+      ).length,
+      errorDevices: gridLayout.devices.filter(
+        (d) => d.deviceId && (d.deviceId as any).status === "ERROR"
+      ).length
+    };
+
+    // Step 3: Return the complete monitoring data
+    const response: APIResponse = {
+      success: true,
+      message: "Devices monitor data retrieved successfully",
+      data: {
+        layout: gridLayout, // Full grid layout with populated device data
+        summary // Status counts for quick overview
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get devices monitor data error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",

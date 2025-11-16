@@ -6,6 +6,7 @@ export interface IDevice extends Document {
   deviceTypeId: mongoose.Types.ObjectId; // Reference to DeviceType
   status: "ONLINE" | "OFFLINE" | "MAINTENANCE" | "ERROR";
   currentUser?: mongoose.Types.ObjectId;
+  currentTask?: mongoose.Types.ObjectId;
   ipAddress?: string;
   macAddress?: string; // MAC address for network identification
   lastHeartbeat?: Date;
@@ -41,6 +42,11 @@ const DeviceSchema: Schema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       comment: "Reference to the user currently operating the device"
+    },
+    currentTask: {
+      type: Schema.Types.ObjectId,
+      ref: "Task",
+      comment: "Reference to the task currently assigned to the device"
     },
     ipAddress: {
       type: String,
@@ -82,6 +88,7 @@ const DeviceSchema: Schema = new Schema(
 // Indexes
 DeviceSchema.index({ status: 1 });
 DeviceSchema.index({ currentUser: 1 });
+DeviceSchema.index({ currentTask: 1 });
 DeviceSchema.index({ deviceTypeId: 1 });
 DeviceSchema.index({ lastHeartbeat: 1 });
 
