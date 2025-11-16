@@ -1149,7 +1149,7 @@ export const completeTask = async (
               // Determine how many complete sets of recipe executions have been done
               let completedUnits = Infinity;
               for (const r of productSnapshot.recipes) {
-                const recipeId = Object.keys(r)[0];
+                const recipeId = r.recipeSnapshotId.toString();
                 const neededQty = r.quantity;
                 const completedQty = completedExecutions.filter(
                   (t) =>
