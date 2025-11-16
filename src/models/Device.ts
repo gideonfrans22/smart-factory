@@ -143,4 +143,13 @@ DeviceSchema.pre("findOneAndDelete", async function (next) {
   }
 });
 
+// Broadcast device updates on save
+DeviceSchema.post("save", async function (doc: IDevice) {
+  const realtimeService =
+    require("../services/realtimeService").realtimeService;
+  realtimeService.broadcastDeviceUpdate(doc.toObject()).catch((err: any) => {
+    console.error("Broadcast device update error:", err);
+  });
+});
+
 export const Device = mongoose.model<IDevice>("Device", DeviceSchema);

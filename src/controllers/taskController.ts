@@ -4,7 +4,7 @@ import { Project } from "../models/Project";
 import { Recipe } from "../models/Recipe";
 import { Product } from "../models/Product";
 import { APIResponse, AuthenticatedRequest } from "../types";
-import { IRecipeSnapshot, ProductSnapshot } from "../models";
+import { Device, IRecipeSnapshot, ProductSnapshot } from "../models";
 import { realtimeService } from "../services/realtimeService";
 import { roundToTwoDecimals } from "../utils/helpers";
 
@@ -505,6 +505,18 @@ export const updateTaskStatus = async (
     await task.save();
     await task.populate("projectId workerId");
 
+    if (status == "COMPLETED" || status == "FAILED") {
+      // Update Device currentTask to null if assigned
+      if (task.deviceId) {
+        const device = await Device.findById(task.deviceId);
+        if (device) {
+          device.currentTask = undefined;
+          device.currentUser = undefined;
+          await device.save();
+        }
+      }
+    }
+
     const response: APIResponse = {
       success: true,
       message: "Task status updated successfully",
@@ -726,7 +738,15 @@ export const startTask = async (
     // Update task to ONGOING
     task.status = "ONGOING";
     task.workerId = workerId;
-    if (deviceId) task.deviceId = deviceId;
+    if (deviceId) {
+      task.deviceId = deviceId;
+      const device = await Device.findById(deviceId);
+      if (device) {
+        device.currentTask = task.id;
+        device.currentUser = workerId;
+        await device.save();
+      }
+    }
     task.startedAt = new Date();
 
     // Initialize progress to 0 only if not already set
@@ -1055,6 +1075,16 @@ export const completeTask = async (
     }
 
     await task.save();
+
+    // Update Device currentTask to null if assigned
+    if (task.deviceId) {
+      const device = await Device.findById(task.deviceId);
+      if (device) {
+        device.currentTask = undefined;
+        device.currentUser = undefined;
+        await device.save();
+      }
+    }
 
     let nextTask = null;
     let project = null;
