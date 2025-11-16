@@ -20,7 +20,6 @@ export const getDevices = async (
 
     const total = await Device.countDocuments(query);
     const devices = await Device.find(query)
-      .populate("deviceType", "name description")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -60,10 +59,7 @@ export const getDeviceById = async (
   try {
     const { id } = req.params;
 
-    const device = await Device.findById(id).populate(
-      "deviceType",
-      "name description"
-    );
+    const device = await Device.findById(id);
 
     if (!device) {
       const response: APIResponse = {

@@ -98,6 +98,17 @@ DeviceSchema.virtual("deviceType", {
   justOne: true
 });
 
+// Pre-find hook to always populate deviceType and currentUser
+function autoPopulateDeviceTypeAndUser(
+  this: mongoose.Query<any, IDevice>,
+  next: (err?: Error) => void
+) {
+  this.populate("deviceType").populate("currentUser");
+  next();
+}
+DeviceSchema.pre("find", autoPopulateDeviceTypeAndUser);
+DeviceSchema.pre("findOne", autoPopulateDeviceTypeAndUser);
+
 // Pre-remove hook to check for dependent recipe steps
 DeviceSchema.pre("findOneAndDelete", async function (next) {
   try {
