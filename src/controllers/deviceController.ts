@@ -3,6 +3,7 @@ import { Device } from "../models/Device";
 import { DeviceType } from "../models/DeviceType";
 import { Task } from "../models/Task";
 import { APIResponse, AuthenticatedRequest } from "../types";
+import { realtimeService } from "../services/realtimeService";
 
 export const getDevices = async (
   req: Request,
@@ -143,6 +144,10 @@ export const registerDevice = async (
 
     await device.save();
 
+    realtimeService.broadcastDeviceUpdate(device).catch((err) => {
+      console.error("Broadcast device update error:", err);
+    });
+
     const response: APIResponse = {
       success: true,
       message: "Device registered successfully",
@@ -230,6 +235,10 @@ export const updateDevice = async (
     }
 
     await device.save();
+
+    realtimeService.broadcastDeviceUpdate(device).catch((err) => {
+      console.error("Broadcast device update error:", err);
+    });
 
     const response: APIResponse = {
       success: true,
