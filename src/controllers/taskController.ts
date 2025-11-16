@@ -1131,31 +1131,40 @@ export const completeTask = async (
               productIndex
             );
             if (productSnapshot) {
-              const productRecipe = productSnapshot.recipes.find(
-                (r) =>
-                  r.recipeSnapshotId.toString() ===
-                  task.recipeSnapshotId?._id.toString()
-              );
+              // Get executions of this project that are completed
+              const completedExecutions = await Task.find({
+                projectId: task.projectId,
+                productSnapshotId: task.productSnapshotId,
+                isLastStepInRecipe: true,
+                status: "COMPLETED"
+              });
 
-              if (productRecipe) {
-                // Count how many executions of this recipe are completed
-                const completedExecutions = await Task.countDocuments({
-                  projectId: task.projectId,
-                  productSnapshotId: task.productSnapshotId,
-                  recipeSnapshotId: task.recipeSnapshotId,
-                  isLastStepInRecipe: true,
-                  status: "COMPLETED"
-                });
+              // Calculate how many full recipe executions are needed by the project
+              const totalExecutionsNeeded =
+                productSnapshot.recipes.reduce(
+                  (sum, r) => sum + r.quantity,
+                  0
+                ) * project.targetQuantity;
 
-                // Calculate completed product units
-                const executionsPerUnit = productRecipe.quantity;
-                const completedUnits = Math.floor(
-                  completedExecutions / executionsPerUnit
-                );
-                project.producedQuantity = completedUnits;
-                project.progress =
-                  (completedUnits / project.targetQuantity) * 100;
+              // Determine how many complete sets of recipe executions have been done
+              let completedUnits = Infinity;
+              for (const r of productSnapshot.recipes) {
+                const recipeId = Object.keys(r)[0];
+                const neededQty = r.quantity;
+                const completedQty = completedExecutions.filter(
+                  (t) =>
+                    t.recipeSnapshotId &&
+                    t.recipeSnapshotId.toString() === recipeId
+                ).length;
+                const possibleUnits = Math.floor(completedQty / neededQty);
+                if (possibleUnits < completedUnits) {
+                  completedUnits = possibleUnits;
+                }
               }
+
+              project.producedQuantity = completedUnits;
+              project.progress =
+                (completedExecutions.length / totalExecutionsNeeded) * 100;
             }
           }
         } else {
