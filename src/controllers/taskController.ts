@@ -6,6 +6,7 @@ import { Product } from "../models/Product";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import { IRecipeSnapshot, ProductSnapshot } from "../models";
 import { realtimeService } from "../services/realtimeService";
+import { roundToTwoDecimals } from "../utils/helpers";
 
 export const getTasks = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -1163,8 +1164,9 @@ export const completeTask = async (
               }
 
               project.producedQuantity = completedUnits;
-              project.progress =
-                (completedExecutions.length / totalExecutionsNeeded) * 100;
+              project.progress = roundToTwoDecimals(
+                (completedExecutions.length / totalExecutionsNeeded) * 100
+              );
             }
           }
         } else {
@@ -1173,8 +1175,9 @@ export const completeTask = async (
 
           if (recipeIndex) {
             project.producedQuantity += 1;
-            project.progress =
-              (project.producedQuantity / project.targetQuantity) * 100;
+            project.progress = roundToTwoDecimals(
+              (project.producedQuantity / project.targetQuantity) * 100
+            );
           }
         }
 
