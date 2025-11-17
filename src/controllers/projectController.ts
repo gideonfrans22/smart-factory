@@ -694,7 +694,6 @@ export const getActiveProjectMonitorData = async (
     const activeProjects = await Project.find({ status: "ACTIVE" })
       .populate({
         path: "productSnapshot", // For product-based projects
-        select: "name version", // Only need basic info
         populate: { path: "recipes.recipeSnapshotId" } // Get recipe snapshots within products
       })
       .populate("recipeSnapshot") // For standalone recipe projects
