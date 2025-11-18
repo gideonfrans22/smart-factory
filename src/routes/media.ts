@@ -3,6 +3,7 @@ import {
   uploadMedia,
   uploadMultipleMedia,
   getMediaById,
+  viewMedia,
   downloadMedia,
   deleteMedia
 } from "../controllers/mediaController";
@@ -31,8 +32,19 @@ router.post(
 );
 
 /**
+ * @route GET /api/media/:id/view
+ * @desc View/Preview media file inline (no download dialog)
+ * @access Public (no authentication required)
+ * @example
+ * // Use in HTML:
+ * <img src="/api/media/507f1f77bcf86cd799439011/view" alt="Profile" />
+ * <iframe src="/api/media/507f1f77bcf86cd799439011/view"></iframe>
+ */
+router.get("/:id/view", viewMedia);
+
+/**
  * @route GET /api/media/:id
- * @desc Get media by ID
+ * @desc Get media metadata by ID
  * @access Authenticated users
  */
 router.get("/:id", authenticateToken, getMediaById);
