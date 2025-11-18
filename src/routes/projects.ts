@@ -4,7 +4,8 @@ import {
   getProjectById,
   createProjectsBatch,
   updateProject,
-  deleteProject
+  deleteProject,
+  getActiveProjectMonitorData
 } from "../controllers/projectController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -44,5 +45,12 @@ router.put("/:id", authenticateToken, requireAdmin, updateProject);
  * @access  Private (Admin only)
  */
 router.delete("/:id", authenticateToken, requireAdmin, deleteProject);
+
+/**
+ * @route   GET /api/projects/monitor/active
+ * @desc    Get active project monitor data
+ * @access  Private
+ */
+router.get("/monitor/active", authenticateToken, getActiveProjectMonitorData);
 
 export default router;

@@ -3,6 +3,7 @@ import { Device } from "../models/Device";
 import { DeviceType } from "../models/DeviceType";
 import { Task } from "../models/Task";
 import { APIResponse, AuthenticatedRequest } from "../types";
+import { GridLayout } from "../models";
 
 export const getDevices = async (
   req: Request,
@@ -20,7 +21,6 @@ export const getDevices = async (
 
     const total = await Device.countDocuments(query);
     const devices = await Device.find(query)
-      .populate("deviceType", "name description")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -60,10 +60,7 @@ export const getDeviceById = async (
   try {
     const { id } = req.params;
 
-    const device = await Device.findById(id).populate(
-      "deviceType",
-      "name description"
-    );
+    const device = await Device.findById(id);
 
     if (!device) {
       const response: APIResponse = {
@@ -98,15 +95,8 @@ export const registerDevice = async (
   res: Response
 ): Promise<void> => {
   try {
-    const {
-      name,
-      deviceTypeId,
-      location,
-      status,
-      ipAddress,
-      macAddress,
-      config
-    } = req.body;
+    const { name, deviceTypeId, status, ipAddress, macAddress, config } =
+      req.body;
 
     if (!name || !deviceTypeId) {
       const response: APIResponse = {
@@ -145,7 +135,6 @@ export const registerDevice = async (
     const device = new Device({
       name,
       deviceTypeId,
-      location,
       ipAddress,
       macAddress,
       status,
@@ -179,7 +168,7 @@ export const updateDevice = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, deviceTypeId, location, status, ipAddress, config } =
+    const { name, deviceTypeId, status, currentUser, ipAddress, config } =
       req.body;
 
     const device = await Device.findById(id);
@@ -212,7 +201,10 @@ export const updateDevice = async (
     // Duplicate check: device name/number must be unique (if name is being updated)
     if (name && name !== device.name) {
       const existingDevice = await Device.findOne({ name });
-      if (existingDevice && existingDevice._id.toString() !== device._id.toString()) {
+      if (
+        existingDevice &&
+        existingDevice._id.toString() !== device._id.toString()
+      ) {
         const response: APIResponse = {
           success: false,
           error: "DUPLICATE_DEVICE_NUMBER",
@@ -223,7 +215,6 @@ export const updateDevice = async (
       }
       device.name = name;
     }
-    if (location) device.location = location;
     if (status) device.status = status;
     if (ipAddress) device.ipAddress = ipAddress;
     if (config) device.config = config;
@@ -231,6 +222,12 @@ export const updateDevice = async (
     // Update heartbeat if status is being updated
     if (status) {
       device.lastHeartbeat = new Date();
+    }
+
+    if (currentUser) {
+      device.currentUser = currentUser;
+    } else if (currentUser === null) {
+      device.currentUser = undefined;
     }
 
     await device.save();
@@ -385,8 +382,7 @@ export const getDeviceStatistics = async (
         const utilization = Math.min((workload / maxCapacity) * 100, 100);
 
         // Health score: (100 - failureRate) with uptime adjustment
-        const healthScore =
-          (100 - failureRate) * (uptime / 100);
+        const healthScore = (100 - failureRate) * (uptime / 100);
 
         return {
           deviceId: device._id,
@@ -413,8 +409,7 @@ export const getDeviceStatistics = async (
     ).length;
     const avgUtilization =
       totalDevices > 0
-        ? deviceStats.reduce((sum, d) => sum + d.utilization, 0) /
-          totalDevices
+        ? deviceStats.reduce((sum, d) => sum + d.utilization, 0) / totalDevices
         : 0;
     const avgHealthScore =
       totalDevices > 0
@@ -500,10 +495,7 @@ export const getDevicesByTask = async (
         // Filter by status if provided
         if (taskStatusFilter) {
           tasksForDevice = tasksForDevice.filter((t) => {
-            if (
-              taskStatusFilter === "IN_PROGRESS" &&
-              t.status === "ONGOING"
-            ) {
+            if (taskStatusFilter === "IN_PROGRESS" && t.status === "ONGOING") {
               return true;
             } else if (
               taskStatusFilter === "PENDING" &&
@@ -589,6 +581,90 @@ export const getDevicesByTask = async (
     res.json(response);
   } catch (error) {
     console.error("Get devices by task error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Get Devices Monitor Data for Grid Layout
+ * Retrieves device monitoring information for a specific grid layout, including device status,
+ * current tasks, and user assignments. Used for real-time dashboard monitoring.
+ *
+ * @route GET /api/devices/monitor-layout/:id
+ * @param id - Grid layout ID from URL parameters
+ * @returns Grid layout with populated device data and status summary
+ */
+export const getDevicesMonitorData = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    // Step 1: Fetch the grid layout and deeply populate all device information
+    // This includes device details, device types, current tasks, and assigned users
+    const gridLayout = await GridLayout.findById(id).populate({
+      path: "devices.deviceId",
+      populate: [
+        {
+          path: "deviceType",
+          select: "name"
+        },
+        {
+          path: "currentTask",
+          select: "title status startedAt"
+        },
+        {
+          path: "currentUser",
+          select: "name username"
+        }
+      ]
+    });
+
+    if (!gridLayout) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Grid layout not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Step 2: Calculate device status summary for dashboard overview
+    const summary = {
+      totalDevices: gridLayout.devices.length,
+      onlineDevices: gridLayout.devices.filter(
+        (d) => d.deviceId && (d.deviceId as any).status === "ONLINE"
+      ).length,
+      offlineDevices: gridLayout.devices.filter(
+        (d) => d.deviceId && (d.deviceId as any).status === "OFFLINE"
+      ).length,
+      maintenanceDevices: gridLayout.devices.filter(
+        (d) => d.deviceId && (d.deviceId as any).status === "MAINTENANCE"
+      ).length,
+      errorDevices: gridLayout.devices.filter(
+        (d) => d.deviceId && (d.deviceId as any).status === "ERROR"
+      ).length
+    };
+
+    // Step 3: Return the complete monitoring data
+    const response: APIResponse = {
+      success: true,
+      message: "Devices monitor data retrieved successfully",
+      data: {
+        layout: gridLayout, // Full grid layout with populated device data
+        summary // Status counts for quick overview
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get devices monitor data error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",

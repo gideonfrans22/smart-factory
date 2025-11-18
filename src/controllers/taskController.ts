@@ -4,8 +4,9 @@ import { Project } from "../models/Project";
 import { Recipe } from "../models/Recipe";
 import { Product } from "../models/Product";
 import { APIResponse, AuthenticatedRequest } from "../types";
-import { IRecipeSnapshot, ProductSnapshot } from "../models";
+import { Device, IRecipeSnapshot, ProductSnapshot } from "../models";
 import { realtimeService } from "../services/realtimeService";
+import { roundToTwoDecimals } from "../utils/helpers";
 
 export const getTasks = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -24,6 +25,10 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     } = req.query;
 
     const query: any = {};
+
+    // Exclude tasks assigned to devices or workers (only get unassigned tasks)
+    query.deviceId = null;
+    query.workerId = null;
 
     // ⭐ Special query for partial completions
     if (includePendingAndPartial === "true") {
@@ -500,6 +505,18 @@ export const updateTaskStatus = async (
     await task.save();
     await task.populate("projectId workerId");
 
+    if (status == "COMPLETED" || status == "FAILED") {
+      // Update Device currentTask to null if assigned
+      if (task.deviceId) {
+        const device = await Device.findById(task.deviceId);
+        if (device) {
+          device.currentTask = undefined;
+          device.currentUser = undefined;
+          await device.save();
+        }
+      }
+    }
+
     const response: APIResponse = {
       success: true,
       message: "Task status updated successfully",
@@ -656,6 +673,10 @@ export const deleteTask = async (
       message: "Task deleted successfully"
     };
 
+    if (task) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
+
     res.json(response);
   } catch (error) {
     console.error("Delete task error:", error);
@@ -717,7 +738,15 @@ export const startTask = async (
     // Update task to ONGOING
     task.status = "ONGOING";
     task.workerId = workerId;
-    if (deviceId) task.deviceId = deviceId;
+    if (deviceId) {
+      task.deviceId = deviceId;
+      const device = await Device.findById(deviceId);
+      if (device) {
+        device.currentTask = task.id;
+        device.currentUser = workerId;
+        await device.save();
+      }
+    }
     task.startedAt = new Date();
 
     // Initialize progress to 0 only if not already set
@@ -739,6 +768,10 @@ export const startTask = async (
       message: "Task started successfully",
       data: task
     };
+
+    if (task) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
 
     res.json(response);
   } catch (error: any) {
@@ -821,6 +854,10 @@ export const resumeTask = async (
       data: task
     };
 
+    if (task) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
+
     res.json(response);
   } catch (error: any) {
     console.error("Resume task error:", error);
@@ -888,6 +925,10 @@ export const pauseTask = async (
       data: task
     };
 
+    if (task) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
+
     res.json(response);
   } catch (error: any) {
     console.error("Pause task error:", error);
@@ -948,6 +989,10 @@ export const failTask = async (
       message: "Task marked as failed",
       data: task
     };
+
+    if (task) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
 
     res.json(response);
   } catch (error: any) {
@@ -1031,6 +1076,16 @@ export const completeTask = async (
 
     await task.save();
 
+    // Update Device currentTask to null if assigned
+    if (task.deviceId) {
+      const device = await Device.findById(task.deviceId);
+      if (device) {
+        device.currentTask = undefined;
+        device.currentUser = undefined;
+        await device.save();
+      }
+    }
+
     let nextTask = null;
     let project = null;
 
@@ -1107,29 +1162,41 @@ export const completeTask = async (
               productIndex
             );
             if (productSnapshot) {
-              const productRecipe = productSnapshot.recipes.find(
-                (r) =>
-                  r.recipeSnapshotId.toString() ===
-                  task.recipeSnapshotId?.toString()
-              );
+              // Get executions of this project that are completed
+              const completedExecutions = await Task.find({
+                projectId: task.projectId,
+                productSnapshotId: task.productSnapshotId,
+                isLastStepInRecipe: true,
+                status: "COMPLETED"
+              });
 
-              if (productRecipe) {
-                // Count how many executions of this recipe are completed
-                const completedExecutions = await Task.countDocuments({
-                  projectId: task.projectId,
-                  productSnapshotId: task.productSnapshotId,
-                  recipeSnapshotId: task.recipeSnapshotId,
-                  isLastStepInRecipe: true,
-                  status: "COMPLETED"
-                });
+              // Calculate how many full recipe executions are needed by the project
+              const totalExecutionsNeeded =
+                productSnapshot.recipes.reduce(
+                  (sum, r) => sum + r.quantity,
+                  0
+                ) * project.targetQuantity;
 
-                // Calculate completed product units
-                const executionsPerUnit = productRecipe.quantity;
-                const completedUnits = Math.floor(
-                  completedExecutions / executionsPerUnit
-                );
-                project.producedQuantity = completedUnits;
+              // Determine how many complete sets of recipe executions have been done
+              let completedUnits = Infinity;
+              for (const r of productSnapshot.recipes) {
+                const recipeId = r.recipeSnapshotId.toString();
+                const neededQty = r.quantity;
+                const completedQty = completedExecutions.filter(
+                  (t) =>
+                    t.recipeSnapshotId &&
+                    t.recipeSnapshotId.toString() === recipeId
+                ).length;
+                const possibleUnits = Math.floor(completedQty / neededQty);
+                if (possibleUnits < completedUnits) {
+                  completedUnits = possibleUnits;
+                }
               }
+
+              project.producedQuantity = completedUnits;
+              project.progress = roundToTwoDecimals(
+                (completedExecutions.length / totalExecutionsNeeded) * 100
+              );
             }
           }
         } else {
@@ -1138,9 +1205,16 @@ export const completeTask = async (
 
           if (recipeIndex) {
             project.producedQuantity += 1;
+            project.progress = roundToTwoDecimals(
+              (project.producedQuantity / project.targetQuantity) * 100
+            );
           }
         }
 
+        if (project.producedQuantity >= project.targetQuantity) {
+          project.status = "COMPLETED";
+          project.progress = 100;
+        }
         await project.save(); // Progress auto-calculated by pre-save hook
       }
     }
@@ -1171,6 +1245,7 @@ export const completeTask = async (
         _id: project._id,
         progress: project.progress
       };
+      await realtimeService.broadcastProjectUpdate(project.toObject());
     }
 
     const response: APIResponse = {
@@ -1182,6 +1257,10 @@ export const completeTask = async (
         : "Task completed",
       data: responseData
     };
+
+    if (task) {
+      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    }
 
     res.json(response);
   } catch (error: any) {
@@ -1629,6 +1708,7 @@ export const getGroupedTasks = async (
           description: project.description,
           status: project.status,
           priority: project.priority,
+          projectNumber: project.projectNumber,
           recipeSnapshot: project.recipeSnapshot,
           productSnapshot: project.productSnapshot,
           producedQuantity: project.producedQuantity,

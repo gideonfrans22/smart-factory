@@ -73,3 +73,7 @@ export const validateEmail = (email: string): boolean => {
 export const sanitizeInput = (input: string): string => {
   return input.trim().replace(/[<>]/g, "");
 };
+
+export const roundToTwoDecimals = (value: number): number => {
+  return Math.round(value * 100) / 100;
+};

@@ -94,7 +94,8 @@ export const getRecipeById = async (
       .populate(
         "steps.mediaIds",
         "filename originalName mimeType fileSize filePath"
-      );
+      )
+      .populate("mediaIds", "filename originalName mimeType fileSize filePath");
 
     if (!recipe) {
       const errorResponse: APIResponse = {
@@ -186,16 +187,14 @@ export const createRecipe = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { 
-      recipeNumber, 
-      name, 
-      description, 
-      rawMaterials, 
-      product, 
+    const {
+      recipeNumber,
+      name,
+      description,
+      rawMaterials,
+      product,
       steps,
-      partNo,
       dwgNo,
-      material,
       unit,
       outsourcing,
       remarks,
@@ -208,17 +207,6 @@ export const createRecipe = async (
         success: false,
         error: "VALIDATION_ERROR",
         message: "Name, product, and at least one step are required"
-      };
-      res.status(400).json(errorResponse);
-      return;
-    }
-
-    // ✨ Validate new required field (only material is required)
-    if (!material) {
-      const errorResponse: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "material is required"
       };
       res.status(400).json(errorResponse);
       return;
@@ -315,9 +303,7 @@ export const createRecipe = async (
       steps: processedSteps,
       estimatedDuration: 0, // Will be calculated by pre-save hook
       // ✨ NEW FIELDS
-      partNo,
       dwgNo,
-      material,
       unit: unit || "EA", // Default to "EA" if not provided
       outsourcing,
       remarks,
@@ -355,14 +341,12 @@ export const updateRecipe = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { 
-      name, 
-      description, 
-      rawMaterials, 
+    const {
+      name,
+      description,
+      rawMaterials,
       steps,
-      partNo,
       dwgNo,
-      material,
       unit,
       outsourcing,
       remarks,
@@ -384,11 +368,9 @@ export const updateRecipe = async (
     // Update fields
     if (name) recipe.name = name;
     if (description !== undefined) recipe.description = description;
-    
+
     // ✨ Update new fields
-    if (partNo) recipe.partNo = partNo;
     if (dwgNo) recipe.dwgNo = dwgNo;
-    if (material) recipe.material = material;
     if (unit) recipe.unit = unit;
     if (outsourcing) recipe.outsourcing = outsourcing;
     if (remarks) recipe.remarks = remarks;
