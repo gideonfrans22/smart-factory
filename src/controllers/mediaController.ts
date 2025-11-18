@@ -152,6 +152,53 @@ export const getMediaById = async (
 };
 
 /**
+ * View/Preview media file (inline display)
+ * GET /api/media/:id/view
+ * Can be used in img tags, iframes, etc.
+ */
+export const viewMedia = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const media = await Media.findById(id);
+
+    if (!media) {
+      // Return 404 with generic image for failed requests
+      res.status(404).send("Media not found");
+      return;
+    }
+
+    // Check if file exists
+    if (!fs.existsSync(media.filePath)) {
+      res.status(404).send("File not found on server");
+      return;
+    }
+
+    // Set appropriate headers for inline display (not download)
+    res.setHeader("Content-Type", media.mimeType);
+    res.setHeader("Content-Length", media.fileSize.toString());
+    
+    // Add cache headers for better performance
+    res.setHeader("Cache-Control", "public, max-age=31536000"); // 1 year
+    res.setHeader("ETag", `"${media._id}"`);
+
+    // Stream the file
+    const fileStream = fs.createReadStream(media.filePath);
+    fileStream.on("error", (error) => {
+      console.error("Stream error:", error);
+      res.status(500).send("Error reading file");
+    });
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error("View media error:", error);
+    res.status(500).send("Internal server error");
+  }
+};
+
+/**
  * Download media file
  * GET /api/media/:id/download
  */
