@@ -1128,6 +1128,7 @@ export const completeTask = async (
         title: `${nextStep.name} - Exec ${task.recipeExecutionNumber}/${task.totalRecipeExecutions}`,
         description: nextStep.description,
         projectId: task.projectId || undefined,
+        projectNumber: task.projectNumber, // Propagate projectNumber to next step
         recipeId: task.recipeId,
         productId: task.productId,
         recipeSnapshotId: task.recipeSnapshotId,

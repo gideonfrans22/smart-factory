@@ -4,6 +4,7 @@ export interface ITask extends Document {
   title: string;
   description?: string;
   projectId?: mongoose.Types.ObjectId; // Optional: null for standalone tasks
+  projectNumber?: string; // Denormalized from Project for easy tracking/reporting/display
   recipeSnapshotId?: mongoose.Types.ObjectId; // Reference to RecipeSnapshot (created at task generation)
   productSnapshotId?: mongoose.Types.ObjectId; // Reference to ProductSnapshot (if product-specific)
   recipeId: mongoose.Types.ObjectId; // Original recipe ID (for reference)
@@ -48,6 +49,11 @@ const TaskSchema: Schema = new Schema(
       ref: "Project",
       required: false,
       comment: "Optional: null for standalone tasks outside of projects"
+    },
+    projectNumber: {
+      type: String,
+      comment: "Denormalized from Project for easy tracking/reporting/display (format: SUMAN-YYYY-MM-DD-XXX)",
+      index: true
     },
     recipeSnapshotId: {
       type: Schema.Types.ObjectId,

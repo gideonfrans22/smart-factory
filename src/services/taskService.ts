@@ -61,6 +61,7 @@ export const generateTasksForProject = async (
           title: `${firstStep.name} - Exec ${execution}/${totalExecutions} - ${productSnapshot.name}`,
           description: firstStep.description,
           projectId: project._id,
+          projectNumber: project.projectNumber, // Denormalize projectNumber from project
           productId: productSnapshot.originalProductId,
           productSnapshotId: productSnapshot._id,
           recipeId: (recipeSnap as any).originalRecipeId,
@@ -115,6 +116,7 @@ export const generateTasksForProject = async (
         title: `${firstStep.name} - Exec ${execution}/${totalExecutions} - ${project.name}`,
         description: firstStep.description,
         projectId: project._id,
+        projectNumber: project.projectNumber, // Denormalize projectNumber from project
         recipeId: recipeSnapshot.originalRecipeId,
         recipeSnapshotId: recipeSnapshot._id,
         recipeStepId: firstStep._id,
