@@ -46,15 +46,6 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     if (productId) query.productId = productId;
     if (workerId) query.workerId = workerId;
 
-    if (query.workerId && !query.deviceId) {
-      // Exclude tasks assigned to devices or workers (only get unassigned tasks)
-      query.deviceId = null;
-    }
-    if (query.deviceId && !query.workerId) {
-      // Exclude tasks assigned to devices or workers (only get unassigned tasks)
-      query.workerId = null;
-    }
-
     // Text search support for recipe/product names
     let recipeIds: any[] = [];
     let productIds: any[] = [];
