@@ -8,7 +8,7 @@ export interface IAlert extends Document {
   source?: string;
   relatedEntityType?: string;
   relatedEntityId?: string;
-  status: "UNREAD" | "READ" | "ACKNOWLEDGED" | "RESOLVED";
+  status: "UNREAD" | "READ" | "ACKNOWLEDGED" | "RESOLVED" | "PENDING";
   acknowledgedBy?: mongoose.Types.ObjectId;
   acknowledgedAt?: Date;
   resolvedAt?: Date;
@@ -58,7 +58,7 @@ const AlertSchema: Schema = new Schema(
     status: {
       type: String,
       required: true,
-      enum: ["UNREAD", "READ", "ACKNOWLEDGED", "RESOLVED"],
+      enum: ["UNREAD", "READ", "ACKNOWLEDGED", "RESOLVED", "PENDING"],
       default: "UNREAD"
     },
     acknowledgedBy: {
