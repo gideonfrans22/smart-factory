@@ -232,10 +232,29 @@ export const createUser = async (
     res.status(201).json(response);
   } catch (error) {
     console.error("Create user error:", error);
+    
+    // Better error messages for debugging
+    let errorMessage = "Internal server error";
+    let errorCode = "INTERNAL_SERVER_ERROR";
+    
+    if (error instanceof Error) {
+      // Check for specific MongoDB/validation errors
+      if (error.message.includes("duplicate") || error.message.includes("unique")) {
+        errorMessage = "Email or username already exists";
+        errorCode = "DUPLICATE_ENTRY";
+      } else if (error.message.includes("validation")) {
+        errorMessage = error.message;
+        errorCode = "VALIDATION_ERROR";
+      } else {
+        errorMessage = error.message;
+      }
+      console.error("Error details:", error.message);
+    }
+    
     const response: APIResponse = {
       success: false,
-      error: "INTERNAL_SERVER_ERROR",
-      message: "Internal server error"
+      error: errorCode,
+      message: errorMessage
     };
     res.status(500).json(response);
   }
