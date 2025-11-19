@@ -1669,7 +1669,7 @@ export const getGroupedTasks = async (
       .populate("recipeSnapshot", "name recipeNumber version")
       .skip(skip)
       .limit(limitNum)
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: 1 });
 
     // Build grouped data structure
     // Since Project model now has ONLY ONE product OR ONE recipe:
