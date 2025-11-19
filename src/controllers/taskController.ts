@@ -1918,6 +1918,126 @@ export const getStandaloneTasks = async (
   }
 };
 
+export const getDeviceTasks = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { deviceId } = req.params;
+    if (!deviceId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "deviceId parameter is required"
+      };
+      res.status(400).json(response);
+      return;
+    }
+    const { status, workerId, start, end, page = 1, limit = 10 } = req.query;
+
+    const device = await Device.findById(deviceId);
+    if (!device) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Device not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Build query for tasks assigned to the device
+    const query: any = {};
+
+    query.$and = [
+      {
+        $or: [
+          { deviceId: deviceId },
+          { deviceId: { $exists: false } },
+          { deviceId: null }
+        ]
+      },
+      {
+        deviceTypeId: device.deviceTypeId
+      }
+    ];
+
+    if (status) query.status = status;
+    if (workerId)
+      query.$and.push({
+        $or: [
+          { workerId: workerId },
+          { workerId: { $exists: false } },
+          { workerId: null }
+        ]
+      });
+    if (start) {
+      query.$and.push({
+        $or: [
+          { createdAt: { $gte: new Date(start as string) } },
+          { completedAt: { $gte: new Date(start as string) } }
+        ]
+      });
+    }
+    if (end) {
+      query.$and.push({
+        $or: [
+          { createdAt: { $lte: new Date(end as string) } },
+          { completedAt: { $lte: new Date(end as string) } }
+        ]
+      });
+    }
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+    const total = await Task.countDocuments(query);
+
+    const tasks = await Task.find(query)
+      .populate("projectId", "name status priority")
+      .populate("recipeId", "name recipeNumber version")
+      .populate("workerId", "name username email")
+      .populate("recipeSnapshotId", "name version steps")
+      .populate(
+        "productSnapshotId",
+        "name productNumber customerName personInCharge version"
+      )
+      .skip(skip)
+      .limit(limitNum)
+      .sort({ completedAt: -1, createdAt: -1 });
+
+    const response: APIResponse = {
+      success: true,
+      message: "Device tasks retrieved successfully",
+      data: {
+        items: tasks,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+          hasNext: pageNum * limitNum < total,
+          hasPrev: pageNum > 1
+        }
+      }
+    };
+    res.json(response);
+  } catch (error) {
+    console.error("Get device tasks error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Get tasks assigned to a specific worker
+ * GET /api/tasks/workers/:workerId
+ */
+
 export const getWorkerTasks = async (
   req: Request,
   res: Response

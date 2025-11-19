@@ -14,7 +14,8 @@ import {
   getStandaloneTasks,
   getTaskStatistics,
   getGroupedTasks,
-  getWorkerTasks
+  getWorkerTasks,
+  getDeviceTasks
 } from "../controllers/taskController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -216,6 +217,13 @@ router.patch("/:id", authenticateToken, updateTask);
  * @access Admin only
  */
 router.delete("/:id", authenticateToken, requireAdmin, deleteTask);
+
+/**
+ * @route GET /api/tasks/device/:deviceId
+ * @desc Get tasks assigned to a specific device
+ * @access All users
+ */
+router.get("/device/:deviceId", getDeviceTasks);
 
 /**
  * @route GET /api/tasks/worker/:workerId
