@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
+import ExcelJS from "exceljs";
 import { Task } from "../models/Task";
 import { Project } from "../models/Project";
+import * as ExcelFormatService from "./excelFormatService";
 
 /**
  * Production Rate Report Data Aggregation Service
@@ -852,4 +854,1082 @@ export async function getRecipeProductionTrends(
   }
 
   return trends;
+}
+
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Format duration in seconds to readable string (e.g., "2h 30m", "45m 15s")
+ */
+function formatDuration(seconds: number): string {
+  if (seconds === 0) return "0s";
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (secs > 0 && hours === 0) parts.push(`${secs}s`);
+
+  return parts.join(" ") || "0s";
+}
+
+// ==================== SHEET GENERATION FUNCTIONS ====================
+
+/**
+ * SHEET 1: Production Overview
+ * Overall production metrics, recipe/product completion rates, trends
+ */
+export async function generateProductionOverviewSheet(
+  workbook: ExcelJS.Workbook,
+  dateRange: DateRangeFilter
+): Promise<void> {
+  console.log("Generating Production Overview Sheet...");
+
+  const worksheet = workbook.addWorksheet("Production Overview");
+  let currentRow = 1;
+
+  // ===== TITLE =====
+  worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
+  const titleCell = worksheet.getCell(`A${currentRow}`);
+  titleCell.value = "PRODUCTION OVERVIEW";
+  titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
+  titleCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+  };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  worksheet.getRow(currentRow).height = 30;
+  currentRow += 2;
+
+  // Get overall efficiency metrics
+  const overallMetrics = await calculateOverallEfficiency(dateRange);
+
+  // ===== OVERALL STATISTICS =====
+  worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
+  const statsHeaderCell = worksheet.getCell(`A${currentRow}`);
+  statsHeaderCell.value = "Overall Production Statistics";
+  statsHeaderCell.font = { size: 14, bold: true };
+  statsHeaderCell.alignment = { horizontal: "left" };
+  currentRow++;
+
+  const statsData = [
+    [
+      "Total Projects:",
+      overallMetrics.totalProjects,
+      "Active Projects:",
+      overallMetrics.activeProjects
+    ],
+    [
+      "Completed Projects:",
+      overallMetrics.completedProjects,
+      "Total Tasks:",
+      overallMetrics.totalTasks
+    ],
+    [
+      "Completed Tasks:",
+      overallMetrics.completedTasks,
+      "Failed Tasks:",
+      overallMetrics.failedTasks
+    ],
+    [
+      "Completion Rate:",
+      `${overallMetrics.overallCompletionRate.toFixed(1)}%`,
+      "Efficiency:",
+      `${overallMetrics.overallEfficiency.toFixed(1)}%`
+    ],
+    [
+      "Avg Task Time:",
+      formatDuration(overallMetrics.avgTaskCompletionTime),
+      "Avg Estimated Time:",
+      formatDuration(overallMetrics.avgTaskEstimatedTime)
+    ],
+    [
+      "On-Time Delivery:",
+      `${overallMetrics.onTimeDeliveryRate.toFixed(1)}%`,
+      "Capacity Utilization:",
+      `${overallMetrics.capacityUtilization.toFixed(1)}%`
+    ]
+  ];
+
+  statsData.forEach((row) => {
+    row.forEach((val, idx) => {
+      const cell = worksheet.getCell(currentRow, idx + 1);
+      cell.value = val;
+      cell.font = { bold: idx % 2 === 0 };
+      cell.alignment = { horizontal: "left", vertical: "middle" };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+
+      // Color code percentage cells
+      if (idx % 2 === 1 && typeof val === "string" && val.includes("%")) {
+        const numValue = parseFloat(val);
+        let color = ExcelFormatService.COLORS.DANGER;
+        if (numValue >= 90) color = ExcelFormatService.COLORS.SUCCESS;
+        else if (numValue >= 75) color = "90CAF9"; // Light blue
+        else if (numValue >= 60) color = ExcelFormatService.COLORS.WARNING;
+
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: color }
+        };
+        cell.font = {
+          bold: true,
+          color: { argb: numValue >= 60 ? "000000" : "FFFFFF" }
+        };
+      }
+    });
+    currentRow++;
+  });
+
+  currentRow += 2;
+
+  // ===== RECIPE PRODUCTION TABLE =====
+  worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
+  const recipeHeaderCell = worksheet.getCell(`A${currentRow}`);
+  recipeHeaderCell.value = "Recipe Production Status";
+  recipeHeaderCell.font = { size: 14, bold: true };
+  recipeHeaderCell.alignment = { horizontal: "left" };
+  currentRow++;
+
+  const productionData = await aggregateProductionByRecipe(dateRange);
+
+  // Table headers
+  const headers = [
+    "Recipe Name",
+    "Project",
+    "Product",
+    "Target Qty",
+    "Produced",
+    "Progress %",
+    "Avg Time",
+    "Efficiency %",
+    "Status"
+  ];
+
+  headers.forEach((header, idx) => {
+    const cell = worksheet.getCell(currentRow, idx + 1);
+    cell.value = header;
+    cell.font = { bold: true, color: { argb: "FFFFFF" } };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+  currentRow++;
+
+  // Data rows
+  productionData.forEach((recipe, index) => {
+    const row = [
+      recipe.recipeName,
+      recipe.projectName || "N/A",
+      recipe.productName || "N/A",
+      recipe.targetQuantity,
+      recipe.producedQuantity,
+      recipe.progress.toFixed(1),
+      formatDuration(recipe.avgTimePerExecution),
+      recipe.efficiency.toFixed(1),
+      recipe.status
+    ];
+
+    row.forEach((val, idx) => {
+      const cell = worksheet.getCell(currentRow, idx + 1);
+      cell.value = val;
+      cell.alignment = {
+        horizontal: idx <= 2 ? "left" : "center",
+        vertical: "middle"
+      };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+
+      // Color code status column
+      if (idx === 8) {
+        const statusColors = {
+          ON_TRACK: ExcelFormatService.COLORS.SUCCESS,
+          AT_RISK: ExcelFormatService.COLORS.WARNING,
+          DELAYED: ExcelFormatService.COLORS.DANGER
+        };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: statusColors[recipe.status] }
+        };
+        cell.font = { bold: true, color: { argb: "FFFFFF" } };
+      }
+
+      // Alternating row colors
+      if (index % 2 === 1 && idx !== 8) {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
+        };
+      }
+    });
+
+    currentRow++;
+  });
+
+  currentRow += 2;
+
+  // ===== PRODUCTION FORECAST =====
+  const forecasts = await generateProductionForecast(dateRange);
+
+  if (forecasts.length > 0) {
+    worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
+    const forecastHeaderCell = worksheet.getCell(`A${currentRow}`);
+    forecastHeaderCell.value = "Production Forecast (Active Recipes)";
+    forecastHeaderCell.font = { size: 14, bold: true };
+    forecastHeaderCell.alignment = { horizontal: "left" };
+    currentRow++;
+
+    const forecastHeaders = [
+      "Recipe Name",
+      "Target Qty",
+      "Produced",
+      "Remaining",
+      "Avg Rate/Day",
+      "Days Remaining",
+      "Est. Completion",
+      "On Track",
+      "Confidence"
+    ];
+
+    forecastHeaders.forEach((header, idx) => {
+      const cell = worksheet.getCell(currentRow, idx + 1);
+      cell.value = header;
+      cell.font = { bold: true, color: { argb: "FFFFFF" } };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+      };
+      cell.alignment = {
+        horizontal: "center",
+        vertical: "middle",
+        wrapText: true
+      };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+    });
+    currentRow++;
+
+    forecasts.forEach((forecast, index) => {
+      const row = [
+        forecast.recipeName,
+        forecast.targetQuantity,
+        forecast.producedQuantity,
+        forecast.remainingQuantity,
+        forecast.avgProductionRate.toFixed(2),
+        forecast.daysRemaining,
+        forecast.estimatedCompletionDate.toLocaleDateString(),
+        forecast.isOnTrack ? "YES" : "NO",
+        forecast.confidenceLevel
+      ];
+
+      row.forEach((val, idx) => {
+        const cell = worksheet.getCell(currentRow, idx + 1);
+        cell.value = val;
+        cell.alignment = {
+          horizontal: idx === 0 ? "left" : "center",
+          vertical: "middle"
+        };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" }
+        };
+
+        // Color code "On Track" column
+        if (idx === 7) {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: {
+              argb: forecast.isOnTrack
+                ? ExcelFormatService.COLORS.SUCCESS
+                : ExcelFormatService.COLORS.DANGER
+            }
+          };
+          cell.font = { bold: true, color: { argb: "FFFFFF" } };
+        }
+
+        // Alternating row colors
+        if (index % 2 === 1 && idx !== 7) {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
+          };
+        }
+      });
+
+      currentRow++;
+    });
+  }
+
+  // Column widths
+  worksheet.getColumn(1).width = 30;
+  worksheet.getColumn(2).width = 25;
+  worksheet.getColumn(3).width = 25;
+  worksheet.getColumn(4).width = 12;
+  worksheet.getColumn(5).width = 12;
+  worksheet.getColumn(6).width = 12;
+  worksheet.getColumn(7).width = 15;
+  worksheet.getColumn(8).width = 12;
+  worksheet.getColumn(9).width = 15;
+
+  ExcelFormatService.freezePanes(worksheet);
+
+  console.log(
+    `✓ Production Overview Sheet generated with ${productionData.length} recipes`
+  );
+}
+
+/**
+ * SHEET 2: Step-by-Step Efficiency
+ * Recipe step breakdown with timing analysis
+ */
+export async function generateStepEfficiencySheet(
+  workbook: ExcelJS.Workbook,
+  dateRange: DateRangeFilter
+): Promise<void> {
+  console.log("Generating Step Efficiency Sheet...");
+
+  const worksheet = workbook.addWorksheet("Step Efficiency");
+  let currentRow = 1;
+
+  // ===== TITLE =====
+  worksheet.mergeCells(`A${currentRow}:K${currentRow}`);
+  const titleCell = worksheet.getCell(`A${currentRow}`);
+  titleCell.value = "STEP-BY-STEP EFFICIENCY ANALYSIS";
+  titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
+  titleCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+  };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  worksheet.getRow(currentRow).height = 30;
+  currentRow += 2;
+
+  // Get step efficiency data
+  const stepEfficiencies = await calculateStepEfficiency(dateRange);
+
+  // ===== TABLE HEADERS =====
+  const headers = [
+    "Step Order",
+    "Step Name",
+    "Device Type",
+    "Executions",
+    "Avg Estimated",
+    "Avg Actual",
+    "Deviation",
+    "Deviation %",
+    "Efficiency %",
+    "Time Saved",
+    "Bottleneck"
+  ];
+
+  headers.forEach((header, idx) => {
+    const cell = worksheet.getCell(currentRow, idx + 1);
+    cell.value = header;
+    cell.font = { bold: true, color: { argb: "FFFFFF" } };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+  worksheet.getRow(currentRow).height = 35;
+  currentRow++;
+
+  // ===== DATA ROWS =====
+  stepEfficiencies.forEach((step, index) => {
+    const row = [
+      step.stepOrder,
+      step.stepName,
+      step.deviceTypeName,
+      step.executionCount,
+      formatDuration(step.avgEstimatedDuration),
+      formatDuration(step.avgActualDuration),
+      formatDuration(Math.abs(step.deviation)),
+      step.deviationPercentage.toFixed(1),
+      step.efficiency.toFixed(1),
+      formatDuration(Math.abs(step.totalTimeSaved)),
+      step.isBottleneck ? "YES" : "NO"
+    ];
+
+    row.forEach((val, idx) => {
+      const cell = worksheet.getCell(currentRow, idx + 1);
+      cell.value = val;
+      cell.alignment = {
+        horizontal: idx <= 2 ? "left" : "center",
+        vertical: "middle"
+      };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+
+      // Color code efficiency column
+      if (idx === 8) {
+        const eff = step.efficiency;
+        let color = ExcelFormatService.COLORS.DANGER;
+        if (eff >= 90) color = ExcelFormatService.COLORS.SUCCESS;
+        else if (eff >= 75) color = "90CAF9"; // Light blue
+        else if (eff >= 60) color = ExcelFormatService.COLORS.WARNING;
+
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: color }
+        };
+        cell.font = {
+          bold: true,
+          color: { argb: eff >= 60 ? "000000" : "FFFFFF" }
+        };
+      }
+
+      // Color code bottleneck column
+      if (idx === 10) {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: {
+            argb: step.isBottleneck
+              ? ExcelFormatService.COLORS.DANGER
+              : ExcelFormatService.COLORS.SUCCESS
+          }
+        };
+        cell.font = { bold: true, color: { argb: "FFFFFF" } };
+      }
+
+      // Alternating row colors
+      if (index % 2 === 1 && idx !== 8 && idx !== 10) {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
+        };
+      }
+    });
+
+    currentRow++;
+  });
+
+  // Column widths
+  worksheet.getColumn(1).width = 12;
+  worksheet.getColumn(2).width = 30;
+  worksheet.getColumn(3).width = 20;
+  worksheet.getColumn(4).width = 12;
+  worksheet.getColumn(5).width = 15;
+  worksheet.getColumn(6).width = 15;
+  worksheet.getColumn(7).width = 15;
+  worksheet.getColumn(8).width = 12;
+  worksheet.getColumn(9).width = 12;
+  worksheet.getColumn(10).width = 15;
+  worksheet.getColumn(11).width = 12;
+
+  ExcelFormatService.freezePanes(worksheet);
+
+  console.log(
+    `✓ Step Efficiency Sheet generated with ${stepEfficiencies.length} steps`
+  );
+}
+
+/**
+ * SHEET 3: Bottleneck Analysis
+ * Critical path analysis and slowest steps
+ */
+export async function generateBottleneckAnalysisSheet(
+  workbook: ExcelJS.Workbook,
+  dateRange: DateRangeFilter
+): Promise<void> {
+  console.log("Generating Bottleneck Analysis Sheet...");
+
+  const worksheet = workbook.addWorksheet("Bottleneck Analysis");
+  let currentRow = 1;
+
+  // ===== TITLE =====
+  worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
+  const titleCell = worksheet.getCell(`A${currentRow}`);
+  titleCell.value = "PRODUCTION BOTTLENECK ANALYSIS";
+  titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
+  titleCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+  };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  worksheet.getRow(currentRow).height = 30;
+  currentRow += 2;
+
+  // ===== SUMMARY =====
+  worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
+  const summaryCell = worksheet.getCell(`A${currentRow}`);
+  summaryCell.value =
+    "Bottlenecks are steps that consistently take longer than estimated (>10% deviation). Impact Score = Delay × Executions × Efficiency Loss.";
+  summaryCell.font = { size: 11, italic: true };
+  summaryCell.alignment = { horizontal: "center", wrapText: true };
+  summaryCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFF3E0" }
+  };
+  worksheet.getRow(currentRow).height = 35;
+  currentRow += 2;
+
+  // Get bottleneck data
+  const bottlenecks = await identifyBottlenecks(dateRange, 20);
+
+  if (bottlenecks.length === 0) {
+    worksheet.getCell(`A${currentRow}`).value =
+      "No significant bottlenecks detected. All steps are performing within acceptable limits.";
+    console.log("✓ Bottleneck Analysis Sheet generated (no bottlenecks)");
+    return;
+  }
+
+  // ===== TABLE HEADERS =====
+  const headers = [
+    "Priority",
+    "Step Name",
+    "Recipe",
+    "Device Type",
+    "Avg Delay",
+    "Deviation %",
+    "Executions",
+    "Impact Score",
+    "Recommendation"
+  ];
+
+  headers.forEach((header, idx) => {
+    const cell = worksheet.getCell(currentRow, idx + 1);
+    cell.value = header;
+    cell.font = { bold: true, color: { argb: "FFFFFF" } };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+  worksheet.getRow(currentRow).height = 35;
+  currentRow++;
+
+  // ===== DATA ROWS =====
+  bottlenecks.forEach((bottleneck, index) => {
+    const row = [
+      index + 1,
+      bottleneck.stepName,
+      bottleneck.recipeName || "Unknown",
+      bottleneck.deviceTypeName,
+      formatDuration(bottleneck.avgDelay),
+      bottleneck.deviationPercentage.toFixed(1),
+      bottleneck.executionCount,
+      bottleneck.impactScore.toFixed(0),
+      bottleneck.recommendation
+    ];
+
+    row.forEach((val, idx) => {
+      const cell = worksheet.getCell(currentRow, idx + 1);
+      cell.value = val;
+      cell.alignment = {
+        horizontal: idx <= 3 || idx === 8 ? "left" : "center",
+        vertical: "middle"
+      };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+
+      // Color code priority (top 3 are critical)
+      if (idx === 0) {
+        let color = ExcelFormatService.COLORS.NEUTRAL;
+        if (index < 3) color = ExcelFormatService.COLORS.DANGER;
+        else if (index < 7) color = ExcelFormatService.COLORS.WARNING;
+
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: color }
+        };
+        cell.font = {
+          bold: true,
+          color: { argb: index < 7 ? "FFFFFF" : "000000" }
+        };
+      }
+
+      // Color code deviation percentage
+      if (idx === 5) {
+        const dev = bottleneck.deviationPercentage;
+        let color = ExcelFormatService.COLORS.WARNING;
+        if (dev >= 50) color = ExcelFormatService.COLORS.DANGER;
+        else if (dev >= 30) color = "FFA726"; // Orange
+
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: color }
+        };
+        cell.font = { bold: true, color: { argb: "FFFFFF" } };
+      }
+
+      // Alternating row colors
+      if (index % 2 === 1 && idx !== 0 && idx !== 5) {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
+        };
+      }
+    });
+
+    currentRow++;
+  });
+
+  // Column widths
+  worksheet.getColumn(1).width = 10;
+  worksheet.getColumn(2).width = 30;
+  worksheet.getColumn(3).width = 25;
+  worksheet.getColumn(4).width = 20;
+  worksheet.getColumn(5).width = 15;
+  worksheet.getColumn(6).width = 12;
+  worksheet.getColumn(7).width = 12;
+  worksheet.getColumn(8).width = 15;
+  worksheet.getColumn(9).width = 50;
+
+  ExcelFormatService.freezePanes(worksheet);
+
+  console.log(
+    `✓ Bottleneck Analysis Sheet generated with ${bottlenecks.length} bottlenecks`
+  );
+}
+
+/**
+ * SHEET 4: Week-over-Week Trends
+ * Weekly production rate comparison
+ */
+export async function generateProductionTrendsSheet(
+  workbook: ExcelJS.Workbook,
+  dateRange: DateRangeFilter
+): Promise<void> {
+  console.log("Generating Production Trends Sheet...");
+
+  const worksheet = workbook.addWorksheet("Production Trends");
+  let currentRow = 1;
+
+  // ===== TITLE =====
+  worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+  const titleCell = worksheet.getCell(`A${currentRow}`);
+  titleCell.value = "WEEK-OVER-WEEK PRODUCTION TRENDS";
+  titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
+  titleCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+  };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  worksheet.getRow(currentRow).height = 30;
+  currentRow += 2;
+
+  // Get weekly metrics
+  const weeklyMetrics = await calculateWeekOverWeekMetrics(dateRange);
+
+  // ===== WEEKLY METRICS TABLE =====
+  worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+  const metricsHeaderCell = worksheet.getCell(`A${currentRow}`);
+  metricsHeaderCell.value = "Weekly Production Metrics";
+  metricsHeaderCell.font = { size: 14, bold: true };
+  metricsHeaderCell.alignment = { horizontal: "left" };
+  currentRow++;
+
+  const headers = [
+    "Week",
+    "Week Label",
+    "Production Volume",
+    "Total Tasks",
+    "Completed Tasks",
+    "Efficiency %",
+    "Avg Task Time",
+    "Trend"
+  ];
+
+  headers.forEach((header, idx) => {
+    const cell = worksheet.getCell(currentRow, idx + 1);
+    cell.value = header;
+    cell.font = { bold: true, color: { argb: "FFFFFF" } };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+  currentRow++;
+
+  // Data rows with trend indicators
+  weeklyMetrics.forEach((week, index) => {
+    let trend = "→"; // Stable
+    if (index > 0) {
+      const prevWeek = weeklyMetrics[index - 1];
+      if (week.efficiency > prevWeek.efficiency + 5) trend = "↑"; // Improving
+      else if (week.efficiency < prevWeek.efficiency - 5) trend = "↓"; // Declining
+    }
+
+    const row = [
+      week.weekNumber,
+      week.weekLabel,
+      week.productionVolume,
+      week.totalTasks,
+      week.completedTasks,
+      week.efficiency.toFixed(1),
+      formatDuration(week.avgTimePerTask),
+      trend
+    ];
+
+    row.forEach((val, idx) => {
+      const cell = worksheet.getCell(currentRow, idx + 1);
+      cell.value = val;
+      cell.alignment = {
+        horizontal: idx === 1 ? "left" : "center",
+        vertical: "middle"
+      };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+
+      // Color code efficiency
+      if (idx === 5) {
+        const eff = week.efficiency;
+        let color = ExcelFormatService.COLORS.DANGER;
+        if (eff >= 90) color = ExcelFormatService.COLORS.SUCCESS;
+        else if (eff >= 75) color = "90CAF9"; // Light blue
+        else if (eff >= 60) color = ExcelFormatService.COLORS.WARNING;
+
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: color }
+        };
+        cell.font = {
+          bold: true,
+          color: { argb: eff >= 60 ? "000000" : "FFFFFF" }
+        };
+      }
+
+      // Color code trend
+      if (idx === 7) {
+        let color = ExcelFormatService.COLORS.NEUTRAL;
+        if (trend === "↑") color = ExcelFormatService.COLORS.SUCCESS;
+        else if (trend === "↓") color = ExcelFormatService.COLORS.DANGER;
+
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: color }
+        };
+        cell.font = { bold: true, size: 14 };
+      }
+
+      // Alternating row colors
+      if (index % 2 === 1 && idx !== 5 && idx !== 7) {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
+        };
+      }
+    });
+
+    currentRow++;
+  });
+
+  currentRow += 2;
+
+  // ===== TREND SUMMARY =====
+  const avgEfficiency =
+    weeklyMetrics.length > 0
+      ? weeklyMetrics.reduce((sum, w) => sum + w.efficiency, 0) /
+        weeklyMetrics.length
+      : 0;
+
+  const totalProduction = weeklyMetrics.reduce(
+    (sum, w) => sum + w.productionVolume,
+    0
+  );
+
+  const efficiencyTrend =
+    weeklyMetrics.length > 1
+      ? weeklyMetrics[weeklyMetrics.length - 1].efficiency -
+        weeklyMetrics[0].efficiency
+      : 0;
+
+  worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
+  const summaryHeaderCell = worksheet.getCell(`A${currentRow}`);
+  summaryHeaderCell.value = "Trend Summary";
+  summaryHeaderCell.font = { size: 14, bold: true };
+  summaryHeaderCell.alignment = { horizontal: "left" };
+  currentRow++;
+
+  const summaryData = [
+    ["Total Weeks:", weeklyMetrics.length],
+    ["Total Production Volume:", totalProduction],
+    ["Average Efficiency:", `${avgEfficiency.toFixed(1)}%`],
+    [
+      "Efficiency Trend:",
+      `${efficiencyTrend > 0 ? "+" : ""}${efficiencyTrend.toFixed(1)}%`
+    ],
+    [
+      "Overall Trend:",
+      efficiencyTrend > 5
+        ? "Improving ↑"
+        : efficiencyTrend < -5
+        ? "Declining ↓"
+        : "Stable →"
+    ]
+  ];
+
+  summaryData.forEach((row) => {
+    worksheet.getCell(currentRow, 1).value = row[0];
+    worksheet.getCell(currentRow, 2).value = row[1];
+    worksheet.getCell(currentRow, 1).font = { bold: true };
+    currentRow++;
+  });
+
+  // Column widths
+  worksheet.getColumn(1).width = 12;
+  worksheet.getColumn(2).width = 30;
+  worksheet.getColumn(3).width = 18;
+  worksheet.getColumn(4).width = 15;
+  worksheet.getColumn(5).width = 18;
+  worksheet.getColumn(6).width = 12;
+  worksheet.getColumn(7).width = 15;
+  worksheet.getColumn(8).width = 10;
+
+  ExcelFormatService.freezePanes(worksheet);
+
+  console.log(
+    `✓ Production Trends Sheet generated with ${weeklyMetrics.length} weeks`
+  );
+}
+
+/**
+ * SHEET 5: Raw Production Data
+ * All production records - raw export format
+ */
+export async function generateRawProductionDataSheet(
+  workbook: ExcelJS.Workbook,
+  dateRange: DateRangeFilter
+): Promise<void> {
+  console.log("Generating Raw Production Data Sheet...");
+
+  const worksheet = workbook.addWorksheet("Raw Production Data");
+  let currentRow = 1;
+
+  // ===== INSTRUCTIONS =====
+  worksheet.mergeCells(`A${currentRow}:P${currentRow}`);
+  const instructionsCell = worksheet.getCell(`A${currentRow}`);
+  instructionsCell.value =
+    "RAW PRODUCTION DATA EXPORT - This sheet contains all production-related task records in the date range. Use for data analysis, export/import, or integration with other systems.";
+  instructionsCell.font = { size: 10, italic: true };
+  instructionsCell.alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    wrapText: true
+  };
+  instructionsCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFF3E0" }
+  };
+  worksheet.getRow(currentRow).height = 30;
+  currentRow += 2;
+
+  // ===== HEADERS =====
+  const headers = [
+    "Task ID",
+    "Project ID",
+    "Project Name",
+    "Recipe ID",
+    "Recipe Exec #",
+    "Total Execs",
+    "Step Order",
+    "Is Last Step",
+    "Device Type ID",
+    "Device ID",
+    "Worker ID",
+    "Status",
+    "Estimated Duration (s)",
+    "Actual Duration (s)",
+    "Efficiency %",
+    "Started At",
+    "Completed At",
+    "Created At"
+  ];
+
+  headers.forEach((header, idx) => {
+    const cell = worksheet.getCell(currentRow, idx + 1);
+    cell.value = header;
+    cell.font = { bold: true };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+  currentRow++;
+
+  // ===== FETCH DATA =====
+  const { startDate, endDate } = dateRange;
+  const tasks = await Task.find({
+    $or: [
+      { createdAt: { $gte: startDate, $lte: endDate } },
+      { startedAt: { $gte: startDate, $lte: endDate } },
+      { completedAt: { $gte: startDate, $lte: endDate } }
+    ]
+  })
+    .populate("projectId", "name")
+    .lean()
+    .sort({ completedAt: -1, createdAt: -1 });
+
+  // ===== DATA ROWS =====
+  tasks.forEach((task) => {
+    const projectName = task.projectId ? (task.projectId as any).name : "N/A";
+
+    const efficiency =
+      task.status === "COMPLETED" &&
+      task.actualDuration &&
+      task.estimatedDuration
+        ? (task.estimatedDuration / task.actualDuration) * 100
+        : 0;
+
+    const row = [
+      task._id.toString(),
+      task.projectId ? (task.projectId as any)._id.toString() : "N/A",
+      projectName,
+      task.recipeId?.toString() || "N/A",
+      task.recipeExecutionNumber || 0,
+      task.totalRecipeExecutions || 0,
+      task.stepOrder || 0,
+      task.isLastStepInRecipe ? "TRUE" : "FALSE",
+      task.deviceTypeId?.toString() || "N/A",
+      task.deviceId?.toString() || "N/A",
+      task.workerId?.toString() || "N/A",
+      task.status,
+      task.estimatedDuration || 0,
+      task.actualDuration || 0,
+      efficiency > 0 ? efficiency.toFixed(1) : "N/A",
+      task.startedAt ? task.startedAt.toISOString() : "N/A",
+      task.completedAt ? task.completedAt.toISOString() : "N/A",
+      task.createdAt.toISOString()
+    ];
+
+    row.forEach((val, idx) => {
+      const cell = worksheet.getCell(currentRow, idx + 1);
+      cell.value = val;
+      cell.alignment = { horizontal: "left", vertical: "top" };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+    });
+
+    currentRow++;
+  });
+
+  // Column widths
+  worksheet.getColumn(1).width = 25;
+  worksheet.getColumn(2).width = 25;
+  worksheet.getColumn(3).width = 25;
+  worksheet.getColumn(4).width = 25;
+  worksheet.getColumn(5).width = 12;
+  worksheet.getColumn(6).width = 12;
+  worksheet.getColumn(7).width = 12;
+  worksheet.getColumn(8).width = 12;
+  worksheet.getColumn(9).width = 25;
+  worksheet.getColumn(10).width = 25;
+  worksheet.getColumn(11).width = 25;
+  worksheet.getColumn(12).width = 12;
+  worksheet.getColumn(13).width = 20;
+  worksheet.getColumn(14).width = 18;
+  worksheet.getColumn(15).width = 12;
+  worksheet.getColumn(16).width = 20;
+  worksheet.getColumn(17).width = 20;
+  worksheet.getColumn(18).width = 20;
+
+  console.log(
+    `✓ Raw Production Data Sheet generated with ${tasks.length} task records`
+  );
 }
