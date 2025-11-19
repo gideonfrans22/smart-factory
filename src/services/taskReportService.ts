@@ -10,8 +10,91 @@ import * as ExcelFormatService from "./excelFormatService";
  * Handles all data queries and calculations for task completion reports
  */
 
-// ==================== INTERFACES ====================
+// ==================== TRANSLATIONS ====================
 
+const TRANSLATIONS = {
+  // Status values
+  status: {
+    PENDING: { en: "Pending", ko: "대기중" },
+    ONGOING: { en: "Ongoing", ko: "진행중" },
+    COMPLETED: { en: "Completed", ko: "완료됨" },
+    FAILED: { en: "Failed", ko: "실패됨" }
+  },
+  // Sheet titles and headers
+  titles: {
+    executiveSummary: {
+      en: "Task Completion Report - Executive Summary",
+      ko: "작업 완료 보고서 - 요약"
+    },
+    taskDetails: { en: "Task Details Report", ko: "작업 상세 보고서" },
+    recipeExecution: {
+      en: "Recipe Execution Tracking",
+      ko: "레시피 실행 추적"
+    },
+    deviceUtilization: { en: "Device Utilization", ko: "장치 활용도" },
+    rawData: { en: "Raw Task Data", ko: "원본 작업 데이터" }
+  },
+  // Common labels
+  labels: {
+    overallTaskStatistics: {
+      en: "Overall Task Statistics",
+      ko: "전체 작업 통계"
+    },
+    status: { en: "Status", ko: "상태" },
+    count: { en: "Count", ko: "수량" },
+    percentage: { en: "Percentage", ko: "백분율" },
+    color: { en: "Color", ko: "색상" },
+    dateRange: { en: "Date Range", ko: "날짜 범위" },
+    total: { en: "Total", ko: "총계" },
+    completed: { en: "Completed", ko: "완료됨" },
+    ongoing: { en: "Ongoing", ko: "진행중" },
+    failed: { en: "Failed", ko: "실패됨" },
+    pending: { en: "Pending", ko: "대기중" },
+    completionRate: { en: "Completion Rate", ko: "완료율" },
+    onTimeRate: { en: "On-Time Rate", ko: "정시율" },
+    avgCompletionTime: { en: "Avg Completion Time", ko: "평균 완료 시간" },
+    avgEstimatedTime: { en: "Avg Estimated Time", ko: "평균 예상 시간" },
+    efficiency: { en: "Efficiency", ko: "효율성" },
+    recommendation: { en: "Recommendation", ko: "권장사항" }
+  },
+  // Column headers
+  columns: {
+    taskNumber: { en: "Task #", ko: "작업 번호" },
+    title: { en: "Title", ko: "제목" },
+    description: { en: "Description", ko: "설명" },
+    project: { en: "Project", ko: "프로젝트" },
+    recipe: { en: "Recipe", ko: "레시피" },
+    stepOrder: { en: "Step Order", ko: "단계 순서" },
+    deviceType: { en: "Device Type", ko: "장치 유형" },
+    device: { en: "Device", ko: "장치" },
+    worker: { en: "Worker", ko: "작업자" },
+    priority: { en: "Priority", ko: "우선순위" },
+    created: { en: "Created", ko: "생성됨" },
+    started: { en: "Started", ko: "시작됨" },
+    completed: { en: "Completed", ko: "완료됨" },
+    estimatedTime: { en: "Est. Time", ko: "예상 시간" },
+    actualTime: { en: "Actual Time", ko: "실제 시간" },
+    efficiency: { en: "Efficiency %", ko: "효율성 %" },
+    quality: { en: "Quality", ko: "품질" },
+    executionNumber: { en: "Execution #", ko: "실행 번호" },
+    totalExecutions: { en: "Total Executions", ko: "총 실행 수" },
+    totalTasks: { en: "Total Tasks", ko: "총 작업 수" },
+    product: { en: "Product", ko: "제품" },
+    targetQuantity: { en: "Target Qty", ko: "목표 수량" },
+    producedQuantity: { en: "Produced Qty", ko: "생산 수량" },
+    progress: { en: "Progress %", ko: "진행률 %" },
+    avgTimePerUnit: { en: "Avg Time/Unit", ko: "단위당 평균 시간" },
+    estimatedTimePerUnit: { en: "Est. Time/Unit", ko: "예상 단위 시간" },
+    successRate: { en: "Success Rate", ko: "성공률" },
+    failureRate: { en: "Failure Rate", ko: "실패률" },
+    totalDevices: { en: "Total Devices", ko: "총 장치 수" },
+    utilization: { en: "Utilization %", ko: "활용률 %" },
+    avgTaskTime: { en: "Avg Task Time", ko: "평균 작업 시간" },
+    recommendation: { en: "Recommendation", ko: "권장사항" },
+    deviation: { en: "Deviation %", ko: "편차 %" }
+  }
+};
+// Status values
 export interface DateRangeFilter {
   startDate: Date;
   endDate: Date;
@@ -25,8 +108,8 @@ export interface TaskStatistics {
   pending: number;
   completionRate: number;
   onTimeRate: number;
-  avgCompletionTime: number; // in seconds
-  avgEstimatedTime: number; // in seconds
+  avgCompletionTime: number; // in minutes
+  avgEstimatedTime: number; // in minutes
   efficiency: number; // percentage
 }
 
@@ -920,22 +1003,102 @@ export async function getTaskDetails(
 // ==================== UTILITY FUNCTIONS ====================
 
 /**
- * Format duration in seconds as readable string
+ * Format duration in minutes (from DB) to readable string
+ * @param minutes Duration in minutes (as stored in database)
+ * @returns Formatted string like "2h 30m" or "45m"
  */
-function formatDuration(seconds: number): string {
-  if (!seconds || seconds === 0) return "0m";
+function formatDuration(minutes: number): string {
+  if (!minutes || minutes === 0) return "0m";
 
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = Math.floor(minutes % 60);
 
   if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  } else if (minutes > 0) {
-    return `${minutes}m ${secs}s`;
+    return remainingMinutes > 0
+      ? `${hours}h ${remainingMinutes}m`
+      : `${hours}h`;
   } else {
-    return `${secs}s`;
+    return `${remainingMinutes}m`;
   }
+}
+
+/**
+ * Get localized label based on language
+ */
+function getLocalizedLabel(en: string, ko: string, lang?: string): string {
+  if (lang === "ko") {
+    return ko;
+  }
+  return en;
+}
+
+/**
+ * Get translated status value
+ */
+function getTranslatedStatus(
+  status: keyof typeof TRANSLATIONS.status,
+  lang?: string
+): string {
+  const statusKey = status as keyof typeof TRANSLATIONS.status;
+  if (TRANSLATIONS.status[statusKey]) {
+    return getLocalizedLabel(
+      TRANSLATIONS.status[statusKey].en,
+      TRANSLATIONS.status[statusKey].ko,
+      lang
+    );
+  }
+  return status;
+}
+
+/**
+ * Get translated label from translations object
+ */
+function getTranslatedLabel(
+  key: keyof typeof TRANSLATIONS.labels,
+  lang?: string
+): string {
+  if (TRANSLATIONS.labels[key]) {
+    return getLocalizedLabel(
+      TRANSLATIONS.labels[key].en,
+      TRANSLATIONS.labels[key].ko,
+      lang
+    );
+  }
+  return key;
+}
+
+/**
+ * Get translated column header from translations object
+ */
+function getTranslatedColumn(
+  key: keyof typeof TRANSLATIONS.columns,
+  lang?: string
+): string {
+  if (TRANSLATIONS.columns[key]) {
+    return getLocalizedLabel(
+      TRANSLATIONS.columns[key].en,
+      TRANSLATIONS.columns[key].ko,
+      lang
+    );
+  }
+  return key;
+}
+
+/**
+ * Get translated title from translations object
+ */
+function getTranslatedTitle(
+  key: keyof typeof TRANSLATIONS.titles,
+  lang?: string
+): string {
+  if (TRANSLATIONS.titles[key]) {
+    return getLocalizedLabel(
+      TRANSLATIONS.titles[key].en,
+      TRANSLATIONS.titles[key].ko,
+      lang
+    );
+  }
+  return key;
 }
 
 // ==================== SHEET GENERATION FUNCTIONS ====================
@@ -945,7 +1108,8 @@ function formatDuration(seconds: number): string {
  */
 export async function generateTaskReportSummarySheet(
   workbook: ExcelJS.Workbook,
-  dateRange: DateRangeFilter
+  dateRange: DateRangeFilter,
+  lang?: string
 ): Promise<void> {
   const worksheet = workbook.addWorksheet("Executive Summary");
   const { startDate, endDate } = dateRange;
@@ -958,7 +1122,7 @@ export async function generateTaskReportSummarySheet(
   // Add title
   worksheet.mergeCells("A1:F1");
   const titleCell = worksheet.getCell("A1");
-  titleCell.value = "Task Completion Report - Executive Summary";
+  titleCell.value = getTranslatedTitle("executiveSummary", lang);
   titleCell.font = {
     name: "Arial",
     size: 16,
@@ -976,7 +1140,10 @@ export async function generateTaskReportSummarySheet(
   // Add date range
   worksheet.mergeCells("A2:F2");
   const dateCell = worksheet.getCell("A2");
-  dateCell.value = `Date Range: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+  dateCell.value = `${getTranslatedLabel(
+    "dateRange",
+    lang
+  )}: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
   dateCell.font = { name: "Arial", size: 11 };
   dateCell.alignment = { vertical: "middle", horizontal: "center" };
 
@@ -994,7 +1161,7 @@ export async function generateTaskReportSummarySheet(
 
   worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
   const statsHeaderCell = worksheet.getCell(`A${currentRow}`);
-  statsHeaderCell.value = "Overall Task Statistics";
+  statsHeaderCell.value = getTranslatedLabel("overallTaskStatistics", lang);
   statsHeaderCell.font = {
     name: "Arial",
     size: 12,
@@ -1106,7 +1273,12 @@ export async function generateTaskReportSummarySheet(
   currentRow++;
 
   // Status distribution table
-  const statusHeaders = ["Status", "Count", "Percentage", "Color"];
+  const statusHeaders = [
+    getTranslatedLabel("status", lang),
+    getTranslatedLabel("count", lang),
+    getTranslatedLabel("percentage", lang),
+    getTranslatedLabel("color", lang)
+  ];
   const statusHeaderRow = worksheet.getRow(currentRow);
   statusHeaders.forEach((header, idx) => {
     const cell = statusHeaderRow.getCell(idx + 1);
@@ -1419,7 +1591,8 @@ export async function generateTaskReportSummarySheet(
  */
 export async function generateTaskDetailsSheet(
   workbook: ExcelJS.Workbook,
-  dateRange: DateRangeFilter
+  dateRange: DateRangeFilter,
+  lang?: string
 ): Promise<void> {
   const worksheet = workbook.addWorksheet("Task Details");
   const { startDate, endDate } = dateRange;
@@ -1432,7 +1605,7 @@ export async function generateTaskDetailsSheet(
   // Add title
   worksheet.mergeCells("A1:R1");
   const titleCell = worksheet.getCell("A1");
-  titleCell.value = "Task Details Report";
+  titleCell.value = getTranslatedTitle("taskDetails", lang);
   titleCell.font = {
     name: "Arial",
     size: 14,
@@ -1450,7 +1623,10 @@ export async function generateTaskDetailsSheet(
   // Add date range
   worksheet.mergeCells("A2:R2");
   const dateCell = worksheet.getCell("A2");
-  dateCell.value = `Date Range: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+  dateCell.value = `${getTranslatedLabel(
+    "dateRange",
+    lang
+  )}: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
   dateCell.font = { name: "Arial", size: 10 };
   dateCell.alignment = { vertical: "middle", horizontal: "center" };
 
@@ -1460,24 +1636,24 @@ export async function generateTaskDetailsSheet(
   // Add header row
   const headerRow = worksheet.getRow(3);
   const headers = [
-    "Task #",
-    "Title",
-    "Description",
-    "Project",
-    "Recipe",
-    "Step Order",
-    "Device Type",
-    "Device",
-    "Worker",
-    "Status",
-    "Priority",
-    "Created",
-    "Started",
-    "Completed",
-    "Est. Time",
-    "Actual Time",
-    "Efficiency %",
-    "Quality"
+    getTranslatedColumn("taskNumber", lang),
+    getTranslatedColumn("title", lang),
+    getTranslatedColumn("description", lang),
+    getTranslatedColumn("project", lang),
+    getTranslatedColumn("recipe", lang),
+    getTranslatedColumn("stepOrder", lang),
+    getTranslatedColumn("deviceType", lang),
+    getTranslatedColumn("device", lang),
+    getTranslatedColumn("worker", lang),
+    getTranslatedLabel("status", lang),
+    getTranslatedColumn("priority", lang),
+    getTranslatedColumn("created", lang),
+    getTranslatedColumn("started", lang),
+    getTranslatedColumn("completed", lang),
+    getTranslatedColumn("estimatedTime", lang),
+    getTranslatedColumn("actualTime", lang),
+    getTranslatedColumn("efficiency", lang),
+    getTranslatedColumn("quality", lang)
   ];
 
   headers.forEach((header, idx) => {
@@ -1501,7 +1677,7 @@ export async function generateTaskDetailsSheet(
     row.getCell(7).value = task.deviceTypeName || "";
     row.getCell(8).value = task.deviceName || "";
     row.getCell(9).value = task.workerName || "";
-    row.getCell(10).value = task.status;
+    row.getCell(10).value = getTranslatedStatus(task.status as any, lang);
     row.getCell(11).value = task.priority;
     row.getCell(12).value = task.createdAt ? new Date(task.createdAt) : "";
     row.getCell(13).value = task.startedAt ? new Date(task.startedAt) : "";
@@ -1610,7 +1786,8 @@ export async function generateTaskDetailsSheet(
  */
 export async function generateRecipeExecutionSheet(
   workbook: ExcelJS.Workbook,
-  dateRange: DateRangeFilter
+  dateRange: DateRangeFilter,
+  lang?: string
 ): Promise<void> {
   const worksheet = workbook.addWorksheet("Recipe Execution Tracking");
   const { startDate, endDate } = dateRange;
@@ -1623,7 +1800,7 @@ export async function generateRecipeExecutionSheet(
   // Add title
   worksheet.mergeCells("A1:L1");
   const titleCell = worksheet.getCell("A1");
-  titleCell.value = "Recipe Execution Tracking";
+  titleCell.value = getTranslatedTitle("recipeExecution", lang);
   titleCell.font = {
     name: "Arial",
     size: 14,
@@ -1641,7 +1818,10 @@ export async function generateRecipeExecutionSheet(
   // Add date range
   worksheet.mergeCells("A2:L2");
   const dateCell = worksheet.getCell("A2");
-  dateCell.value = `Date Range: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+  dateCell.value = `${getTranslatedLabel(
+    "dateRange",
+    lang
+  )}: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
   dateCell.font = { name: "Arial", size: 10 };
   dateCell.alignment = { vertical: "middle", horizontal: "center" };
 
@@ -1695,9 +1875,9 @@ export async function generateRecipeExecutionSheet(
     // Recipe metadata (2-column layout)
     const metadataRows = [
       {
-        label: "Project",
+        label: getTranslatedColumn("project", lang),
         value: recipe.projectName || "N/A",
-        label2: "Product",
+        label2: getTranslatedColumn("product", lang),
         value2: recipe.productName || "N/A"
       },
       {
@@ -1793,17 +1973,17 @@ export async function generateRecipeExecutionSheet(
 
     // Step table headers
     const stepHeaders = [
-      "Step #",
-      "Step Name",
-      "Device Type",
-      "Executions",
-      "Completed",
-      "Failed",
-      "Success Rate",
-      "Avg Est. Time",
-      "Avg Actual Time",
-      "Efficiency %",
-      "Deviation %"
+      getTranslatedColumn("stepOrder", lang),
+      getTranslatedColumn("title", lang), // Step Name
+      getTranslatedColumn("deviceType", lang),
+      getTranslatedColumn("totalExecutions", lang),
+      getTranslatedColumn("completed", lang),
+      getTranslatedStatus("FAILED", lang),
+      getTranslatedColumn("successRate", lang),
+      getTranslatedColumn("estimatedTime", lang),
+      getTranslatedColumn("actualTime", lang),
+      getTranslatedColumn("efficiency", lang),
+      getTranslatedColumn("deviation", lang) // Need to add this to translations
     ];
 
     const stepHeaderRow = worksheet.getRow(currentRow);
@@ -1920,7 +2100,8 @@ export async function generateRecipeExecutionSheet(
  */
 export async function generateDeviceUtilizationSheet(
   workbook: ExcelJS.Workbook,
-  dateRange: DateRangeFilter
+  dateRange: DateRangeFilter,
+  lang?: string
 ): Promise<void> {
   const worksheet = workbook.addWorksheet("Device Utilization");
   const { startDate, endDate } = dateRange;
@@ -1930,7 +2111,7 @@ export async function generateDeviceUtilizationSheet(
   // Add title
   worksheet.mergeCells("A1:J1");
   const titleCell = worksheet.getCell("A1");
-  titleCell.value = "Device Type Utilization Analysis";
+  titleCell.value = getTranslatedTitle("deviceUtilization", lang);
   titleCell.font = {
     name: "Arial",
     size: 14,
@@ -1948,7 +2129,10 @@ export async function generateDeviceUtilizationSheet(
   // Add date range
   worksheet.mergeCells("A2:J2");
   const dateCell = worksheet.getCell("A2");
-  dateCell.value = `Date Range: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+  dateCell.value = `${getTranslatedLabel(
+    "dateRange",
+    lang
+  )}: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
   dateCell.font = { name: "Arial", size: 10 };
   dateCell.alignment = { vertical: "middle", horizontal: "center" };
 
@@ -1969,16 +2153,16 @@ export async function generateDeviceUtilizationSheet(
 
   // Table headers
   const headers = [
-    "Device Type",
-    "Total Devices",
-    "Total Tasks",
-    "Completed",
-    "In Progress",
-    "Failed",
-    "Utilization %",
-    "Avg Task Time",
-    "Status",
-    "Recommendation"
+    getTranslatedColumn("deviceType", lang),
+    getTranslatedColumn("totalDevices", lang),
+    getTranslatedColumn("totalTasks", lang),
+    getTranslatedStatus("COMPLETED", lang),
+    getTranslatedStatus("ONGOING", lang),
+    getTranslatedStatus("FAILED"),
+    getTranslatedColumn("utilization", lang),
+    getTranslatedColumn("avgTaskTime", lang),
+    getTranslatedLabel("status", lang),
+    getTranslatedColumn("recommendation", lang)
   ];
 
   headers.forEach((header, index) => {
@@ -2105,12 +2289,13 @@ export async function generateDeviceUtilizationSheet(
  */
 export async function generateRawTaskDataSheet(
   workbook: ExcelJS.Workbook,
-  dateRange: DateRangeFilter
+  dateRange: DateRangeFilter,
+  lang?: string
 ): Promise<void> {
   const worksheet = workbook.addWorksheet("Raw Task Data");
   const { startDate, endDate } = dateRange;
 
-  console.log("[TaskReport] Generating Raw Task Data sheet...");
+  console.log("[TaskReport] Generating Raw Task Data sheet...", lang);
 
   // Add instructions box
   worksheet.mergeCells("A1:Z1");
