@@ -28,11 +28,27 @@ const TRANSLATIONS = {
     },
     taskDetails: { en: "Task Details Report", ko: "작업 상세 보고서" },
     recipeExecution: {
-      en: "Recipe Execution Tracking",
-      ko: "레시피 실행 추적"
+      en: "Part Execution Tracking",
+      ko: "부품 실행 추적"
     },
     deviceUtilization: { en: "Device Utilization", ko: "장치 활용도" },
-    rawData: { en: "Raw Task Data", ko: "원본 작업 데이터" }
+    rawData: { en: "Raw Task Data", ko: "원본 작업 데이터" },
+    taskStatusDistribution: {
+      en: "Task Status Distribution",
+      ko: "작업 상태 분포"
+    },
+    taskByProject: {
+      en: "Tasks by Project",
+      ko: "프로젝트별 작업"
+    },
+    deviceTypeUtilization: {
+      en: "Device Type Utilization",
+      ko: "장치 유형 활용도"
+    },
+    stepBreakdown: {
+      en: "Step Breakdown",
+      ko: "단계 분석"
+    }
   },
   // Common labels
   labels: {
@@ -40,6 +56,7 @@ const TRANSLATIONS = {
       en: "Overall Task Statistics",
       ko: "전체 작업 통계"
     },
+    overallEfficiency: { en: "Overall Efficiency", ko: "전체 효율성" },
     status: { en: "Status", ko: "상태" },
     count: { en: "Count", ko: "수량" },
     percentage: { en: "Percentage", ko: "백분율" },
@@ -55,7 +72,8 @@ const TRANSLATIONS = {
     avgCompletionTime: { en: "Avg Completion Time", ko: "평균 완료 시간" },
     avgEstimatedTime: { en: "Avg Estimated Time", ko: "평균 예상 시간" },
     efficiency: { en: "Efficiency", ko: "효율성" },
-    recommendation: { en: "Recommendation", ko: "권장사항" }
+    recommendation: { en: "Recommendation", ko: "권장사항" },
+    version: { en: "Version", ko: "버전" }
   },
   // Column headers
   columns: {
@@ -63,7 +81,8 @@ const TRANSLATIONS = {
     title: { en: "Title", ko: "제목" },
     description: { en: "Description", ko: "설명" },
     project: { en: "Project", ko: "프로젝트" },
-    recipe: { en: "Recipe", ko: "레시피" },
+    projectName: { en: "Project Name", ko: "프로젝트 이름" },
+    recipe: { en: "Part", ko: "부품" },
     stepOrder: { en: "Step Order", ko: "단계 순서" },
     deviceType: { en: "Device Type", ko: "장치 유형" },
     device: { en: "Device", ko: "장치" },
@@ -125,13 +144,12 @@ export interface ProjectTaskSummary {
 }
 
 export interface RecipeExecutionSummary {
-  recipeId: string;
   recipeSnapshotId: string;
   recipeName: string;
   recipeVersion: number;
   projectId?: string;
   projectName?: string;
-  productId?: string;
+  projectNumber?: string;
   productSnapshotId?: string;
   productName?: string;
   targetQuantity: number;
@@ -480,9 +498,7 @@ export async function aggregateByRecipe(
     {
       $group: {
         _id: {
-          recipeId: "$recipeId",
           projectId: "$projectId",
-          productId: "$productId",
           recipeSnapshotId: "$recipeSnapshotId",
           productSnapshotId: "$productSnapshotId"
         },
@@ -528,26 +544,10 @@ export async function aggregateByRecipe(
     },
     {
       $lookup: {
-        from: "recipes",
-        localField: "_id.recipeId",
-        foreignField: "_id",
-        as: "recipe"
-      }
-    },
-    {
-      $lookup: {
         from: "projects",
         localField: "_id.projectId",
         foreignField: "_id",
         as: "project"
-      }
-    },
-    {
-      $lookup: {
-        from: "products",
-        localField: "_id.productId",
-        foreignField: "_id",
-        as: "product"
       }
     },
     {
@@ -568,13 +568,12 @@ export async function aggregateByRecipe(
     },
     {
       $project: {
-        recipeId: { $toString: "$_id.recipeId" },
         recipeSnapshotId: { $toString: "$_id.recipeSnapshotId" },
         recipeName: { $arrayElemAt: ["$recipeSnapshot.name", 0] },
         recipeVersion: { $arrayElemAt: ["$recipeSnapshot.version", 0] },
         projectId: { $toString: "$_id.projectId" },
         projectName: { $arrayElemAt: ["$project.name", 0] },
-        productId: { $toString: "$_id.productId" },
+        projectNumber: { $arrayElemAt: ["$project.projectNumber", 0] },
         productSnapshotId: { $toString: "$_id.productSnapshotId" },
         productName: { $arrayElemAt: ["$productSnapshot.name", 0] },
         targetQuantity: { $arrayElemAt: ["$project.targetQuantity", 0] },
@@ -625,7 +624,7 @@ export async function aggregateByRecipe(
       }
     },
     {
-      $sort: { recipeName: 1 }
+      $sort: { projectNumber: 1 }
     }
   ]);
 
@@ -698,7 +697,14 @@ export async function getRecipeStepStats(
             {
               $arrayElemAt: ["$recipeSnapshot.steps.name", 0]
             },
-            0
+            {
+              $subtract: [
+                {
+                  $toInt: "$_id.stepOrder"
+                },
+                1
+              ]
+            }
           ]
         },
         deviceTypeId: { $toString: "$_id.deviceTypeId" },
@@ -754,22 +760,6 @@ export async function getRecipeStepStats(
       $sort: { stepOrder: 1 }
     }
   ]);
-
-  // Get step names from recipe snapshot
-  const tasks = await Task.find({
-    recipeSnapshotId: new mongoose.Types.ObjectId(recipeSnapshotId)
-  })
-    .populate("recipeSnapshotId")
-    .limit(1)
-    .lean();
-
-  if (tasks.length > 0 && tasks[0].recipeSnapshotId) {
-    const snapshot: any = tasks[0].recipeSnapshotId;
-    stepStats.forEach((stat) => {
-      const step = snapshot.steps?.find((s: any) => s.order === stat.stepOrder);
-      stat.stepName = step?.name || `Step ${stat.stepOrder}`;
-    });
-  }
 
   return stepStats;
 }
@@ -1220,26 +1210,32 @@ export async function generateTaskReportSummarySheet(
 
   // Statistics data in 2-column layout
   const statsData = [
-    { label: "Total Tasks", value: taskStats.total },
-    { label: "Completed", value: taskStats.completed },
-    { label: "Ongoing", value: taskStats.ongoing },
-    { label: "Failed", value: taskStats.failed },
-    { label: "Pending", value: taskStats.pending },
+    { label: getTranslatedColumn("totalTasks", lang), value: taskStats.total },
     {
-      label: "Completion Rate",
+      label: getTranslatedStatus("COMPLETED", lang),
+      value: taskStats.completed
+    },
+    { label: getTranslatedStatus("ONGOING", lang), value: taskStats.ongoing },
+    { label: getTranslatedStatus("FAILED", lang), value: taskStats.failed },
+    { label: getTranslatedStatus("PENDING", lang), value: taskStats.pending },
+    {
+      label: getTranslatedLabel("completionRate", lang),
       value: `${taskStats.completionRate.toFixed(1)}%`
     },
-    { label: "On-Time Rate", value: `${taskStats.onTimeRate.toFixed(1)}%` },
     {
-      label: "Avg Completion Time",
+      label: getTranslatedLabel("onTimeRate", lang),
+      value: `${taskStats.onTimeRate.toFixed(1)}%`
+    },
+    {
+      label: getTranslatedLabel("avgCompletionTime", lang),
       value: formatDuration(taskStats.avgCompletionTime)
     },
     {
-      label: "Avg Estimated Time",
+      label: getTranslatedLabel("avgEstimatedTime", lang),
       value: formatDuration(taskStats.avgEstimatedTime)
     },
     {
-      label: "Overall Efficiency",
+      label: getTranslatedLabel("overallEfficiency", lang),
       value: `${taskStats.efficiency.toFixed(1)}%`
     }
   ];
@@ -1297,7 +1293,7 @@ export async function generateTaskReportSummarySheet(
   // ========== TASK STATUS DISTRIBUTION ==========
   worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
   const statusHeaderCell = worksheet.getCell(`A${currentRow}`);
-  statusHeaderCell.value = "Task Status Distribution";
+  statusHeaderCell.value = getTranslatedTitle("taskStatusDistribution", lang);
   statusHeaderCell.font = {
     name: "Arial",
     size: 12,
@@ -1330,22 +1326,22 @@ export async function generateTaskReportSummarySheet(
 
   const statusDistribution = [
     {
-      status: "COMPLETED",
+      status: getTranslatedStatus("COMPLETED", lang).toUpperCase(),
       count: taskStats.completed,
       color: ExcelFormatService.COLORS.SUCCESS
     },
     {
-      status: "ONGOING",
+      status: getTranslatedStatus("ONGOING", lang).toUpperCase(),
       count: taskStats.ongoing,
       color: ExcelFormatService.COLORS.WARNING
     },
     {
-      status: "FAILED",
+      status: getTranslatedStatus("FAILED", lang).toUpperCase(),
       count: taskStats.failed,
       color: ExcelFormatService.COLORS.DANGER
     },
     {
-      status: "PENDING",
+      status: getTranslatedStatus("PENDING", lang).toUpperCase(),
       count: taskStats.pending,
       color: ExcelFormatService.COLORS.NEUTRAL
     }
@@ -1384,7 +1380,7 @@ export async function generateTaskReportSummarySheet(
   currentRow++; // Add spacing  // ========== BY-PROJECT TABLE ==========
   worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
   const projectHeaderCell = worksheet.getCell(`A${currentRow}`);
-  projectHeaderCell.value = "Tasks by Project";
+  projectHeaderCell.value = getTranslatedTitle("taskByProject", lang);
   projectHeaderCell.font = {
     name: "Arial",
     size: 12,
@@ -1401,13 +1397,13 @@ export async function generateTaskReportSummarySheet(
   currentRow++;
 
   const projectHeaders = [
-    "Project #",
-    "Project Name",
-    "Total Tasks",
-    "Completed",
-    "Progress",
-    "On-Time Rate",
-    "Status"
+    `${getTranslatedColumn("project", lang)} #`,
+    getTranslatedColumn("projectName", lang),
+    getTranslatedColumn("totalTasks", lang),
+    getTranslatedStatus("COMPLETED", lang),
+    getTranslatedColumn("progress", lang),
+    getTranslatedLabel("onTimeRate", lang),
+    getTranslatedLabel("status", lang)
   ];
   const projectHeaderRow = worksheet.getRow(currentRow);
   projectHeaders.forEach((header, idx) => {
@@ -1460,7 +1456,7 @@ export async function generateTaskReportSummarySheet(
   // ========== DEVICE TYPE UTILIZATION TABLE ==========
   worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
   const deviceHeaderCell = worksheet.getCell(`A${currentRow}`);
-  deviceHeaderCell.value = "Device Type Utilization";
+  deviceHeaderCell.value = getTranslatedTitle("deviceTypeUtilization", lang);
   deviceHeaderCell.font = {
     name: "Arial",
     size: 12,
@@ -1477,16 +1473,16 @@ export async function generateTaskReportSummarySheet(
   currentRow++;
 
   const deviceHeaders = [
-    "Device Type",
-    "Total Devices",
-    "Total Tasks",
-    "Completed",
-    "In Progress",
-    "Failed",
-    "Utilization %",
-    "Avg Task Time",
-    "Status",
-    "Recommendation"
+    getTranslatedColumn("deviceType", lang),
+    getTranslatedColumn("totalDevices", lang),
+    getTranslatedColumn("totalTasks", lang),
+    getTranslatedStatus("COMPLETED", lang),
+    getTranslatedStatus("ONGOING", lang),
+    getTranslatedStatus("FAILED", lang),
+    getTranslatedColumn("utilization", lang),
+    getTranslatedColumn("avgTaskTime", lang),
+    getTranslatedLabel("status", lang),
+    getTranslatedColumn("recommendation", lang)
   ];
   const deviceHeaderRow = worksheet.getRow(currentRow);
   deviceHeaders.forEach((header, idx) => {
@@ -1871,16 +1867,16 @@ export async function generateRecipeExecutionSheet(
 
   let currentRow = 4;
   const recipeColors = [
-    "D6EAF8",
-    "D5F4E6",
-    "FCF3CF",
-    "FADBD8",
-    "E8DAEF",
-    "D5DBDB",
-    "FDEBD0",
-    "D4E6F1",
-    "D1F2EB",
-    "F9E79F"
+    "5DADE2",
+    "45B39D",
+    "F1C40F",
+    "E74C3C",
+    "9B59B6",
+    "566573",
+    "E67E22",
+    "3498DB",
+    "1ABC9C",
+    "F39C12"
   ];
 
   // Process each recipe
@@ -1890,10 +1886,35 @@ export async function generateRecipeExecutionSheet(
 
     // ========== RECIPE SUMMARY SECTION ==========
 
+    // Project number header
+    worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
+    const projectHeaderCell = worksheet.getCell(`A${currentRow}`);
+    projectHeaderCell.value = `${getTranslatedColumn("project", lang)}: ${
+      recipe.projectNumber || "N/A"
+    }`;
+    projectHeaderCell.font = {
+      name: "Arial",
+      size: 12,
+      bold: true,
+      color: { argb: "FFFFFF" }
+    };
+    projectHeaderCell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    projectHeaderCell.alignment = {
+      vertical: "middle",
+      horizontal: "left",
+      indent: 1
+    };
+
     // Recipe header
-    worksheet.mergeCells(`A${currentRow}:L${currentRow}`);
-    const recipeHeaderCell = worksheet.getCell(`A${currentRow}`);
-    recipeHeaderCell.value = `Recipe: ${recipe.recipeName}`;
+    worksheet.mergeCells(`E${currentRow}:L${currentRow}`);
+    const recipeHeaderCell = worksheet.getCell(`E${currentRow}`);
+    recipeHeaderCell.value = `${getTranslatedColumn("recipe", lang)}: ${
+      recipe.recipeName
+    } (${getTranslatedLabel("version", lang)} ${recipe.recipeVersion})`;
     recipeHeaderCell.font = {
       name: "Arial",
       size: 12,
@@ -1916,33 +1937,33 @@ export async function generateRecipeExecutionSheet(
     // Recipe metadata (2-column layout)
     const metadataRows = [
       {
-        label: getTranslatedColumn("project", lang),
+        label: getTranslatedColumn("projectName", lang),
         value: recipe.projectName || "N/A",
         label2: getTranslatedColumn("product", lang),
         value2: recipe.productName || "N/A"
       },
       {
-        label: "Total Executions",
+        label: getTranslatedColumn("totalExecutions", lang),
         value: recipe.totalExecutions,
-        label2: "Completed",
+        label2: getTranslatedStatus("COMPLETED", lang),
         value2: recipe.completedExecutions
       },
       {
-        label: "Failed Executions",
+        label: getTranslatedStatus("FAILED", lang),
         value: recipe.failedExecutions,
-        label2: "Progress",
+        label2: getTranslatedColumn("progress", lang),
         value2: `${recipe.progress.toFixed(1)}%`
       },
       {
-        label: "Avg Time/Unit",
+        label: getTranslatedColumn("avgTimePerUnit", lang),
         value: formatDuration(recipe.avgTimePerUnit),
-        label2: "Est. Time/Unit",
+        label2: getTranslatedColumn("estimatedTimePerUnit", lang),
         value2: formatDuration(recipe.estimatedTimePerUnit)
       },
       {
-        label: "Efficiency",
+        label: getTranslatedColumn("efficiency", lang),
         value: `${recipe.efficiency.toFixed(1)}%`,
-        label2: "Target Qty",
+        label2: getTranslatedColumn("targetQuantity", lang),
         value2: recipe.targetQuantity || "N/A"
       }
     ];
@@ -1997,7 +2018,7 @@ export async function generateRecipeExecutionSheet(
 
     worksheet.mergeCells(`A${currentRow}:L${currentRow}`);
     const stepsHeaderCell = worksheet.getCell(`A${currentRow}`);
-    stepsHeaderCell.value = "Step Breakdown";
+    stepsHeaderCell.value = getTranslatedTitle("stepBreakdown", lang);
     stepsHeaderCell.font = {
       name: "Arial",
       size: 11,
@@ -2120,7 +2141,7 @@ export async function generateRecipeExecutionSheet(
   }
 
   // Set column widths
-  worksheet.getColumn(1).width = 8; // Step #
+  worksheet.getColumn(1).width = 12; // Step #
   worksheet.getColumn(2).width = 25; // Step Name
   worksheet.getColumn(3).width = 18; // Device Type
   worksheet.getColumn(4).width = 12; // Executions
