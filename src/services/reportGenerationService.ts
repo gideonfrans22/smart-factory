@@ -169,8 +169,6 @@ export async function generateWorkerPerformanceReport(
   reportId?: string,
   lang?: string
 ): Promise<ReportGenerationResult> {
-  console.log(lang);
-
   const startTime = Date.now();
 
   try {
@@ -189,26 +187,43 @@ export async function generateWorkerPerformanceReport(
     const dateRange = { startDate, endDate };
 
     // Sheet 1: Performance Rankings
-    await WorkerReportService.generateWorkerRankingsSheet(workbook, dateRange);
+    await WorkerReportService.generateWorkerRankingsSheet(
+      workbook,
+      dateRange,
+      lang
+    );
     sheetsGenerated.push("Performance Rankings");
 
     // Sheet 2: Individual Worker Details
-    await WorkerReportService.generateWorkerDetailsSheet(workbook, dateRange);
+    await WorkerReportService.generateWorkerDetailsSheet(
+      workbook,
+      dateRange,
+      lang
+    );
     sheetsGenerated.push("Worker Details");
 
     // Sheet 3: Device Type Proficiency
     await WorkerReportService.generateDeviceProficiencySheet(
       workbook,
-      dateRange
+      dateRange,
+      lang
     );
     sheetsGenerated.push("Device Proficiency");
 
     // Sheet 4: Time Tracking & Quality
-    await WorkerReportService.generateTimeTrackingSheet(workbook, dateRange);
+    await WorkerReportService.generateTimeTrackingSheet(
+      workbook,
+      dateRange,
+      lang
+    );
     sheetsGenerated.push("Time Tracking & Quality");
 
     // Sheet 5: Raw Worker Data
-    await WorkerReportService.generateRawWorkerDataSheet(workbook, dateRange);
+    await WorkerReportService.generateRawWorkerDataSheet(
+      workbook,
+      dateRange,
+      lang
+    );
     sheetsGenerated.push("Raw Worker Data");
 
     // Get total record count from raw data sheet
