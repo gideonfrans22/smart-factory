@@ -196,14 +196,18 @@ export const createUser = async (
       return;
     }
 
-    let hashedPassword = password ? await hashPassword(password) : "";
+    let hashedPassword = "";
+    if (password) {
+      // Hash password
+      hashedPassword = await hashPassword(password);
+    }
 
     // Create user
     const user = new User({
       username: username ? sanitizeInput(username) : undefined,
       name: sanitizeInput(name),
       email: email ? email.toLowerCase() : undefined,
-      password: hashedPassword || "",
+      password: hashedPassword,
       role,
       department: department ? sanitizeInput(department) : undefined
     });
