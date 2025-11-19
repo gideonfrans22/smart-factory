@@ -1317,6 +1317,9 @@ export async function generateWorkerRankingsSheet(
       bottom: { style: "thin" },
       right: { style: "thin" }
     };
+    if (idx === 4) {
+      worksheet.mergeCells(`E${currentRow}:J${currentRow}`);
+    }
   });
   currentRow++;
 
