@@ -58,7 +58,7 @@ const RecipeStepSchema: Schema = new Schema(
     },
     description: {
       type: String,
-      required: true,
+      default: "",
       trim: true
     },
     estimatedDuration: {
