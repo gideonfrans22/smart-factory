@@ -1324,27 +1324,30 @@ export async function generateWorkerRankingsSheet(
     {
       name: "EXCELLENT",
       range: "90-100",
-      desc: "Outstanding performance, exceeds expectations"
+      desc: getTranslation("performanceRankings.outstandingPerformance", lang)
     },
     {
       name: "GOOD",
       range: "75-89",
-      desc: "Strong performance, meets all expectations"
+      desc: getTranslation("performanceRankings.strongPerformance", lang)
     },
     {
       name: "AVERAGE",
       range: "60-74",
-      desc: "Satisfactory performance, meets most expectations"
+      desc: getTranslation("performanceRankings.satisfactoryPerformance", lang)
     },
     {
       name: "BELOW_AVERAGE",
       range: "40-59",
-      desc: "Needs improvement in multiple areas"
+      desc: getTranslation("performanceRankings.needsImprovement", lang)
     },
     {
       name: "POOR",
       range: "0-39",
-      desc: "Requires immediate attention and training"
+      desc: getTranslation(
+        "performanceRankings.requiresImmediateAttention",
+        lang
+      )
     }
   ];
 
@@ -1382,6 +1385,9 @@ export async function generateWorkerRankingsSheet(
           fgColor: { argb: tierColors[tier.name as keyof typeof tierColors] }
         };
         cell.font = { bold: true, color: { argb: "FFFFFF" } };
+      }
+      if (idx === 4) {
+        worksheet.mergeCells(`E${currentRow}:J${currentRow}`);
       }
     });
     currentRow++;
