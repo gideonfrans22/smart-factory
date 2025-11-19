@@ -32,6 +32,8 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
 
     const total = await Alert.countDocuments(query);
     const alerts = await Alert.find(query)
+      .populate("deviceId", "name deviceType")
+      .populate("createdBy", "name email")
       .populate("acknowledgedBy", "name username email")
       .skip(skip)
       .limit(limitNum)

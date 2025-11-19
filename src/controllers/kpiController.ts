@@ -15,6 +15,9 @@ export const getRealtimeKPI = async (
     const activeProjects = await Project.countDocuments({ status: "ACTIVE" });
     const completedTasks = await Task.countDocuments({ status: "COMPLETED" });
     const pendingTasks = await Task.countDocuments({ status: "PENDING" });
+    const activeTasks = await Task.countDocuments({ 
+      status: { $in: ["ONGOING", "PAUSED"] } 
+    });
     const emergencyAlerts = await Alert.countDocuments({
       type: "EMERGENCY",
       status: "PENDING"
@@ -93,9 +96,11 @@ export const getRealtimeKPI = async (
       message: "Real-time KPI data retrieved successfully",
       data: {
         timestamp: new Date().toISOString(),
+        uptime: Math.round(equipmentUptime * 100) / 100, // Factory uptime percentage
+        productivity: Math.round(productivity * 100) / 100, // Productivity percentage
+        activeTasks, // Currently active tasks (ONGOING + PAUSED)
+        defectRate: Math.round((defectRate / 100) * 10000) / 10000, // Convert to 0-1 format (e.g., 0.025 = 2.5%)
         onTimeRate: Math.round(onTimeRate * 100) / 100,
-        defectRate: Math.round(defectRate * 100) / 100,
-        productivity: Math.round(productivity * 100) / 100,
         equipmentUptime: Math.round(equipmentUptime * 100) / 100,
         activeProjects,
         completedTasks,

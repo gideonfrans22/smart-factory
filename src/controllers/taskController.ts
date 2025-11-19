@@ -106,6 +106,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     const tasks = await Task.find(query)
       .populate("projectId", "name status priority")
       .populate("workerId", "name username")
+      .populate("deviceId", "name deviceName")
       .populate({
         path: "recipeSnapshotId",
         select: "name version steps",

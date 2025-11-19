@@ -36,14 +36,13 @@ export const getProjects = async (
     // Get total count
     const total = await Project.countDocuments(query);
 
-    // Get projects (snapshots contain all data, no need to populate products/recipes)
+    // Get projects with proper population
     const projects = await Project.find(query)
       .populate("createdBy", "name email username")
-      .populate("product")
-      .populate({
-        path: "recipe",
-        populate: { path: "rawMaterials.materialId" }
-      })
+      .populate("product", "name designNumber")
+      .populate("recipe", "name recipeNumber")
+      .populate("productSnapshot", "name version originalProductId")
+      .populate("recipeSnapshot", "name version originalRecipeId")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -89,6 +88,8 @@ export const getProjectById = async (
 
     const project = await Project.findById(id)
       .populate("createdBy", "name email username")
+      .populate("product", "name designNumber")
+      .populate("recipe", "name recipeNumber")
       .populate("productSnapshot", "name version originalProductId")
       .populate("recipeSnapshot", "name version originalRecipeId");
 
