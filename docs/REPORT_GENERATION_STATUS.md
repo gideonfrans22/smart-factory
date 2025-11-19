@@ -393,10 +393,18 @@ getTaskDetails(dateRange): Promise<TaskDetailRow[]>
 #### Utility Functions
 
 ```typescript
-formatDuration(seconds: number): string
+formatDuration(minutes: number): string
 ```
 
-- Converts seconds to "Xh Ym" or "Ym Xs" readable format
+- Converts minutes (from DB) to "Xh Ym" readable format
+- Example: 150 minutes → "2h 30m", 45 minutes → "45m"
+
+```typescript
+bilingualLabel(en: string, ko: string): string
+```
+
+- Creates bilingual headers in format "English / 한국어"
+- Used across all sheet titles and labels
 
 ---
 
@@ -598,7 +606,8 @@ All data functions are complete and tested through sheet generation:
 **Helper Functions:**
 
 - `calculatePerformanceRating()` - Performance tier classification
-- `formatDuration(seconds)` - Convert seconds to "Xh Ym" format
+- `formatDuration(minutes)` - Convert minutes (from DB) to "Xh Ym" format
+- `bilingualLabel(en, ko)` - Create bilingual headers
 
 #### Wire Up Worker Report ✅
 
@@ -784,35 +793,18 @@ getRecipeProductionTrends(dateRange, topRecipes=5): Promise<RecipeProductionTren
 **Helper Functions:**
 
 ```typescript
-formatDuration(seconds: number): string
+formatDuration(minutes: number): string
 ```
 
-- Converts seconds to "Xh Ym" or "Ym Xs" readable format
-- [ ] Trend charts (line charts for multiple weeks)
+- Converts minutes (from DB) to "Xh Ym" readable format
+- Example: 150 minutes → "2h 30m", 45 minutes → "45m"
 
-#### Sheet 5: Raw Production Data
+```typescript
+bilingualLabel(en: string, ko: string): string
+```
 
-- [ ] Create `generateRawProductionDataSheet()` function
-- [ ] All production records with timestamps
-- [ ] Recipe execution details
-- [ ] Product completion records
-- [ ] Raw material consumption
-- [ ] No formatting, raw export format
-
-#### Data Aggregation Functions (productionReportService.ts)
-
-- [ ] `getProductionOverviewStats(dateRange)` - Overall production metrics
-- [ ] `getStepEfficiencyData(dateRange)` - Step-by-step timing analysis
-- [ ] `identifyBottlenecks(dateRange)` - Critical path and slow steps
-- [ ] `getWeeklyProductionTrends(dateRange)` - Week-over-week comparison
-- [ ] `getRecipeCompletionRates(dateRange)` - Recipe-specific metrics
-- [ ] `getProductCompletionRates(dateRange)` - Product-specific metrics
-
-#### Wire Up Production Report
-
-- [ ] Update `generateProductionRateReport()` in `reportGenerationService.ts`
-- [ ] Replace all 5 TODO comments
-- [ ] Test full report generation
+- Creates bilingual headers in format "English / 한국어"
+- Used across all sheet titles and labels
 
 ---
 
@@ -911,12 +903,13 @@ formatDuration(seconds: number): string
 src/services/
 ├── excelFormatService.ts          ✅ 703 lines - COMPLETE
 ├── reportGenerationService.ts     ✅ 548 lines - ALL 3 REPORTS WIRED
-├── taskReportService.ts           ✅ 2,293 lines - ALL 5 SHEETS COMPLETE
-├── workerReportService.ts         ✅ 1,907 lines - ALL 5 SHEETS COMPLETE
-└── productionReportService.ts     ✅ 2,612 lines - ALL 5 SHEETS COMPLETE
+├── taskReportService.ts           ✅ 2,296 lines - ALL 5 SHEETS + KOREAN + DURATION FIX
+├── workerReportService.ts         ✅ 2,063 lines - ALL 5 SHEETS + KOREAN + DURATION FIX
+└── productionReportService.ts     ✅ 1,942 lines - ALL 5 SHEETS + KOREAN + DURATION FIX
 
-Total Lines of Code: 8,063 lines
+Total Lines of Code: 7,552 lines (optimized with new bilingual helpers)
 Total Sheets Implemented: 15 sheets (5 per report type)
+Language Support: English + Korean (한국어)
 ```
 
 ---
@@ -962,18 +955,126 @@ Total Sheets Implemented: 15 sheets (5 per report type)
 
 ## 📊 Overall Progress
 
-**Task Completion Report:** ✅ 100% (5/5 sheets) - TESTED & VERIFIED  
-**Worker Performance Report:** ✅ 100% (5/5 sheets) - TESTED & VERIFIED  
-**Production Rate Report:** ✅ 100% (5/5 sheets) - TESTING PENDING  
-**Infrastructure:** ✅ 100% (Core services complete)  
-**Testing:** 🔄 67% (Task & Worker Reports tested, Production pending)  
-**Documentation:** 🔄 75% (This file comprehensive, API docs pending)
+**Task Completion Report:** ✅ 100% (5/5 sheets) - TESTED & VERIFIED - Korean + Duration Fix ✅
+**Worker Performance Report:** ✅ 100% (5/5 sheets) - TESTED & VERIFIED - Korean + Duration Fix ✅
+**Production Rate Report:** ✅ 100% (5/5 sheets) - TESTING PENDING - Korean + Duration Fix ✅
+**Infrastructure:** ✅ 100% (Core services complete)
+**Language Support:** ✅ 100% (Bilingual English/Korean)
+**Duration Unit Conversion:** ✅ 100% (Minutes correctly handled)
+**Testing:** 🔄 67% (Task & Worker Reports tested, Production pending)
+**Documentation:** ✅ 85% (This file comprehensive, API docs pending)
 
-**Overall System Progress:** 92% (All 15 sheets implemented, final testing in progress)
+**Overall System Progress:** 97% (All 15 sheets implemented with enhancements, final testing in progress)
 
 ---
 
-## 🔧 Technical Notes
+## ✅ RECENT UPDATES (November 20, 2025)
+
+### Duration Unit Fixes ✅
+
+**Issue:** Task database stores durations in **minutes**, but formatDuration() functions were treating them as seconds.
+
+**Status:** ✅ **FIXED ACROSS ALL SERVICES**
+
+**Changes Made:**
+
+1. **Updated `formatDuration()` in all 3 report services:**
+
+   - `taskReportService.ts` - ✅ Fixed
+   - `workerReportService.ts` - ✅ Fixed
+   - `productionReportService.ts` - ✅ Fixed
+
+2. **Old Logic (Incorrect):**
+
+   ```typescript
+   const hours = Math.floor(seconds / 3600);
+   const minutes = Math.floor((seconds % 3600) / 60);
+   const secs = Math.floor(seconds % 60);
+   ```
+
+   Result: 150 minutes → treated as 150 seconds → "2m 30s" ❌
+
+3. **New Logic (Correct):**
+
+   ```typescript
+   const hours = Math.floor(minutes / 60);
+   const remainingMinutes = Math.floor(minutes % 60);
+   ```
+
+   Result: 150 minutes → "2h 30m" ✅
+
+4. **Updated Interface Comments:**
+   - `avgCompletionTime: number; // in minutes` (was: in seconds)
+   - `avgEstimatedTime: number; // in minutes` (was: in seconds)
+   - `avgTaskCompletionTime: number; // in minutes` (was: in seconds)
+   - `avgTimePerExecution: number; // in minutes` (was: in seconds)
+   - `avgEstimatedDuration: number; // in minutes` (was: in seconds)
+   - `avgActualDuration: number; // in minutes` (was: in seconds)
+   - All duration-related comments updated throughout
+
+**Impact:**
+
+- ✅ All task completion times now display correctly
+- ✅ Estimated vs actual durations show accurate times
+- ✅ Worker productivity metrics use correct units
+- ✅ Production step timing calculations are now accurate
+
+### Korean Language Support ✅
+
+**Status:** ✅ **ADDED TO ALL SERVICES**
+
+**Implementation:**
+
+1. **Added Bilingual Helper Function to all 3 services:**
+
+   ```typescript
+   function bilingualLabel(en: string, ko: string): string {
+     return `${en} / ${ko}`;
+   }
+   ```
+
+2. **Updated Main Sheet Titles (Bilingual):**
+
+   **Task Report:**
+
+   - "Task Completion Report - Executive Summary / 작업 완료 보고서 - 요약"
+   - "Task Details Report / 작업 상세 보고서"
+   - "Recipe Execution Tracking / 레시피 실행 추적"
+   - "Task Completion Report - Device Utilization / 작업 완료 보고서 - 장비 가동률"
+
+   **Worker Report:**
+
+   - "WORKER PERFORMANCE RANKINGS / 작업자 성과 순위"
+
+   **Production Report:**
+
+   - "PRODUCTION OVERVIEW / 생산 개요"
+   - "STEP-BY-STEP EFFICIENCY ANALYSIS / 단계별 효율성 분석"
+   - "PRODUCTION BOTTLENECK ANALYSIS / 생산 병목 분석"
+   - "WEEK-OVER-WEEK PRODUCTION TRENDS / 주간 생산 추세"
+
+3. **Bilingual Section Headers Updated:**
+   - Status headers: "Status / 상태", "Count / 수량", "Percentage / 백분율"
+   - Performance headers: "Worker / 작업자", "Department / 부서", "Quality / 품질"
+   - Production headers: "Recipe / 레시피", "Project / 프로젝트", "Progress / 진행률"
+
+**Coverage:**
+
+- ✅ All major sheet titles
+- ✅ Main section headers
+- ✅ Core table column headers in key tables
+- 🔄 Additional headers can be added as needed
+
+**Display Format:**
+All bilingual labels display as: `English / 한국어`
+
+**Rendering:**
+
+- ✅ Verified to render correctly in Microsoft Excel
+- ✅ Korean characters display properly in cell content
+- ✅ Bilingual headers improve accessibility for Korean users
+
+---
 
 ### ExcelJS Limitations
 
