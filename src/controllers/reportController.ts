@@ -18,7 +18,7 @@ export const generateReport = async (
       return;
     }
 
-    const { title, type, format, parameters } = req.body;
+    const { title, type, format, parameters, lang } = req.body;
 
     const userId = req.user?._id || null;
 
@@ -73,7 +73,8 @@ export const generateReport = async (
           start,
           end,
           userId ? userId.toString() : "",
-          reportIdStr
+          reportIdStr,
+          lang
         );
         break;
       case "WORKER_PERFORMANCE":
@@ -81,7 +82,8 @@ export const generateReport = async (
           start,
           end,
           userId ? userId.toString() : "",
-          reportIdStr
+          reportIdStr,
+          lang
         );
         break;
       case "PRODUCTION_RATE":
@@ -89,7 +91,8 @@ export const generateReport = async (
           start,
           end,
           userId ? userId.toString() : "",
-          reportIdStr
+          reportIdStr,
+          lang
         );
         break;
       default:

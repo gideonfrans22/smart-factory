@@ -38,8 +38,8 @@ export interface WorkerPerformanceData {
   breakTime: number; // in hours
   productiveTime: number; // in hours
   qualityScore: number; // percentage
-  avgTaskCompletionTime: number; // in seconds
-  avgTaskEstimatedTime: number; // in seconds
+  avgTaskCompletionTime: number; // in minutes
+  avgTaskEstimatedTime: number; // in minutes
   efficiency: number; // percentage
   performanceRating:
     | "EXCELLENT"
@@ -967,21 +967,30 @@ export async function getWorkerDailyActivity(
 // ==================== HELPER FUNCTIONS ====================
 
 /**
- * Format duration in seconds to readable string (e.g., "2h 30m", "45m 15s")
+ * Format duration in minutes (from DB) to readable string
+ * @param minutes Duration in minutes (as stored in database)
+ * @returns Formatted string like "2h 30m" or "45m"
  */
-function formatDuration(seconds: number): string {
-  if (seconds === 0) return "0s";
+function formatDuration(minutes: number): string {
+  if (!minutes || minutes === 0) return "0m";
 
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = Math.floor(minutes % 60);
 
-  const parts: string[] = [];
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0) parts.push(`${minutes}m`);
-  if (secs > 0 && hours === 0) parts.push(`${secs}s`);
+  if (hours > 0) {
+    return remainingMinutes > 0
+      ? `${hours}h ${remainingMinutes}m`
+      : `${hours}h`;
+  } else {
+    return `${remainingMinutes}m`;
+  }
+}
 
-  return parts.join(" ") || "0s";
+/**
+ * Create bilingual header (English / Korean)
+ */
+function bilingualLabel(en: string, ko: string): string {
+  return `${en} / ${ko}`;
 }
 
 // ==================== SHEET GENERATION FUNCTIONS ====================
@@ -1002,7 +1011,10 @@ export async function generateWorkerRankingsSheet(
   // ===== TITLE =====
   worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
   const titleCell = worksheet.getCell(`A${currentRow}`);
-  titleCell.value = "WORKER PERFORMANCE RANKINGS";
+  titleCell.value = bilingualLabel(
+    "WORKER PERFORMANCE RANKINGS",
+    "작업자 성과 순위"
+  );
   titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
   titleCell.fill = {
     type: "pattern",

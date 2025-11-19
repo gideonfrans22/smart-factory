@@ -48,7 +48,8 @@ export async function generateTaskReport(
   startDate: Date,
   endDate: Date,
   _userId: string,
-  reportId?: string
+  reportId?: string,
+  lang?: string
 ): Promise<ReportGenerationResult> {
   const startTime = Date.now();
 
@@ -68,23 +69,35 @@ export async function generateTaskReport(
     const dateRange = { startDate, endDate };
 
     // Sheet 1: Executive Summary
-    await TaskReportService.generateTaskReportSummarySheet(workbook, dateRange);
+    await TaskReportService.generateTaskReportSummarySheet(
+      workbook,
+      dateRange,
+      lang
+    );
     sheetsGenerated.push("Executive Summary");
 
     // Sheet 2: Task Details
-    await TaskReportService.generateTaskDetailsSheet(workbook, dateRange);
+    await TaskReportService.generateTaskDetailsSheet(workbook, dateRange, lang);
     sheetsGenerated.push("Task Details");
 
     // Sheet 3: Recipe Execution Tracking
-    await TaskReportService.generateRecipeExecutionSheet(workbook, dateRange);
+    await TaskReportService.generateRecipeExecutionSheet(
+      workbook,
+      dateRange,
+      lang
+    );
     sheetsGenerated.push("Recipe Execution Tracking");
 
     // Sheet 4: Device Utilization
-    await TaskReportService.generateDeviceUtilizationSheet(workbook, dateRange);
+    await TaskReportService.generateDeviceUtilizationSheet(
+      workbook,
+      dateRange,
+      lang
+    );
     sheetsGenerated.push("Device Utilization");
 
     // Sheet 5: Raw Task Data
-    await TaskReportService.generateRawTaskDataSheet(workbook, dateRange);
+    await TaskReportService.generateRawTaskDataSheet(workbook, dateRange, lang);
     sheetsGenerated.push("Raw Task Data");
 
     // Get total record count from raw data sheet
@@ -153,8 +166,11 @@ export async function generateWorkerPerformanceReport(
   startDate: Date,
   endDate: Date,
   _userId: string,
-  reportId?: string
+  reportId?: string,
+  lang?: string
 ): Promise<ReportGenerationResult> {
+  console.log(lang);
+
   const startTime = Date.now();
 
   try {
@@ -265,9 +281,11 @@ export async function generateProductionRateReport(
   startDate: Date,
   endDate: Date,
   _userId: string,
-  reportId?: string
+  reportId?: string,
+  lang?: string
 ): Promise<ReportGenerationResult> {
   const startTime = Date.now();
+  console.log(lang);
 
   try {
     console.log(

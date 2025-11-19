@@ -29,8 +29,8 @@ export interface ProductionByRecipe {
   totalExecutions: number;
   completedExecutions: number;
   failedExecutions: number;
-  avgTimePerExecution: number; // in seconds
-  estimatedTimePerExecution: number;
+  avgTimePerExecution: number; // in minutes
+  estimatedTimePerExecution: number; // in minutes
   efficiency: number; // percentage
   status: "ON_TRACK" | "AT_RISK" | "DELAYED";
 }
@@ -41,13 +41,13 @@ export interface StepEfficiency {
   recipeId: string;
   deviceTypeId: string;
   deviceTypeName: string;
-  avgEstimatedDuration: number;
-  avgActualDuration: number;
-  deviation: number; // Actual - Estimated (in seconds)
+  avgEstimatedDuration: number; // in minutes
+  avgActualDuration: number; // in minutes
+  deviation: number; // Actual - Estimated (in minutes)
   deviationPercentage: number; // percentage
   efficiency: number; // (Estimated / Actual) × 100%
   executionCount: number;
-  totalTimeSaved: number; // negative = time lost
+  totalTimeSaved: number; // negative = time lost (in minutes)
   isBottleneck: boolean;
 }
 
@@ -859,21 +859,30 @@ export async function getRecipeProductionTrends(
 // ==================== HELPER FUNCTIONS ====================
 
 /**
- * Format duration in seconds to readable string (e.g., "2h 30m", "45m 15s")
+ * Format duration in minutes (from DB) to readable string
+ * @param minutes Duration in minutes (as stored in database)
+ * @returns Formatted string like "2h 30m" or "45m"
  */
-function formatDuration(seconds: number): string {
-  if (seconds === 0) return "0s";
+function formatDuration(minutes: number): string {
+  if (!minutes || minutes === 0) return "0m";
 
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = Math.floor(minutes % 60);
 
-  const parts: string[] = [];
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0) parts.push(`${minutes}m`);
-  if (secs > 0 && hours === 0) parts.push(`${secs}s`);
+  if (hours > 0) {
+    return remainingMinutes > 0
+      ? `${hours}h ${remainingMinutes}m`
+      : `${hours}h`;
+  } else {
+    return `${remainingMinutes}m`;
+  }
+}
 
-  return parts.join(" ") || "0s";
+/**
+ * Create bilingual header (English / Korean)
+ */
+function bilingualLabel(en: string, ko: string): string {
+  return `${en} / ${ko}`;
 }
 
 // ==================== SHEET GENERATION FUNCTIONS ====================
@@ -894,7 +903,7 @@ export async function generateProductionOverviewSheet(
   // ===== TITLE =====
   worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
   const titleCell = worksheet.getCell(`A${currentRow}`);
-  titleCell.value = "PRODUCTION OVERVIEW";
+  titleCell.value = bilingualLabel("PRODUCTION OVERVIEW", "생산 개요");
   titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
   titleCell.fill = {
     type: "pattern",
@@ -1227,7 +1236,10 @@ export async function generateStepEfficiencySheet(
   // ===== TITLE =====
   worksheet.mergeCells(`A${currentRow}:K${currentRow}`);
   const titleCell = worksheet.getCell(`A${currentRow}`);
-  titleCell.value = "STEP-BY-STEP EFFICIENCY ANALYSIS";
+  titleCell.value = bilingualLabel(
+    "STEP-BY-STEP EFFICIENCY ANALYSIS",
+    "단계별 효율성 분석"
+  );
   titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
   titleCell.fill = {
     type: "pattern",
@@ -1392,7 +1404,10 @@ export async function generateBottleneckAnalysisSheet(
   // ===== TITLE =====
   worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
   const titleCell = worksheet.getCell(`A${currentRow}`);
-  titleCell.value = "PRODUCTION BOTTLENECK ANALYSIS";
+  titleCell.value = bilingualLabel(
+    "PRODUCTION BOTTLENECK ANALYSIS",
+    "생산 병목 분석"
+  );
   titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
   titleCell.fill = {
     type: "pattern",
@@ -1572,7 +1587,10 @@ export async function generateProductionTrendsSheet(
   // ===== TITLE =====
   worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
   const titleCell = worksheet.getCell(`A${currentRow}`);
-  titleCell.value = "WEEK-OVER-WEEK PRODUCTION TRENDS";
+  titleCell.value = bilingualLabel(
+    "WEEK-OVER-WEEK PRODUCTION TRENDS",
+    "주간 생산 추세"
+  );
   titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
   titleCell.fill = {
     type: "pattern",
