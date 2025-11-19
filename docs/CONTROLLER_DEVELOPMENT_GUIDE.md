@@ -5,6 +5,7 @@
 This guide provides the **standardized pattern** for creating and maintaining controllers in the Smart Factory Backend API. All controllers **MUST** follow these conventions to ensure consistency, maintainability, and predictability across the entire codebase.
 
 ---
+## tesss
 
 ## 🎯 Core Principles
 
