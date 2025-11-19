@@ -126,10 +126,13 @@ export interface ProjectTaskSummary {
 
 export interface RecipeExecutionSummary {
   recipeId: string;
+  recipeSnapshotId: string;
   recipeName: string;
+  recipeVersion: number;
   projectId?: string;
   projectName?: string;
   productId?: string;
+  productSnapshotId?: string;
   productName?: string;
   targetQuantity: number;
   producedQuantity: number;
@@ -479,7 +482,9 @@ export async function aggregateByRecipe(
         _id: {
           recipeId: "$recipeId",
           projectId: "$projectId",
-          productId: "$productId"
+          productId: "$productId",
+          recipeSnapshotId: "$recipeSnapshotId",
+          productSnapshotId: "$productSnapshotId"
         },
         totalExecutions: { $max: "$totalRecipeExecutions" },
         completedExecutions: {
@@ -546,13 +551,32 @@ export async function aggregateByRecipe(
       }
     },
     {
+      $lookup: {
+        from: "productsnapshots",
+        localField: "_id.productSnapshotId",
+        foreignField: "_id",
+        as: "productSnapshot"
+      }
+    },
+    {
+      $lookup: {
+        from: "recipesnapshots",
+        localField: "_id.recipeSnapshotId",
+        foreignField: "_id",
+        as: "recipeSnapshot"
+      }
+    },
+    {
       $project: {
         recipeId: { $toString: "$_id.recipeId" },
-        recipeName: { $arrayElemAt: ["$recipe.name", 0] },
+        recipeSnapshotId: { $toString: "$_id.recipeSnapshotId" },
+        recipeName: { $arrayElemAt: ["$recipeSnapshot.name", 0] },
+        recipeVersion: { $arrayElemAt: ["$recipeSnapshot.version", 0] },
         projectId: { $toString: "$_id.projectId" },
         projectName: { $arrayElemAt: ["$project.name", 0] },
         productId: { $toString: "$_id.productId" },
-        productName: { $arrayElemAt: ["$product.name", 0] },
+        productSnapshotId: { $toString: "$_id.productSnapshotId" },
+        productName: { $arrayElemAt: ["$productSnapshot.name", 0] },
         targetQuantity: { $arrayElemAt: ["$project.targetQuantity", 0] },
         producedQuantity: { $arrayElemAt: ["$project.producedQuantity", 0] },
         totalExecutions: 1,
@@ -612,7 +636,7 @@ export async function aggregateByRecipe(
  * Get recipe step statistics for execution tracking sheet
  */
 export async function getRecipeStepStats(
-  recipeId: string,
+  recipeSnapshotId: string,
   dateRange: DateRangeFilter
 ): Promise<RecipeStepStats[]> {
   const { startDate, endDate } = dateRange;
@@ -620,7 +644,7 @@ export async function getRecipeStepStats(
   const stepStats = await Task.aggregate([
     {
       $match: {
-        recipeId: new mongoose.Types.ObjectId(recipeId),
+        recipeSnapshotId: new mongoose.Types.ObjectId(recipeSnapshotId),
         $or: [
           { createdAt: { $gte: startDate, $lte: endDate } },
           { startedAt: { $gte: startDate, $lte: endDate } },
@@ -632,7 +656,8 @@ export async function getRecipeStepStats(
       $group: {
         _id: {
           stepOrder: "$stepOrder",
-          deviceTypeId: "$deviceTypeId"
+          deviceTypeId: "$deviceTypeId",
+          recipeSnapshotId: "$recipeSnapshotId"
         },
         executionCount: { $sum: 1 },
         avgEstimatedDuration: { $avg: "$estimatedDuration" },
@@ -658,8 +683,24 @@ export async function getRecipeStepStats(
       }
     },
     {
+      $lookup: {
+        from: "recipesnapshots",
+        localField: "_id.recipeSnapshotId",
+        foreignField: "_id",
+        as: "recipeSnapshot"
+      }
+    },
+    {
       $project: {
         stepOrder: "$_id.stepOrder",
+        stepName: {
+          $arrayElemAt: [
+            {
+              $arrayElemAt: ["$recipeSnapshot.steps.name", 0]
+            },
+            0
+          ]
+        },
         deviceTypeId: { $toString: "$_id.deviceTypeId" },
         deviceTypeName: { $arrayElemAt: ["$deviceType.name", 0] },
         avgEstimatedDuration: 1,
@@ -716,7 +757,7 @@ export async function getRecipeStepStats(
 
   // Get step names from recipe snapshot
   const tasks = await Task.find({
-    recipeId: new mongoose.Types.ObjectId(recipeId)
+    recipeSnapshotId: new mongoose.Types.ObjectId(recipeSnapshotId)
   })
     .populate("recipeSnapshotId")
     .limit(1)
@@ -1997,7 +2038,10 @@ export async function generateRecipeExecutionSheet(
       stepHeaders.length
     );
     currentRow++; // Fetch step statistics for this recipe
-    const stepStats = await getRecipeStepStats(recipe.recipeId, dateRange);
+    const stepStats = await getRecipeStepStats(
+      recipe.recipeSnapshotId,
+      dateRange
+    );
 
     if (stepStats.length > 0) {
       stepStats.forEach((step, idx) => {
