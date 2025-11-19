@@ -1,20 +1,44 @@
 import { Request, Response } from "express";
 import { Report } from "../models/Report";
 import { APIResponse, AuthenticatedRequest } from "../types";
+import * as ReportGenerationService from "../services/reportGenerationService";
 
 export const generateReport = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
+    if (!req.body) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Request body is required"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     const { title, type, format, parameters } = req.body;
-    const userId = req.user?._id;
+
+    const userId = req.user?._id || null;
 
     if (!title || !type || !format) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
         message: "Title, type, and format are required"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Validate date range
+    const { startDate, endDate } = parameters || {};
+    if (!startDate || !endDate) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Start date and end date are required in parameters"
       };
       res.status(400).json(response);
       return;
@@ -37,16 +61,66 @@ export const generateReport = async (
     await report.save();
     await report.populate("generatedBy", "name username");
 
-    // In production, trigger async report generation here
-    // For now, we'll just return the report ID
+    // Trigger async report generation
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const reportIdStr = String(report._id);
+
+    let result;
+    switch (type) {
+      case "TASK_COMPLETION":
+        result = await ReportGenerationService.generateTaskReport(
+          start,
+          end,
+          userId ? userId.toString() : "",
+          reportIdStr
+        );
+        break;
+      case "WORKER_PERFORMANCE":
+        result = await ReportGenerationService.generateWorkerPerformanceReport(
+          start,
+          end,
+          userId ? userId.toString() : "",
+          reportIdStr
+        );
+        break;
+      case "PRODUCTION_RATE":
+        result = await ReportGenerationService.generateProductionRateReport(
+          start,
+          end,
+          userId ? userId.toString() : "",
+          reportIdStr
+        );
+        break;
+      default:
+        const response: APIResponse = {
+          success: false,
+          error: "VALIDATION_ERROR",
+          message: "Invalid report type"
+        };
+        res.status(400).json(response);
+        return;
+    }
+
+    if (!result.success) {
+      const response: APIResponse = {
+        success: false,
+        error: "GENERATION_FAILED",
+        message: result.error || "Report generation failed"
+      };
+      res.status(500).json(response);
+      return;
+    }
 
     const response: APIResponse = {
       success: true,
-      message: "Report generation started",
+      message: "Report generated successfully",
       data: {
         reportId: report._id,
-        status: report.status,
-        downloadUrl: `/api/reports/download/${report._id}`
+        status: "COMPLETED",
+        downloadUrl: `/api/reports/download/${report._id}`,
+        fileName: result.fileName,
+        metadata: result.metadata
       }
     };
 
@@ -155,22 +229,29 @@ export const downloadReport = async (
     report.downloadCount = (report.downloadCount || 0) + 1;
     await report.save();
 
-    // In production, stream the actual file
-    // For now, return file information
-    const response: APIResponse = {
-      success: true,
-      message: "Report ready for download",
-      data: {
-        reportId: report._id,
-        title: report.title,
-        format: report.format,
-        filePath: report.filePath,
-        fileSize: report.fileSize,
-        downloadCount: report.downloadCount
-      }
-    };
+    // Stream the actual file
+    const fs = require("fs");
+    const path = require("path");
 
-    res.json(response);
+    if (!fs.existsSync(report.filePath)) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Report file not found on disk"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    const fileName = path.basename(report.filePath);
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    const fileStream = fs.createReadStream(report.filePath);
+    fileStream.pipe(res);
   } catch (error) {
     console.error("Download report error:", error);
     const response: APIResponse = {

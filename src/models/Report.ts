@@ -2,13 +2,13 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export interface IReport extends Document {
   title: string;
-  type: "PRODUCTION" | "QUALITY" | "MAINTENANCE" | "EFFICIENCY";
+  type: "TASK_COMPLETION" | "QUALITY" | "MAINTENANCE" | "EFFICIENCY";
   format: "PDF" | "EXCEL" | "CSV" | "JSON";
   parameters: Record<string, any>;
   filePath?: string;
   fileSize?: number;
   status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
-  generatedBy: mongoose.Types.ObjectId;
+  generatedBy?: mongoose.Types.ObjectId;
   generatedAt?: Date;
   expiresAt?: Date;
   downloadCount: number;
@@ -27,7 +27,12 @@ const ReportSchema: Schema = new Schema(
     type: {
       type: String,
       required: true,
-      enum: ["PRODUCTION", "QUALITY", "MAINTENANCE", "EFFICIENCY"]
+      enum: [
+        "TASK_COMPLETION",
+        "WORKER_PERFORMANCE",
+        "PRODUCTION_RATE",
+        "EFFICIENCY"
+      ]
     },
     format: {
       type: String,
@@ -56,8 +61,7 @@ const ReportSchema: Schema = new Schema(
     },
     generatedBy: {
       type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true
+      ref: "User"
     },
     generatedAt: {
       type: Date
