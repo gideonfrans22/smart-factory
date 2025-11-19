@@ -1912,3 +1912,102 @@ export const getStandaloneTasks = async (
     res.status(500).json(response);
   }
 };
+
+export const getWorkerTasks = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { workerId } = req.params;
+
+    if (!workerId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "workerId parameter is required"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    const { status, start, end, page = 1, limit = 10 } = req.query;
+
+    // Build query for tasks assigned to the worker
+    const query: any = {
+      workerId
+    };
+
+    if (status) query.status = status;
+
+    if (start || end) {
+      query.createdAt = {};
+      if (start) query.createdAt.$gte = new Date(start as string);
+      if (end) query.createdAt.$lte = new Date(end as string);
+    }
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await Task.countDocuments(query);
+
+    const tasks = await Task.find(query)
+      .populate("projectId", "name status priority")
+      .populate("recipeId", "name recipeNumber version")
+      .populate("deviceId", "name deviceName")
+      .populate("recipeSnapshotId", "name version steps")
+      .populate(
+        "productSnapshotId",
+        "name productNumber customerName personInCharge version"
+      )
+      .skip(skip)
+      .limit(limitNum)
+      .sort({ createdAt: -1 });
+
+    const [PENDING, ONGOING, PAUSED, COMPLETED, FAILED] = await Promise.all([
+      Task.countDocuments({ ...query, status: "PENDING" }),
+      Task.countDocuments({ ...query, status: "ONGOING" }),
+      Task.countDocuments({ ...query, status: "PAUSED" }),
+      Task.countDocuments({ ...query, status: "COMPLETED" }),
+      Task.countDocuments({ ...query, status: "FAILED" })
+    ]);
+    const statistics = {
+      totalTasks: total,
+      byStatus: {
+        PENDING,
+        ONGOING,
+        PAUSED,
+        COMPLETED,
+        FAILED
+      }
+    };
+
+    const response: APIResponse = {
+      success: true,
+      message: "Worker tasks retrieved successfully",
+      data: {
+        items: tasks,
+        statistics,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+          hasNext: pageNum * limitNum < total,
+          hasPrev: pageNum > 1
+        }
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get worker tasks error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};

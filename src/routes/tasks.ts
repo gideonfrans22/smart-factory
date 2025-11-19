@@ -13,7 +13,8 @@ import {
   completeTask,
   getStandaloneTasks,
   getTaskStatistics,
-  getGroupedTasks
+  getGroupedTasks,
+  getWorkerTasks
 } from "../controllers/taskController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -215,5 +216,12 @@ router.patch("/:id", authenticateToken, updateTask);
  * @access Admin only
  */
 router.delete("/:id", authenticateToken, requireAdmin, deleteTask);
+
+/**
+ * @route GET /api/tasks/worker/:workerId
+ * @desc Get tasks assigned to a specific worker
+ * @access All users
+ */
+router.get("/worker/:workerId", getWorkerTasks);
 
 export default router;
