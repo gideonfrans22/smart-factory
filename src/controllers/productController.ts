@@ -10,12 +10,24 @@ export const getProducts = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { page = 1, limit = 10, customerName, personInCharge } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      customerName,
+      personInCharge
+    } = req.query;
 
     const query: any = {};
     if (customerName)
       query.customerName = { $regex: customerName, $options: "i" };
     if (personInCharge) query.personInCharge = personInCharge;
+    if (search) {
+      query.$or = [
+        { designNumber: { $regex: search, $options: "i" } },
+        { productName: { $regex: search, $options: "i" } }
+      ];
+    }
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
