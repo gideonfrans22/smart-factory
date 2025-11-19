@@ -348,6 +348,7 @@ export function createApprovalForm(
   const roles = ["Supervisor", "Manager", "Director"];
   const formWidth = 3; // 3 columns per role
   const formHeight = 5; // 5 rows total
+  console.log(formHeight);
 
   // Title row
   worksheet.mergeCells(
@@ -459,6 +460,8 @@ export function addPieChart(
   position: { row: number; col: number },
   size: { width: number; height: number } = { width: 500, height: 300 }
 ): void {
+  console.log(dataRange, labelsRange, size);
+
   // Note: ExcelJS has limited chart support, this is a placeholder
   // In production, you might need to use more advanced libraries or templates
   const chartNote = worksheet.getCell(position.row, position.col);
@@ -477,6 +480,8 @@ export function addLineChart(
   position: { row: number; col: number },
   size: { width: number; height: number } = { width: 600, height: 300 }
 ): void {
+  console.log(dataRange, size);
+
   const chartNote = worksheet.getCell(position.row, position.col);
   chartNote.value = `[Chart: ${title} - Line Chart]`;
   chartNote.font = { italic: true, color: { argb: COLORS.INFO } };
@@ -493,6 +498,7 @@ export function addBarChart(
   position: { row: number; col: number },
   size: { width: number; height: number } = { width: 600, height: 400 }
 ): void {
+  console.log(dataRange, size);
   const chartNote = worksheet.getCell(position.row, position.col);
   chartNote.value = `[Chart: ${title} - Bar Chart]`;
   chartNote.font = { italic: true, color: { argb: COLORS.INFO } };
@@ -509,6 +515,7 @@ export function addColumnChart(
   position: { row: number; col: number },
   size: { width: number; height: number } = { width: 600, height: 350 }
 ): void {
+  console.log(dataRange, size);
   const chartNote = worksheet.getCell(position.row, position.col);
   chartNote.value = `[Chart: ${title} - Column Chart]`;
   chartNote.font = { italic: true, color: { argb: COLORS.INFO } };
@@ -525,6 +532,7 @@ export function addScatterPlot(
   position: { row: number; col: number },
   size: { width: number; height: number } = { width: 500, height: 400 }
 ): void {
+  console.log(dataRange, size);
   const chartNote = worksheet.getCell(position.row, position.col);
   chartNote.value = `[Chart: ${title} - Scatter Plot]`;
   chartNote.font = { italic: true, color: { argb: COLORS.INFO } };
@@ -635,6 +643,7 @@ export function createSummaryBox(
   title: string,
   data: { label: string; value: string | number }[]
 ): void {
+  console.log(height);
   let currentRow = startRow;
 
   // Title
