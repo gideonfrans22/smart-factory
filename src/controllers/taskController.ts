@@ -26,10 +26,6 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
 
     const query: any = {};
 
-    // Exclude tasks assigned to devices or workers (only get unassigned tasks)
-    query.deviceId = null;
-    query.workerId = null;
-
     // ⭐ Special query for partial completions
     if (includePendingAndPartial === "true") {
       // Return PENDING, ONGOING, PAUSED tasks + COMPLETED tasks with progress < 100
@@ -49,6 +45,15 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     if (recipeId) query.recipeId = recipeId;
     if (productId) query.productId = productId;
     if (workerId) query.workerId = workerId;
+
+    if (query.workerId && !query.deviceId) {
+      // Exclude tasks assigned to devices or workers (only get unassigned tasks)
+      query.deviceId = null;
+    }
+    if (query.deviceId && !query.workerId) {
+      // Exclude tasks assigned to devices or workers (only get unassigned tasks)
+      query.workerId = null;
+    }
 
     // Text search support for recipe/product names
     let recipeIds: any[] = [];
@@ -1940,9 +1945,23 @@ export const getWorkerTasks = async (
     if (status) query.status = status;
 
     if (start || end) {
-      query.createdAt = {};
-      if (start) query.createdAt.$gte = new Date(start as string);
-      if (end) query.createdAt.$lte = new Date(end as string);
+      query.$and = [];
+      if (start) {
+        query.$and.push({
+          $or: [
+            { createdAt: { $gte: new Date(start as string) } },
+            { completedAt: { $gte: new Date(start as string) } }
+          ]
+        });
+      }
+      if (end) {
+        query.$and.push({
+          $or: [
+            { createdAt: { $lte: new Date(end as string) } },
+            { completedAt: { $lte: new Date(end as string) } }
+          ]
+        });
+      }
     }
 
     const pageNum = parseInt(page as string);
@@ -1963,7 +1982,7 @@ export const getWorkerTasks = async (
       )
       .skip(skip)
       .limit(limitNum)
-      .sort({ createdAt: -1 });
+      .sort({ completedAt: -1, createdAt: -1 });
 
     const [PENDING, ONGOING, PAUSED, COMPLETED, FAILED] = await Promise.all([
       Task.countDocuments({ ...query, status: "PENDING" }),
