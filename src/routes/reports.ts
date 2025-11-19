@@ -3,7 +3,8 @@ import {
   generateReport,
   getReports,
   downloadReport,
-  deleteReport
+  deleteReport,
+  getReportById
 } from "../controllers/reportController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -22,6 +23,13 @@ router.post("/generate", authenticateToken, generateReport);
  * @access Authenticated users
  */
 router.get("/", authenticateToken, getReports);
+
+/**
+ * @route GET /api/reports/:id
+ * @desc Get report by ID
+ * @access Authenticated users
+ */
+router.get("/:id", authenticateToken, getReportById);
 
 /**
  * @route GET /api/reports/download/:id

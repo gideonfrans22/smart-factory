@@ -189,6 +189,39 @@ export const getReports = async (
   }
 };
 
+export const getReportById = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const report = await Report.findById(id);
+    if (!report) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Report not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+    const response: APIResponse = {
+      success: true,
+      message: "Report retrieved successfully",
+      data: report
+    };
+    res.json(response);
+  } catch (error) {
+    console.error("Get report by ID error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
 export const downloadReport = async (
   req: Request,
   res: Response
@@ -247,10 +280,7 @@ export const downloadReport = async (
     }
 
     const fileName = path.basename(report.filePath);
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
+    res.setHeader("Content-Type", "application/octet-stream");
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
 
     const fileStream = fs.createReadStream(report.filePath);
