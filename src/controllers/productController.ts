@@ -25,7 +25,8 @@ export const getProducts = async (
     if (search) {
       query.$or = [
         { designNumber: { $regex: search, $options: "i" } },
-        { productName: { $regex: search, $options: "i" } }
+        { productName: { $regex: search, $options: "i" } },
+        { customerName: { $regex: search, $options: "i" } }
       ];
     }
 
