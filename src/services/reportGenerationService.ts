@@ -170,43 +170,34 @@ export async function generateWorkerPerformanceReport(
 
     // Generate each sheet
     const sheetsGenerated: string[] = [];
-    let totalRecords = 0;
+    const dateRange = { startDate, endDate };
 
     // Sheet 1: Performance Rankings
-    console.log("[WorkerReport] Generating Performance Rankings sheet...");
-    workbook.addWorksheet("Performance Rankings");
-    const workerPerformance =
-      await WorkerReportService.getWorkerPerformanceData({
-        startDate,
-        endDate
-      });
-    totalRecords += workerPerformance.length;
-    // TODO: Implement generateWorkerRankingsSheet()
+    await WorkerReportService.generateWorkerRankingsSheet(workbook, dateRange);
     sheetsGenerated.push("Performance Rankings");
 
     // Sheet 2: Individual Worker Details
-    console.log("[WorkerReport] Generating Individual Worker Details sheet...");
-    workbook.addWorksheet("Individual Worker Details");
-    // TODO: Implement generateWorkerDetailsSheet()
-    sheetsGenerated.push("Individual Worker Details");
+    await WorkerReportService.generateWorkerDetailsSheet(workbook, dateRange);
+    sheetsGenerated.push("Worker Details");
 
     // Sheet 3: Device Type Proficiency
-    console.log("[WorkerReport] Generating Device Type Proficiency sheet...");
-    workbook.addWorksheet("Device Type Proficiency");
-    // TODO: Implement generateDeviceProficiencySheet()
-    sheetsGenerated.push("Device Type Proficiency");
+    await WorkerReportService.generateDeviceProficiencySheet(
+      workbook,
+      dateRange
+    );
+    sheetsGenerated.push("Device Proficiency");
 
     // Sheet 4: Time Tracking & Quality
-    console.log("[WorkerReport] Generating Time Tracking & Quality sheet...");
-    workbook.addWorksheet("Time Tracking & Quality");
-    // TODO: Implement generateTimeTrackingSheet()
+    await WorkerReportService.generateTimeTrackingSheet(workbook, dateRange);
     sheetsGenerated.push("Time Tracking & Quality");
 
     // Sheet 5: Raw Worker Data
-    console.log("[WorkerReport] Generating Raw Worker Data sheet...");
-    workbook.addWorksheet("Raw Worker Data");
-    // TODO: Implement generateRawWorkerDataSheet()
+    await WorkerReportService.generateRawWorkerDataSheet(workbook, dateRange);
     sheetsGenerated.push("Raw Worker Data");
+
+    // Get total record count from raw data sheet
+    const rawDataSheet = workbook.getWorksheet("Raw Worker Data");
+    const totalRecords = rawDataSheet ? rawDataSheet.rowCount - 3 : 0;
 
     // Save workbook to file
     const fileName = generateReportFileName(
@@ -291,45 +282,46 @@ export async function generateProductionRateReport(
 
     // Generate each sheet
     const sheetsGenerated: string[] = [];
-    let totalRecords = 0;
+    const dateRange = { startDate, endDate };
 
     // Sheet 1: Production Overview
-    console.log("[ProductionReport] Generating Production Overview sheet...");
-    workbook.addWorksheet("Production Overview");
-    const productionData =
-      await ProductionReportService.aggregateProductionByRecipe({
-        startDate,
-        endDate
-      });
-    totalRecords += productionData.length;
-    // TODO: Implement generateProductionOverviewSheet()
+    await ProductionReportService.generateProductionOverviewSheet(
+      workbook,
+      dateRange
+    );
     sheetsGenerated.push("Production Overview");
 
     // Sheet 2: Step-by-Step Efficiency
-    console.log(
-      "[ProductionReport] Generating Step-by-Step Efficiency sheet..."
+    await ProductionReportService.generateStepEfficiencySheet(
+      workbook,
+      dateRange
     );
-    workbook.addWorksheet("Step-by-Step Efficiency");
-    // TODO: Implement generateStepEfficiencySheet()
-    sheetsGenerated.push("Step-by-Step Efficiency");
+    sheetsGenerated.push("Step Efficiency");
 
     // Sheet 3: Bottleneck Analysis
-    console.log("[ProductionReport] Generating Bottleneck Analysis sheet...");
-    workbook.addWorksheet("Bottleneck Analysis");
-    // TODO: Implement generateBottleneckAnalysisSheet()
+    await ProductionReportService.generateBottleneckAnalysisSheet(
+      workbook,
+      dateRange
+    );
     sheetsGenerated.push("Bottleneck Analysis");
 
     // Sheet 4: Week-over-Week Trends
-    console.log("[ProductionReport] Generating Week-over-Week Trends sheet...");
-    workbook.addWorksheet("Week-over-Week Trends");
-    // TODO: Implement generateWeekTrendsSheet()
-    sheetsGenerated.push("Week-over-Week Trends");
+    await ProductionReportService.generateProductionTrendsSheet(
+      workbook,
+      dateRange
+    );
+    sheetsGenerated.push("Production Trends");
 
     // Sheet 5: Raw Production Data
-    console.log("[ProductionReport] Generating Raw Production Data sheet...");
-    workbook.addWorksheet("Raw Production Data");
-    // TODO: Implement generateRawProductionDataSheet()
+    await ProductionReportService.generateRawProductionDataSheet(
+      workbook,
+      dateRange
+    );
     sheetsGenerated.push("Raw Production Data");
+
+    // Get total record count from raw data sheet
+    const rawDataSheet = workbook.getWorksheet("Raw Production Data");
+    const totalRecords = rawDataSheet ? rawDataSheet.rowCount - 3 : 0;
 
     // Save workbook to file
     const fileName = generateReportFileName(
