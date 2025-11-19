@@ -1967,7 +1967,8 @@ export const getDeviceTasks = async (
       query.$and.push({
         $or: [
           { createdAt: { $gte: new Date(start as string) } },
-          { completedAt: { $gte: new Date(start as string) } }
+          { completedAt: { $gte: new Date(start as string) } },
+          { completedAt: null }
         ]
       });
     }
@@ -1975,7 +1976,8 @@ export const getDeviceTasks = async (
       query.$and.push({
         $or: [
           { createdAt: { $lte: new Date(end as string) } },
-          { completedAt: { $lte: new Date(end as string) } }
+          { completedAt: { $lte: new Date(end as string) } },
+          { completedAt: null }
         ]
       });
     }
