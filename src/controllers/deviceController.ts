@@ -387,10 +387,6 @@ export const getDeviceStatistics = async (
         return {
           deviceId: device._id,
           deviceName: device.name,
-          deviceType: device.deviceTypeId ? {
-            _id: (device.deviceTypeId as any)._id,
-            name: (device.deviceTypeId as any).name
-          } : undefined,
           status: device.status,
           utilization: Math.round(utilization),
           workload,
