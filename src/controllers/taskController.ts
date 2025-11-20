@@ -104,7 +104,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
 
     const total = await Task.countDocuments(query);
     const tasks = await Task.find(query)
-      .populate("projectId", "name status priority")
+      .populate("projectId", "name status priority deadline")
       .populate("workerId", "name username")
       .populate("deviceId", "name deviceName")
       .populate({
@@ -1988,7 +1988,7 @@ export const getDeviceTasks = async (
     const total = await Task.countDocuments(query);
 
     const tasks = await Task.find(query)
-      .populate("projectId", "name status priority")
+      .populate("projectId", "name status priority deadline")
       .populate("recipeId", "name recipeNumber version")
       .populate("workerId", "name username email")
       .populate("recipeSnapshotId", "name version steps")
@@ -2088,7 +2088,7 @@ export const getWorkerTasks = async (
     const total = await Task.countDocuments(query);
 
     const tasks = await Task.find(query)
-      .populate("projectId", "name status priority")
+      .populate("projectId", "name status priority deadline")
       .populate("recipeId", "name recipeNumber version")
       .populate("deviceId", "name deviceName")
       .populate("recipeSnapshotId", "name version steps")
