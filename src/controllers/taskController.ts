@@ -1996,6 +1996,8 @@ export const getDeviceTasks = async (
         "productSnapshotId",
         "name productNumber customerName personInCharge version"
       )
+      .populate("mediaFiles")
+      .populate("productSnapshotId")
       .skip(skip)
       .limit(limitNum)
       .sort({ completedAt: -1, createdAt: -1 });

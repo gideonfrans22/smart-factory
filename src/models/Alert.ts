@@ -8,6 +8,9 @@ export interface IAlert extends Document {
   source?: string;
   relatedEntityType?: string;
   relatedEntityId?: string;
+  device?: mongoose.Types.ObjectId; // Reference to Device
+  task?: mongoose.Types.ObjectId; // Reference to Task
+  project?: mongoose.Types.ObjectId; // Reference to Project
   status: "UNREAD" | "READ" | "ACKNOWLEDGED" | "RESOLVED" | "PENDING";
   acknowledgedBy?: mongoose.Types.ObjectId;
   acknowledgedAt?: Date;
@@ -54,6 +57,18 @@ const AlertSchema: Schema = new Schema(
       type: String,
       trim: true,
       maxlength: 255
+    },
+    device: {
+      type: Schema.Types.ObjectId,
+      ref: "Device"
+    },
+    task: {
+      type: Schema.Types.ObjectId,
+      ref: "Task"
+    },
+    project: {
+      type: Schema.Types.ObjectId,
+      ref: "Project"
     },
     status: {
       type: String,
