@@ -65,7 +65,7 @@ export class SnapshotService {
           rawMaterialId: material._id,
           rawMaterialNumber: material.materialCode || "",
           name: material.name,
-          unit: material.unit,
+          unit: material.unit || "EA",
           description: material.description,
           quantityRequired: rm.quantityRequired,
           specification: rm.specification

@@ -91,7 +91,7 @@ const RawMaterialSnapshotReferenceSchema =
     },
     rawMaterialNumber: { type: String },
     name: { type: String, required: true },
-    unit: { type: String, required: true },
+    unit: { type: String, required: false, default: "EA" },
     description: { type: String },
     quantityRequired: { type: Number, required: true, min: 0 },
     specification: { type: Schema.Types.Mixed }
