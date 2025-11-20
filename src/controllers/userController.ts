@@ -428,7 +428,9 @@ export const getWorkerStatistics = async (
         const allTasks = await Task.find({
           workerId: worker._id,
           createdAt: { $gte: startDate, $lte: now }
-        });
+        })
+          .populate("recipeSnapshotId", "name")
+          .populate("productSnapshotId", "customerName");
 
         const assignedTasks = allTasks.length;
         const completedTasks = allTasks.filter(
@@ -522,7 +524,24 @@ export const getWorkerStatistics = async (
                 taskName: currentTask.title,
                 device: currentTask.deviceId ? currentTask.deviceId.toString() : "N/A",
                 progress: currentTask.progress,
-                startTime: currentTask.startedAt
+                startTime: currentTask.startedAt,
+                // Add recipe/part name from snapshot
+                partName: (currentTask as any).recipeSnapshotId?.name || undefined,
+                // Add customer name from product snapshot
+                customerName: (currentTask as any).productSnapshotId?.customerName || undefined,
+                // Include full snapshot references
+                recipeSnapshotId: (currentTask as any).recipeSnapshotId
+                  ? {
+                      _id: (currentTask as any).recipeSnapshotId._id.toString(),
+                      name: (currentTask as any).recipeSnapshotId.name
+                    }
+                  : undefined,
+                productSnapshotId: (currentTask as any).productSnapshotId
+                  ? {
+                      _id: (currentTask as any).productSnapshotId._id.toString(),
+                      customerName: (currentTask as any).productSnapshotId.customerName
+                    }
+                  : undefined
               }
             : null,
           productivity: Math.round(productivity),
