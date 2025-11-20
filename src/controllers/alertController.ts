@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { Alert } from "../models/Alert";
-import { APIResponse, AuthenticatedRequest } from "../types";
 import mongoose from "mongoose";
+import { Alert } from "../models/Alert";
 import { realtimeService } from "../services/realtimeService";
+import { APIResponse, AuthenticatedRequest } from "../types";
 
 export const getAlerts = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -31,10 +31,11 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
     const sortObject: any = { [sortField]: sortDirection };
 
     const total = await Alert.countDocuments(query);
-    const alerts = await Alert.find(query)
-      .populate("deviceId", "name deviceType")
-      .populate("createdBy", "name email")
+    let alerts: any = await Alert.find(query)
       .populate("acknowledgedBy", "name username email")
+      .populate("device")
+      .populate("task")
+      .populate("project")
       .skip(skip)
       .limit(limitNum)
       .sort(sortObject);
@@ -74,10 +75,11 @@ export const getAlertById = async (
   try {
     const { id } = req.params;
 
-    const alert = await Alert.findById(id).populate(
-      "acknowledgedBy",
-      "name username"
-    );
+    const alert = await Alert.findById(id)
+      .populate("acknowledgedBy", "name username")
+      .populate("device")
+      .populate("task")
+      .populate("project");
 
     if (!alert) {
       const response: APIResponse = {
@@ -120,6 +122,9 @@ export const createAlert = async (
       source,
       relatedEntityType,
       relatedEntityId,
+      deviceId,
+      taskId,
+      projectId,
       metadata
     } = req.body;
 
@@ -141,6 +146,9 @@ export const createAlert = async (
       source,
       relatedEntityType,
       relatedEntityId,
+      device: deviceId,
+      task: taskId,
+      project: projectId,
       metadata,
       status: "UNREAD"
     });
