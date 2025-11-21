@@ -169,7 +169,7 @@ ProjectSchema.index(
   { projectNumber: 1 },
   {
     unique: true,
-    partialFilterExpression: { projectNumber: { $exists: true, $ne: null } }
+    partialFilterExpression: { projectNumber: { $exists: true } } // Removed $ne: null
   }
 );
 ProjectSchema.index({ status: 1 });
