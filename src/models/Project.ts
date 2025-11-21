@@ -192,7 +192,7 @@ ProjectSchema.pre("save", async function (next) {
 
     while (retries < maxRetries) {
       try {
-        doc.projectNumber = await generateProjectNumber(doc.createdAt);
+        doc.projectNumber = await generateProjectNumber();
         break; // Success, exit loop
       } catch (error: any) {
         retries++;
