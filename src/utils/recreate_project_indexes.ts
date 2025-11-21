@@ -18,8 +18,21 @@ const recreateIndexes = async () => {
     await mongoose.connect(dbUri);
     console.log("Connected to MongoDB.");
 
-    // Drop existing indexes
-    console.log("Dropping existing indexes for the Project model...");
+    // Drop specific conflicting index if it exists
+    console.log("Dropping conflicting index 'projectNumber_1' if it exists...");
+    try {
+      await Project.collection.dropIndex("projectNumber_1");
+      console.log("Conflicting index 'projectNumber_1' dropped.");
+    } catch (error: any) {
+      if (error.codeName === "IndexNotFound") {
+        console.log("Index 'projectNumber_1' does not exist, skipping drop.");
+      } else {
+        throw error;
+      }
+    }
+
+    // Drop all other existing indexes
+    console.log("Dropping all existing indexes for the Project model...");
     await Project.collection.dropIndexes();
     console.log("Existing indexes dropped.");
 
