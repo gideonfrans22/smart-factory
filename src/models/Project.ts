@@ -205,6 +205,14 @@ ProjectSchema.pre("save", async function (next) {
 
   next();
 });
+// Pre-get hook to exclude soft-deleted projects
+ProjectSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
+  const options = this.getOptions();
+  if (!(options as any).includeDeleted) {
+    this.where({ deletedAt: null });
+  }
+  next();
+});
 
 // Pre-delete hook to soft delete project
 ProjectSchema.pre("findOneAndDelete", async function (next) {

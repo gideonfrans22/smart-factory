@@ -661,7 +661,9 @@ export const deleteProject = async (
     const deletedTaskCount = await deleteProjectTasks(project._id as any);
 
     // Delete project
-    await Project.findByIdAndDelete(id);
+    await Project.findOneAndDelete({
+      _id: id
+    });
 
     const response: APIResponse = {
       success: true,
