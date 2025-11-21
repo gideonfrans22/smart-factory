@@ -38,12 +38,15 @@ export const generateProjectNumber = async (
   endOfDay.setHours(23, 59, 59, 999);
 
   // Count projects created on the same day
-  const count = await Project.countDocuments({
+  const latestProjectToday = await Project.findOne({
     createdAt: {
       $gte: startOfDay,
       $lte: endOfDay
     }
-  });
+  }).sort({ projectNumber: -1 });
+  const count = latestProjectToday
+    ? parseInt(latestProjectToday.projectNumber.split("-")[4] || "0", 10)
+    : 0;
 
   // Generate sequential number (count + 1, padded to 3 digits)
   const sequentialNumber = String(count + 1).padStart(3, "0");
