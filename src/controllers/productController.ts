@@ -335,7 +335,9 @@ export const deleteProduct = async (
       return;
     }
 
-    await Product.findByIdAndDelete(id);
+    await Product.findOneAndDelete({
+      _id: id
+    });
 
     const response: APIResponse = {
       success: true,
