@@ -179,8 +179,12 @@ ProjectSchema.index({ recipeSnapshot: 1 });
 ProjectSchema.pre("save", async function (next) {
   const doc = this as unknown as IProject;
 
-  // Only generate project number for new documents
-  if (this.isNew && !doc.projectNumber) {
+  // Only generate project number when changing the status to ACTIVE
+  if (
+    !doc.projectNumber &&
+    doc.isModified("status") &&
+    doc.status === "ACTIVE"
+  ) {
     let retries = 0;
     const maxRetries = 3;
 
