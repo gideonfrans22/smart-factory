@@ -165,7 +165,13 @@ ProjectSchema.path("recipeSnapshot").validate(function (value: any) {
 }, "Project must have exactly one product or one recipe (not both, not neither)");
 
 // Indexes
-ProjectSchema.index({ projectNumber: 1 }, { unique: true });
+ProjectSchema.index(
+  { projectNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { projectNumber: { $exists: true, $ne: null } }
+  }
+);
 ProjectSchema.index({ status: 1 });
 ProjectSchema.index({ priority: 1 });
 ProjectSchema.index({ startDate: 1, endDate: 1 });
