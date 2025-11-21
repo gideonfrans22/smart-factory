@@ -30,6 +30,7 @@ export interface IProject extends Document {
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date;
 }
 
 const ProjectSchema: Schema = new Schema(
@@ -108,6 +109,11 @@ const ProjectSchema: Schema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+      comment: "Soft delete timestamp"
     }
   },
   {
@@ -120,6 +126,11 @@ const ProjectSchema: Schema = new Schema(
 // translate _id to id
 ProjectSchema.virtual("id").get(function (this: IProject) {
   return this._id;
+});
+
+// Virtual: isDeleted
+ProjectSchema.virtual("isDeleted").get(function (this: IProject) {
+  return !!this.deletedAt;
 });
 
 // Custom validation: Exactly ONE of productSnapshot or recipeSnapshot must be set
@@ -193,6 +204,20 @@ ProjectSchema.pre("save", async function (next) {
   }
 
   next();
+});
+
+// Pre-delete hook to soft delete project
+ProjectSchema.pre("findOneAndDelete", async function (next) {
+  try {
+    const docToDelete = await this.model.findOne(this.getFilter());
+    if (docToDelete) {
+      docToDelete.deletedAt = new Date();
+      await docToDelete.save();
+    }
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
 });
 
 export const Project = mongoose.model<IProject>("Project", ProjectSchema);
