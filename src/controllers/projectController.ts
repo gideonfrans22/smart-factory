@@ -45,7 +45,7 @@ export const getProjects = async (
       .populate("recipeSnapshot", "name version originalRecipeId")
       .skip(skip)
       .limit(limitNum)
-      .sort({ createdAt: -1 });
+      .sort({ startDate: -1, createdAt: -1 });
 
     const response: APIResponse = {
       success: true,
