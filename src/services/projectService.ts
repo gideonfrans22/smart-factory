@@ -1,4 +1,5 @@
 import { Project } from "../models/Project";
+import { DateTime } from "../utils/datetime";
 
 /**
  * Generate project name with quantity suffix
@@ -23,7 +24,7 @@ export const generateProjectName = (
  * @returns Formatted project number
  */
 export const generateProjectNumber = async (
-  createdAt: Date = new Date()
+  createdAt: Date = DateTime
 ): Promise<string> => {
   const year = createdAt.getFullYear();
   const month = String(createdAt.getMonth() + 1).padStart(2, "0");
