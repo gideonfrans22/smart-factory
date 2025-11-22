@@ -19,13 +19,13 @@ const recreateIndexes = async () => {
     console.log("Connected to MongoDB.");
 
     // Drop specific conflicting index if it exists
-    console.log("Dropping conflicting index 'projectNumber_1' if it exists...");
+    console.log("Dropping old index 'projectNumber_1' if it exists...");
     try {
       await Project.collection.dropIndex("projectNumber_1");
-      console.log("Conflicting index 'projectNumber_1' dropped.");
+      console.log("Old index 'projectNumber_1' dropped.");
     } catch (error: any) {
       if (error.codeName === "IndexNotFound") {
-        console.log("Index 'projectNumber_1' does not exist, skipping drop.");
+        console.log("Old index 'projectNumber_1' does not exist, skipping.");
       } else {
         throw error;
       }
@@ -33,8 +33,16 @@ const recreateIndexes = async () => {
 
     // Drop all other existing indexes
     console.log("Dropping all existing indexes for the Project model...");
-    await Project.collection.dropIndexes();
-    console.log("Existing indexes dropped.");
+    try {
+      await Project.collection.dropIndexes();
+      console.log("Existing indexes dropped.");
+    } catch (error: any) {
+      if (error.codeName === "IndexNotFound") {
+        console.log("No indexes to drop.");
+      } else {
+        throw error;
+      }
+    }
 
     // Recreate indexes based on the schema
     console.log("Recreating indexes for the Project model...");

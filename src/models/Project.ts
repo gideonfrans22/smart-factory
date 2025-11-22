@@ -42,9 +42,7 @@ const ProjectSchema: Schema = new Schema(
       maxlength: 255
     },
     projectNumber: {
-      type: String,
-      unique: true,
-      index: true
+      type: String
     },
     description: {
       type: String,
