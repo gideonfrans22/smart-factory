@@ -40,10 +40,6 @@ export const generateProjectNumber = async (
 
   // Count projects created on the same day
   const latestProjectToday = await Project.findOne({
-    createdAt: {
-      $gte: startOfDay,
-      $lte: endOfDay
-    },
     projectNumber: { $regex: `^${datePrefix}-\\d{3}$` }
   }).sort({ projectNumber: -1 });
   const count = latestProjectToday
