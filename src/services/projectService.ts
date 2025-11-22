@@ -43,7 +43,8 @@ export const generateProjectNumber = async (
     createdAt: {
       $gte: startOfDay,
       $lte: endOfDay
-    }
+    },
+    projectNumber: { $regex: `^${datePrefix}-\\d{3}$` }
   }).sort({ projectNumber: -1 });
   const count = latestProjectToday
     ? parseInt(latestProjectToday.projectNumber.split("-")[4] || "0", 10)
