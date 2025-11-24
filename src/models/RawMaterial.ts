@@ -24,7 +24,7 @@ export interface IRawMaterial extends Document {
   materialCode: string; // Unique identifier (e.g., "MAT-001")
   name: string; // e.g., "Steel Plate"
   description?: string; // Optional description of the material
-  specifications?: ISpecifications;
+  specifications?: ISpecifications[]; // Array of specifications
   supplier?: string; // Optional supplier name
   unit?: string; // Optional unit of measure (e.g., "kg", "meters", "pieces")
   currentStock?: number; // Optional current stock quantity
@@ -89,14 +89,16 @@ const RawMaterialSchema: Schema = new Schema(
       type: String,
       trim: true
     },
-    specifications: {
-      dimensions: DimensionsSchema,
-      weight: WeightSchema,
-      color: {
-        type: String,
-        trim: true
+    specifications: [
+      {
+        dimensions: DimensionsSchema,
+        weight: WeightSchema,
+        color: {
+          type: String,
+          trim: true
+        }
       }
-    },
+    ],
     supplier: {
       type: String,
       trim: true
