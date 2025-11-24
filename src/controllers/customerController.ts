@@ -100,7 +100,7 @@ export const createCustomer = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { name, personInCharge } = req.body;
+    const { name, personInCharge, notes } = req.body;
 
     // Validate required fields
     if (!name || !personInCharge) {
@@ -127,7 +127,8 @@ export const createCustomer = async (
 
     const customer = new Customer({
       name,
-      personInCharge
+      personInCharge,
+      notes
     });
 
     await customer.save();
@@ -169,7 +170,7 @@ export const updateCustomer = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, personInCharge } = req.body;
+    const { name, personInCharge, notes } = req.body;
 
     const customer = await Customer.findById(id);
 
@@ -200,6 +201,7 @@ export const updateCustomer = async (
     // Update fields
     if (name !== undefined) customer.name = name;
     if (personInCharge !== undefined) customer.personInCharge = personInCharge;
+    if (notes !== undefined) customer.notes = notes;
 
     await customer.save();
 
