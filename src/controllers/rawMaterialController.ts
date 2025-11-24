@@ -128,15 +128,15 @@ export const createRawMaterial = async (
       return;
     }
 
-    // Check if material code already exists
+    // Check if material name already exists
     const existing = await RawMaterial.findOne({
-      materialCode: materialCode.toUpperCase()
+      name: name.toUpperCase()
     });
     if (existing) {
       const response: APIResponse = {
         success: false,
         error: "DUPLICATE_ERROR",
-        message: "Material code already exists"
+        message: "Material name already exists"
       };
       res.status(409).json(response);
       return;
@@ -144,8 +144,8 @@ export const createRawMaterial = async (
 
     // Create raw material
     const rawMaterial = new RawMaterial({
-      materialCode: materialCode.toUpperCase(),
-      name,
+      materialCode,
+      name: name.toUpperCase(),
       description,
       specifications,
       supplier,
@@ -223,13 +223,10 @@ export const updateRawMaterial = async (
       return;
     }
 
-    // Check if new material code conflicts with existing
-    if (
-      materialCode &&
-      materialCode.toUpperCase() !== rawMaterial.materialCode
-    ) {
+    // Check if new material name conflicts with existing
+    if (name && name.toUpperCase() !== rawMaterial.name) {
       const existing = await RawMaterial.findOne({
-        materialCode: materialCode.toUpperCase(),
+        name: name,
         _id: { $ne: id }
       });
       if (existing) {
@@ -241,11 +238,11 @@ export const updateRawMaterial = async (
         res.status(409).json(response);
         return;
       }
-      rawMaterial.materialCode = materialCode.toUpperCase();
+      rawMaterial.name = name.toUpperCase();
     }
 
     // Update fields
-    if (name !== undefined) rawMaterial.name = name;
+    if (materialCode !== undefined) rawMaterial.materialCode = materialCode;
     if (description !== undefined) rawMaterial.description = description;
     if (specifications !== undefined)
       rawMaterial.specifications = specifications;

@@ -76,7 +76,6 @@ const RawMaterialSchema: Schema = new Schema(
     materialCode: {
       type: String,
       required: [true, "Material code is required"],
-      unique: true,
       trim: true,
       uppercase: true
     },
@@ -129,8 +128,8 @@ RawMaterialSchema.virtual("id").get(function (this: IRawMaterial) {
 });
 
 // Indexes
-RawMaterialSchema.index({ materialCode: 1 }, { unique: true });
-RawMaterialSchema.index({ name: 1 });
+RawMaterialSchema.index({ materialCode: 1 });
+RawMaterialSchema.index({ name: 1 }, { unique: true, sparse: true });
 
 export const RawMaterial = mongoose.model<IRawMaterial>(
   "RawMaterial",
