@@ -146,35 +146,35 @@ export const createUser = async (
       return;
     }
 
-    if (role === "worker" && !username) {
-      const response: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Employee number is required for workers"
-      };
-      res.status(400).json(response);
-      return;
-    }
+    // if (role === "worker" && !username) {
+    //   const response: APIResponse = {
+    //     success: false,
+    //     error: "VALIDATION_ERROR",
+    //     message: "Employee number is required for workers"
+    //   };
+    //   res.status(400).json(response);
+    //   return;
+    // }
 
-    if (role === "admin" && !email) {
-      const response: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Email is required for admin users"
-      };
-      res.status(400).json(response);
-      return;
-    }
+    // if (role === "admin" && !email) {
+    //   const response: APIResponse = {
+    //     success: false,
+    //     error: "VALIDATION_ERROR",
+    //     message: "Email is required for admin users"
+    //   };
+    //   res.status(400).json(response);
+    //   return;
+    // }
 
-    if (email && !validateEmail(email)) {
-      const response: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Invalid email format"
-      };
-      res.status(400).json(response);
-      return;
-    }
+    // if (email && !validateEmail(email)) {
+    //   const response: APIResponse = {
+    //     success: false,
+    //     error: "VALIDATION_ERROR",
+    //     message: "Invalid email format"
+    //   };
+    //   res.status(400).json(response);
+    //   return;
+    // }
 
     // Check if user already exists
     const orConditions = [];
@@ -232,14 +232,17 @@ export const createUser = async (
     res.status(201).json(response);
   } catch (error) {
     console.error("Create user error:", error);
-    
+
     // Better error messages for debugging
     let errorMessage = "Internal server error";
     let errorCode = "INTERNAL_SERVER_ERROR";
-    
+
     if (error instanceof Error) {
       // Check for specific MongoDB/validation errors
-      if (error.message.includes("duplicate") || error.message.includes("unique")) {
+      if (
+        error.message.includes("duplicate") ||
+        error.message.includes("unique")
+      ) {
         errorMessage = "Email or username already exists";
         errorCode = "DUPLICATE_ENTRY";
       } else if (error.message.includes("validation")) {
@@ -250,7 +253,7 @@ export const createUser = async (
       }
       console.error("Error details:", error.message);
     }
-    
+
     const response: APIResponse = {
       success: false,
       error: errorCode,
@@ -270,7 +273,8 @@ export const updateUser = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, email, isActive, role, lastLoginAt, department } = req.body;
+    const { name, email, isActive, role, lastLoginAt, department, password } =
+      req.body;
 
     const user = await User.findById(id);
 
@@ -305,6 +309,9 @@ export const updateUser = async (
     }
     if (department !== undefined) {
       user.department = department ? sanitizeInput(department) : undefined;
+    }
+    if (password) {
+      user.password = await hashPassword(password);
     }
 
     await user.save();
@@ -522,13 +529,18 @@ export const getWorkerStatistics = async (
             ? {
                 taskId: currentTask._id,
                 taskName: currentTask.title,
-                device: currentTask.deviceId ? currentTask.deviceId.toString() : "N/A",
+                device: currentTask.deviceId
+                  ? currentTask.deviceId.toString()
+                  : "N/A",
                 progress: currentTask.progress,
                 startTime: currentTask.startedAt,
                 // Add recipe/part name from snapshot
-                partName: (currentTask as any).recipeSnapshotId?.name || undefined,
+                partName:
+                  (currentTask as any).recipeSnapshotId?.name || undefined,
                 // Add customer name from product snapshot
-                customerName: (currentTask as any).productSnapshotId?.customerName || undefined,
+                customerName:
+                  (currentTask as any).productSnapshotId?.customerName ||
+                  undefined,
                 // Include full snapshot references
                 recipeSnapshotId: (currentTask as any).recipeSnapshotId
                   ? {
@@ -538,8 +550,11 @@ export const getWorkerStatistics = async (
                   : undefined,
                 productSnapshotId: (currentTask as any).productSnapshotId
                   ? {
-                      _id: (currentTask as any).productSnapshotId._id.toString(),
-                      customerName: (currentTask as any).productSnapshotId.customerName
+                      _id: (
+                        currentTask as any
+                      ).productSnapshotId._id.toString(),
+                      customerName: (currentTask as any).productSnapshotId
+                        .customerName
                     }
                   : undefined
               }
@@ -572,13 +587,11 @@ export const getWorkerStatistics = async (
         : 0;
     const avgQualityScore =
       totalWorkers > 0
-        ? workerStats.reduce((sum, w) => sum + w.qualityScore, 0) /
-          totalWorkers
+        ? workerStats.reduce((sum, w) => sum + w.qualityScore, 0) / totalWorkers
         : 0;
     const avgProductivity =
       totalWorkers > 0
-        ? workerStats.reduce((sum, w) => sum + w.productivity, 0) /
-          totalWorkers
+        ? workerStats.reduce((sum, w) => sum + w.productivity, 0) / totalWorkers
         : 0;
 
     const response: APIResponse = {
