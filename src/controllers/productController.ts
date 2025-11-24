@@ -187,7 +187,7 @@ export const createProduct = async (
     if (existingProduct) {
       const response: APIResponse = {
         success: false,
-        error: "VALIDATION_ERROR",
+        error: "DUPLICATE_DESIGN_NUMBER",
         message: "Design number already exists"
       };
       res.status(400).json(response);
@@ -262,7 +262,7 @@ export const updateProduct = async (
       if (existingProduct) {
         const response: APIResponse = {
           success: false,
-          error: "VALIDATION_ERROR",
+          error: "DUPLICATE_DESIGN_NUMBER",
           message: "Design number already exists"
         };
         res.status(400).json(response);
