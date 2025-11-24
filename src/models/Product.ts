@@ -40,7 +40,6 @@ const ProductSchema: Schema = new Schema(
     designNumber: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
       maxlength: 100
     },
@@ -159,7 +158,13 @@ ProductSchema.pre("findOneAndDelete", async function (next) {
 });
 
 // Indexes
-ProductSchema.index({ designNumber: 1 });
+ProductSchema.index(
+  { designNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { deletedAt: null }
+  }
+);
 ProductSchema.index({ productName: 1 });
 ProductSchema.index({ customerName: 1 });
 ProductSchema.index({ deletedAt: 1 }); // For soft delete queries
