@@ -27,6 +27,7 @@ import alertRoutes from "./routes/alerts";
 import kpiRoutes from "./routes/kpi";
 import reportRoutes from "./routes/reports";
 import mediaRoutes from "./routes/media";
+import customerRoutes from "./routes/customers";
 
 // Load environment variables
 dotenv.config();
@@ -76,6 +77,7 @@ app.use("/api/alerts", alertRoutes);
 app.use("/api/kpi", kpiRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/media", mediaRoutes);
+app.use("/api/customers", customerRoutes);
 
 // Health check and info routes
 app.get("/", (_req: Request, res: Response) => {

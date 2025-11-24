@@ -1,6 +1,9 @@
 // User and Authentication
 export { User, IUser } from "./User";
 
+// Customer Management
+export { default as Customer, ICustomer } from "./Customer";
+
 // Projects and Tasks
 export { Recipe, IRecipe, IRecipeStep } from "./Recipe";
 export { RawMaterial, IRawMaterial } from "./RawMaterial";
