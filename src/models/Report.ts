@@ -13,6 +13,7 @@ export interface IReport extends Document {
   expiresAt?: Date;
   downloadCount: number;
   errorMessage?: string;
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
 }
 
@@ -77,6 +78,10 @@ const ReportSchema: Schema = new Schema(
     errorMessage: {
       type: String,
       trim: true
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
   },
   {

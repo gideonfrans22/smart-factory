@@ -28,6 +28,7 @@ export interface IRawMaterial extends Document {
   supplier?: string; // Optional supplier name
   unit?: string; // Optional unit of measure (e.g., "kg", "meters", "pieces")
   currentStock?: number; // Optional current stock quantity
+  modifiedBy?: mongoose.Types.ObjectId; // User who last modified this material
   createdAt: Date;
   updatedAt: Date;
 }
@@ -99,6 +100,10 @@ const RawMaterialSchema: Schema = new Schema(
     supplier: {
       type: String,
       trim: true
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     },
     unit: {
       type: String,

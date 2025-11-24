@@ -14,6 +14,7 @@ export interface IDevice extends Document {
   // Grid display properties (defaults for when device is not in a layout)
   defaultRowSpan: number;
   defaultColSpan: number;
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -76,6 +77,10 @@ const DeviceSchema: Schema = new Schema(
       default: 1,
       min: 1,
       comment: "Default column span when device is added to a grid layout"
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
   },
   {

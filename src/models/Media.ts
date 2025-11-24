@@ -8,6 +8,7 @@ export interface IMedia extends Document {
   filePath: string;
   uploadedBy?: mongoose.Types.ObjectId;
   type?: string;
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
 }
 
@@ -50,6 +51,10 @@ const MediaSchema: Schema = new Schema(
       type: String,
       trim: true,
       maxlength: 50
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
   },
   {

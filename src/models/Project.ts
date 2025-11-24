@@ -28,6 +28,7 @@ export interface IProject extends Document {
   deadline?: Date;
   progress: number; // Auto-calculated: (producedQuantity / targetQuantity) * 100
   createdBy: mongoose.Types.ObjectId;
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
@@ -107,6 +108,10 @@ const ProjectSchema: Schema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     },
     deletedAt: {
       type: Date,

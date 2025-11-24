@@ -11,6 +11,7 @@ export interface IActivityLog extends Document {
   success: boolean;
   errorMessage?: string;
   durationMs?: number;
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
 }
 
@@ -60,6 +61,10 @@ const ActivityLogSchema: Schema = new Schema(
     durationMs: {
       type: Number,
       min: 0
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
   },
   {

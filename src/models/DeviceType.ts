@@ -16,6 +16,7 @@ export interface IDeviceType extends Document {
     };
     [key: string]: any; // Allow flexible specifications
   };
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,6 +38,10 @@ const DeviceTypeSchema: Schema = new Schema(
     specifications: {
       type: Schema.Types.Mixed,
       default: {}
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
   },
   {

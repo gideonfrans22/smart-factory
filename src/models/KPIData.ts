@@ -8,6 +8,7 @@ export interface IKPIData extends Document {
   projectId?: mongoose.Types.ObjectId;
   recordedAt: Date;
   metadata: Record<string, any>;
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
 }
 
@@ -43,6 +44,10 @@ const KPIDataSchema: Schema = new Schema(
     metadata: {
       type: Schema.Types.Mixed,
       default: {}
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
   },
   {

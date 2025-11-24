@@ -39,6 +39,7 @@ export interface IRecipe extends Document {
 
   deletedAt?: Date; // Soft delete timestamp
   isDeleted: boolean; // Virtual field for soft delete check
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -197,6 +198,10 @@ const RecipeSchema: Schema = new Schema(
       type: Date,
       default: null,
       comment: "Soft delete timestamp"
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
   },
   {

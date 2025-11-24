@@ -16,6 +16,7 @@ export interface IAlert extends Document {
   acknowledgedAt?: Date;
   resolvedAt?: Date;
   metadata: Record<string, any>;
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
 }
 
@@ -89,6 +90,10 @@ const AlertSchema: Schema = new Schema(
     metadata: {
       type: Schema.Types.Mixed,
       default: {}
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
   },
   {

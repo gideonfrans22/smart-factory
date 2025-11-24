@@ -47,6 +47,7 @@ export interface IRecipeSnapshot extends Document {
   // ✨ MEDIA FIELDS
   mediaIds?: mongoose.Types.ObjectId[];
 
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date; // For smart caching: compare with Recipe.updatedAt
   updatedAt: Date;
 }
@@ -134,7 +135,11 @@ const RecipeSnapshotSchema = new Schema<IRecipeSnapshot>(
     outsourcing: { type: String, required: false },
     remarks: { type: String, required: false },
     // ✨ MEDIA FIELDS
-    mediaIds: [{ type: Schema.Types.ObjectId, ref: "Media" }]
+    mediaIds: [{ type: Schema.Types.ObjectId, ref: "Media" }],
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
+    }
   },
   { timestamps: true }
 );

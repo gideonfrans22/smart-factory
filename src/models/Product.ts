@@ -14,6 +14,7 @@ export interface IProduct extends Document {
   recipes: IProductRecipe[]; // Array of recipes with quantities
   deletedAt?: Date; // Soft delete timestamp
   isDeleted: boolean; // Virtual field for soft delete check
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -73,6 +74,10 @@ const ProductSchema: Schema = new Schema(
       type: Date,
       default: null,
       comment: "Soft delete timestamp"
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
   },
   {

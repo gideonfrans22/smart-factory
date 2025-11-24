@@ -28,6 +28,7 @@ export interface ITask extends Document {
   notes?: string;
   qualityData?: any;
   mediaFiles: mongoose.Types.ObjectId[]; // References to Media documents
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,7 +53,8 @@ const TaskSchema: Schema = new Schema(
     },
     projectNumber: {
       type: String,
-      comment: "Denormalized from Project for easy tracking/reporting/display (format: SUMAN-YYYY-MM-DD-XXX)",
+      comment:
+        "Denormalized from Project for easy tracking/reporting/display (format: SUMAN-YYYY-MM-DD-XXX)",
       index: true
     },
     recipeSnapshotId: {
@@ -175,6 +177,10 @@ const TaskSchema: Schema = new Schema(
     mediaFiles: {
       type: [{ type: Schema.Types.ObjectId, ref: "Media" }],
       default: []
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
   },
   {

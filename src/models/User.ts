@@ -11,6 +11,7 @@ export interface IUser extends Document {
   lastLoginAt?: Date;
   failedLoginAttempts: number;
   lockedUntil?: Date;
+  modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,6 +68,10 @@ const UserSchema: Schema = new Schema(
     },
     lockedUntil: {
       type: Date
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
   },
   {
