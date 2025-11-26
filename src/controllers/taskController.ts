@@ -1506,7 +1506,7 @@ export const getTaskStatistics = async (
 };
 
 /**
- * Get tasks grouped by project > product > recipe hierarchy
+ * Get tasks grouped by project > product > recipe > recipe step hierarchy
  * GET /api/tasks/grouped
  */
 export const getGroupedTasks = async (
@@ -1701,7 +1701,7 @@ export const getGroupedTasks = async (
               version: recipeSnapshot.version,
               recipeId: task.recipeId
             },
-            tasks: [],
+            steps: {},
             summary: {
               totalTasks: 0,
               totalExecutions: task.totalRecipeExecutions,
@@ -1717,8 +1717,49 @@ export const getGroupedTasks = async (
           };
         }
 
-        // Add task to recipe group
-        groupedData[projectId].recipes[recipeSnapshotId].tasks.push(task);
+        // Group by step
+        const stepOrder = task.stepOrder.toString();
+        if (
+          !groupedData[projectId].recipes[recipeSnapshotId].steps[stepOrder]
+        ) {
+          // Find step info from snapshot
+          const step = (recipeSnapshot as any).steps.find(
+            (s: any) => s.order === task.stepOrder
+          );
+
+          groupedData[projectId].recipes[recipeSnapshotId].steps[stepOrder] = {
+            stepInfo: {
+              _id: step?._id || task.recipeStepId,
+              name: step?.name || "Unknown Step",
+              description: step?.description,
+              order: task.stepOrder,
+              deviceTypeId: task.deviceTypeId,
+              estimatedDuration: task.estimatedDuration
+            },
+            tasks: [],
+            summary: {
+              totalTasks: 0,
+              byStatus: {
+                PENDING: 0,
+                ONGOING: 0,
+                PAUSED: 0,
+                COMPLETED: 0,
+                FAILED: 0
+              }
+            }
+          };
+        }
+
+        // Add task to step group
+        groupedData[projectId].recipes[recipeSnapshotId].steps[
+          stepOrder
+        ].tasks.push(task);
+        groupedData[projectId].recipes[recipeSnapshotId].steps[stepOrder]
+          .summary.totalTasks++;
+        groupedData[projectId].recipes[recipeSnapshotId].steps[stepOrder]
+          .summary.byStatus[task.status]++;
+
+        // Update recipe summary
         groupedData[projectId].recipes[recipeSnapshotId].summary.totalTasks++;
         groupedData[projectId].recipes[recipeSnapshotId].summary.byStatus[
           task.status
