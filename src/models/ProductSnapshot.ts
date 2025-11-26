@@ -68,12 +68,7 @@ const ProductSnapshotSchema = new Schema<IProductSnapshot>(
     recipes: {
       type: [ProductRecipeSnapshotReferenceSchema],
       required: true,
-      validate: {
-        validator: function (recipes: IProductRecipeSnapshotReference[]) {
-          return recipes.length > 0;
-        },
-        message: "Product must have at least one recipe"
-      }
+      default: []
     },
     modifiedBy: {
       type: Schema.Types.ObjectId,

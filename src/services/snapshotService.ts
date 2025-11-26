@@ -116,9 +116,10 @@ export class SnapshotService {
       throw new Error(`Product with ID ${productId} not found`);
     }
 
-    // Create/get snapshots for all recipes in this product
-    const recipeSnapshotRefs: IProductRecipeSnapshotReference[] =
-      await Promise.all(
+    let recipeSnapshotRefs: IProductRecipeSnapshotReference[] = [];
+    if (product.recipes && product.recipes.length > 0) {
+      // Create/get snapshots for all recipes in this product
+      recipeSnapshotRefs = await Promise.all(
         product.recipes.map(async (recipe) => {
           const recipeSnapshot = await this.getOrCreateRecipeSnapshot(
             recipe.recipeId
@@ -129,6 +130,7 @@ export class SnapshotService {
           };
         })
       );
+    }
 
     // Prepare snapshot data
     const snapshotData = {
