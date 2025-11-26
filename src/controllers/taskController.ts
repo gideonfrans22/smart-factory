@@ -166,7 +166,8 @@ export const getTaskById = async (
           select: "quantityRequired name rawMaterialNumber specification"
         }
       })
-      .populate("productSnapshotId", "name version");
+      .populate("productSnapshotId", "name version")
+      .populate("dependentTask", "title status");
 
     if (!task) {
       const response: APIResponse = {
@@ -1049,8 +1050,6 @@ export const completeTask = async (
       return;
     }
 
-    const recipeSnapshot = task.recipeSnapshotId as any;
-
     // ⭐ CRITICAL: Support partial completion!
     // Use progress from qualityData if provided, otherwise default to 100
     const completionProgress = qualityData?.progress ?? 100;
@@ -1086,64 +1085,9 @@ export const completeTask = async (
     let nextTask = null;
     let project = null;
 
-    // If NOT the last step, create next step task for SAME execution
+    // If NOT the last step, find the next pre-generated task
     if (!task.isLastStepInRecipe) {
-      // Find next step in snapshot by order
-      const nextStep = recipeSnapshot.steps.find(
-        (step: any) => step.order === task.stepOrder + 1
-      );
-
-      if (!nextStep) {
-        const response: APIResponse = {
-          success: false,
-          error: "VALIDATION_ERROR",
-          message: "Next step not found in recipe snapshot"
-        };
-        res.status(400).json(response);
-        return;
-      }
-
-      // Validate deviceTypeId
-      if (!nextStep.deviceTypeId) {
-        const response: APIResponse = {
-          success: false,
-          error: "VALIDATION_ERROR",
-          message: "Next recipe step does not have a deviceTypeId"
-        };
-        res.status(400).json(response);
-        return;
-      }
-
-      // Determine if next step is the last step
-      const maxStepOrder = Math.max(
-        ...recipeSnapshot.steps.map((s: any) => s.order)
-      );
-      const isNextStepLast = nextStep.order === maxStepOrder;
-
-      // Create next task for SAME execution
-      nextTask = new Task({
-        title: `${nextStep.name} - Exec ${task.recipeExecutionNumber}/${task.totalRecipeExecutions}`,
-        description: nextStep.description,
-        projectId: task.projectId || undefined,
-        projectNumber: task.projectNumber, // Propagate projectNumber to next step
-        recipeId: task.recipeId,
-        productId: task.productId,
-        recipeSnapshotId: task.recipeSnapshotId,
-        productSnapshotId: task.productSnapshotId,
-        recipeStepId: nextStep._id,
-        recipeExecutionNumber: task.recipeExecutionNumber, // SAME execution
-        totalRecipeExecutions: task.totalRecipeExecutions,
-        stepOrder: nextStep.order,
-        isLastStepInRecipe: isNextStepLast,
-        deviceTypeId: nextStep.deviceTypeId,
-        status: "PENDING",
-        priority: task.priority,
-        estimatedDuration: nextStep.estimatedDuration,
-        progress: 0,
-        pausedDuration: 0
-      });
-
-      await nextTask.save();
+      nextTask = await Task.findOne({ dependentTask: task._id });
     }
 
     // If this IS the last step, increment producedQuantity
@@ -1249,7 +1193,7 @@ export const completeTask = async (
     const response: APIResponse = {
       success: true,
       message: nextTask
-        ? `Task completed. Next step created for execution ${task.recipeExecutionNumber}.`
+        ? `Task completed. Next step ready for execution ${task.recipeExecutionNumber}.`
         : task.isLastStepInRecipe
         ? `Recipe execution ${task.recipeExecutionNumber}/${task.totalRecipeExecutions} completed!`
         : "Task completed",
@@ -1998,6 +1942,7 @@ export const getDeviceTasks = async (
       )
       .populate("mediaFiles")
       .populate("productSnapshotId")
+      .populate("dependentTask", "title status")
       .skip(skip)
       .limit(limitNum)
       .sort({ completedAt: -1, createdAt: -1 });

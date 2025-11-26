@@ -35,52 +35,55 @@ export const generateTasksForProject = async (
       const recipeSnap = await RecipeSnapshot.findById(recipeSnapshotId);
       if (!recipeSnap) continue;
 
-      // Find the first step (order = 1)
-      const firstStep = (recipeSnap as any).steps.find(
-        (step: any) => step.order === 1
+      // Get all steps and sort them by order
+      const steps = (recipeSnap as any).steps.sort(
+        (a: any, b: any) => a.order - b.order
       );
+      if (steps.length === 0) continue;
 
-      if (!firstStep) continue;
+      const maxStepOrder = steps[steps.length - 1].order;
 
-      // Validate deviceTypeId exists
-      if (!firstStep.deviceTypeId) {
-        throw new Error(
-          `First step of recipe in product "${productSnapshot.name}" does not have a deviceTypeId`
-        );
-      }
-
-      // Determine if this is the last step
-      const maxStepOrder = Math.max(
-        ...(recipeSnap as any).steps.map((s: any) => s.order)
-      );
-      const isLastStep = firstStep.order === maxStepOrder;
-
-      // Create ALL first-step tasks for ALL executions upfront
+      // Create ALL tasks for ALL steps for ALL executions upfront
       for (let execution = 1; execution <= totalExecutions; execution++) {
-        const newTask = new Task({
-          title: `${firstStep.name} - Exec ${execution}/${totalExecutions} - ${productSnapshot.name}`,
-          description: firstStep.description,
-          projectId: project._id,
-          projectNumber: project.projectNumber, // Denormalize projectNumber from project
-          productId: productSnapshot.originalProductId,
-          productSnapshotId: productSnapshot._id,
-          recipeId: (recipeSnap as any).originalRecipeId,
-          recipeSnapshotId: recipeSnapshotId,
-          recipeStepId: firstStep._id,
-          recipeExecutionNumber: execution,
-          totalRecipeExecutions: totalExecutions,
-          stepOrder: firstStep.order,
-          isLastStepInRecipe: isLastStep,
-          deviceTypeId: firstStep.deviceTypeId,
-          status: "PENDING",
-          priority: project.priority,
-          estimatedDuration: firstStep.estimatedDuration,
-          progress: 0,
-          pausedDuration: 0
-        });
+        let previousTaskId: mongoose.Types.ObjectId | undefined = undefined;
 
-        await newTask.save();
-        createdTasks.push(newTask);
+        for (const step of steps) {
+          // Validate deviceTypeId exists
+          if (!step.deviceTypeId) {
+            throw new Error(
+              `Step ${step.order} of recipe in product "${productSnapshot.name}" does not have a deviceTypeId`
+            );
+          }
+
+          const isLastStep = step.order === maxStepOrder;
+
+          const newTask = new Task({
+            title: `${step.name} - Exec ${execution}/${totalExecutions} - ${productSnapshot.name}`,
+            description: step.description,
+            projectId: project._id,
+            projectNumber: project.projectNumber, // Denormalize projectNumber from project
+            productId: productSnapshot.originalProductId,
+            productSnapshotId: productSnapshot._id,
+            recipeId: (recipeSnap as any).originalRecipeId,
+            recipeSnapshotId: recipeSnapshotId,
+            recipeStepId: step._id,
+            recipeExecutionNumber: execution,
+            totalRecipeExecutions: totalExecutions,
+            stepOrder: step.order,
+            isLastStepInRecipe: isLastStep,
+            deviceTypeId: step.deviceTypeId,
+            status: "PENDING",
+            priority: project.priority,
+            estimatedDuration: step.estimatedDuration,
+            progress: 0,
+            pausedDuration: 0,
+            dependentTask: previousTaskId // Link to previous step
+          });
+
+          await newTask.save();
+          createdTasks.push(newTask);
+          previousTaskId = newTask._id as mongoose.Types.ObjectId;
+        }
       }
     }
   }
@@ -90,50 +93,55 @@ export const generateTasksForProject = async (
     // Total executions = targetQuantity for standalone recipes
     const totalExecutions = project.targetQuantity;
 
-    // Find the first step (order = 1)
-    const firstStep = recipeSnapshot.steps.find((step) => step.order === 1);
-
-    if (!firstStep) {
+    // Get all steps and sort them by order
+    const steps = recipeSnapshot.steps.sort((a, b) => a.order - b.order);
+    if (steps.length === 0) {
       throw new Error(
-        `Recipe "${recipeSnapshot.name}" does not have a first step`
+        `Recipe "${recipeSnapshot.name}" does not have any steps`
       );
     }
 
-    // Validate deviceTypeId exists
-    if (!firstStep.deviceTypeId) {
-      throw new Error(
-        `First step of recipe "${recipeSnapshot.name}" does not have a deviceTypeId`
-      );
-    }
+    const maxStepOrder = steps[steps.length - 1].order;
 
-    // Determine if this is the last step
-    const maxStepOrder = Math.max(...recipeSnapshot.steps.map((s) => s.order));
-    const isLastStep = firstStep.order === maxStepOrder;
-
-    // Create ALL first-step tasks for ALL executions upfront
+    // Create ALL tasks for ALL steps for ALL executions upfront
     for (let execution = 1; execution <= totalExecutions; execution++) {
-      const newTask = new Task({
-        title: `${firstStep.name} - Exec ${execution}/${totalExecutions} - ${project.name}`,
-        description: firstStep.description,
-        projectId: project._id,
-        projectNumber: project.projectNumber, // Denormalize projectNumber from project
-        recipeId: recipeSnapshot.originalRecipeId,
-        recipeSnapshotId: recipeSnapshot._id,
-        recipeStepId: firstStep._id,
-        recipeExecutionNumber: execution,
-        totalRecipeExecutions: totalExecutions,
-        stepOrder: firstStep.order,
-        isLastStepInRecipe: isLastStep,
-        deviceTypeId: firstStep.deviceTypeId,
-        status: "PENDING",
-        priority: project.priority,
-        estimatedDuration: firstStep.estimatedDuration,
-        progress: 0,
-        pausedDuration: 0
-      });
+      let previousTaskId: mongoose.Types.ObjectId | undefined = undefined;
 
-      await newTask.save();
-      createdTasks.push(newTask);
+      for (const step of steps) {
+        // Validate deviceTypeId exists
+        if (!step.deviceTypeId) {
+          throw new Error(
+            `Step ${step.order} of recipe "${recipeSnapshot.name}" does not have a deviceTypeId`
+          );
+        }
+
+        const isLastStep = step.order === maxStepOrder;
+
+        const newTask = new Task({
+          title: `${step.name} - Exec ${execution}/${totalExecutions} - ${project.name}`,
+          description: step.description,
+          projectId: project._id,
+          projectNumber: project.projectNumber, // Denormalize projectNumber from project
+          recipeId: recipeSnapshot.originalRecipeId,
+          recipeSnapshotId: recipeSnapshot._id,
+          recipeStepId: step._id,
+          recipeExecutionNumber: execution,
+          totalRecipeExecutions: totalExecutions,
+          stepOrder: step.order,
+          isLastStepInRecipe: isLastStep,
+          deviceTypeId: step.deviceTypeId,
+          status: "PENDING",
+          priority: project.priority,
+          estimatedDuration: step.estimatedDuration,
+          progress: 0,
+          pausedDuration: 0,
+          dependentTask: previousTaskId // Link to previous step
+        });
+
+        await newTask.save();
+        createdTasks.push(newTask);
+        previousTaskId = newTask._id as mongoose.Types.ObjectId;
+      }
     }
   }
 

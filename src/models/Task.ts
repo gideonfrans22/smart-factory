@@ -17,6 +17,7 @@ export interface ITask extends Document {
   deviceTypeId: mongoose.Types.ObjectId; // Required: Type of device needed (from recipe step)
   deviceId?: mongoose.Types.ObjectId; // Optional: Specific device assigned (required when ONGOING)
   workerId?: mongoose.Types.ObjectId; // Optional at creation, required for ONGOING/COMPLETED
+  dependentTask?: mongoose.Types.ObjectId; // Reference to the task that must be completed before this task
   status: "PENDING" | "ONGOING" | "PAUSED" | "COMPLETED" | "FAILED";
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   estimatedDuration?: number;
@@ -125,6 +126,12 @@ const TaskSchema: Schema = new Schema(
       ref: "User",
       comment:
         "Worker assigned to this task (required for ONGOING/COMPLETED status)"
+    },
+    dependentTask: {
+      type: Schema.Types.ObjectId,
+      ref: "Task",
+      comment:
+        "Reference to the task that must be completed before this task can start"
     },
     status: {
       type: String,
