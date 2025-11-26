@@ -281,12 +281,14 @@ export const updateProduct = async (
 
     await product.save();
 
-    // Create snapshot for updated product
-    await SnapshotService.getOrCreateProductSnapshot(
-      product._id as mongoose.Types.ObjectId
-    );
-
     const populatedProduct = await Product.findById(product._id);
+
+    if (populatedProduct) {
+      // Create snapshot for updated product
+      await SnapshotService.getOrCreateProductSnapshot(
+        populatedProduct._id as mongoose.Types.ObjectId
+      );
+    }
 
     const response: APIResponse = {
       success: true,

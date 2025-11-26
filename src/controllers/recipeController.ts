@@ -317,6 +317,19 @@ export const createRecipe = async (
 
     await recipe.save();
 
+    // update Product recipes array to include this new recipe
+    const productDoc = await Product.findById(recipe.product);
+    if (productDoc) {
+      productDoc.recipes.push({
+        recipeId: recipe._id as mongoose.Types.ObjectId,
+        quantity: 1 // Default quantity to 1
+      });
+      await productDoc.save();
+      await SnapshotService.getOrCreateProductSnapshot(
+        productDoc._id as mongoose.Types.ObjectId
+      );
+    }
+
     const response: APIResponse = {
       success: true,
       message: "Recipe created successfully",
