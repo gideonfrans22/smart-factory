@@ -1,10 +1,12 @@
 import { Request, Response } from "express";
-import { Recipe } from "../models";
+import { Product, Recipe } from "../models";
 import { RawMaterial } from "../models/RawMaterial";
 import { DeviceType } from "../models/DeviceType";
 import { Project } from "../models/Project";
 import { APIResponse } from "../types";
 import { RecipeService } from "../services/recipeService";
+import { SnapshotService } from "../services/snapshotService";
+import mongoose from "mongoose";
 
 /**
  * Get all recipes with pagination and filtering
@@ -463,7 +465,25 @@ export const updateRecipe = async (
     // Increment version on update
     await RecipeService.prepareRecipeForSave(recipe, false);
 
+    // Save updated recipe
     await recipe.save();
+
+    // Create Recipe snapshot
+    await SnapshotService.getOrCreateRecipeSnapshot(
+      recipe._id as mongoose.Types.ObjectId
+    );
+    // Update related Product snapshots to reference latest Recipe snapshot
+    await Product.findOneAndUpdate(
+      { "recipes.recipeId": recipe._id },
+      {
+        $set: {
+          updatedAt: new Date()
+        }
+      }
+    );
+    await SnapshotService.getOrCreateProductSnapshot(
+      recipe.product as mongoose.Types.ObjectId
+    );
 
     const response: APIResponse = {
       success: true,

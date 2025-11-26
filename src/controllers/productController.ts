@@ -3,6 +3,8 @@ import { Product } from "../models/Product";
 import { Recipe } from "../models/Recipe";
 import { Project } from "../models/Project";
 import { APIResponse, AuthenticatedRequest } from "../types";
+import { SnapshotService } from "../services/snapshotService";
+import mongoose from "mongoose";
 
 // Get all products with pagination and filtering
 export const getProducts = async (
@@ -278,6 +280,11 @@ export const updateProduct = async (
     if (recipes !== undefined) product.recipes = recipes;
 
     await product.save();
+
+    // Create snapshot for updated product
+    await SnapshotService.getOrCreateProductSnapshot(
+      product._id as mongoose.Types.ObjectId
+    );
 
     const populatedProduct = await Product.findById(product._id);
 
