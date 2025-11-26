@@ -183,17 +183,8 @@ export const acknowledgeAlert = async (
   try {
     const { id } = req.params;
 
-    if (!req.user) {
-      const response: APIResponse = {
-        success: false,
-        error: "UNAUTHORIZED",
-        message: "Authentication required"
-      };
-      res.status(401).json(response);
-      return;
-    }
-
-    const userId = req.user._id as mongoose.Types.ObjectId;
+    // Get userId if auth is enabled, otherwise use null
+    const userId = req.user?._id as mongoose.Types.ObjectId | undefined;
 
     const alert = await Alert.findById(id);
 
@@ -208,7 +199,9 @@ export const acknowledgeAlert = async (
     }
 
     alert.status = "ACKNOWLEDGED";
-    alert.acknowledgedBy = userId;
+    if (userId) {
+      alert.acknowledgedBy = userId;
+    }
     alert.acknowledgedAt = new Date();
 
     await alert.save();
@@ -387,16 +380,6 @@ export const bulkAcknowledgeAlerts = async (
   try {
     const { alertIds } = req.body;
 
-    if (!req.user) {
-      const response: APIResponse = {
-        success: false,
-        error: "UNAUTHORIZED",
-        message: "Authentication required"
-      };
-      res.status(401).json(response);
-      return;
-    }
-
     if (!alertIds || !Array.isArray(alertIds) || alertIds.length === 0) {
       const response: APIResponse = {
         success: false,
@@ -407,17 +390,22 @@ export const bulkAcknowledgeAlerts = async (
       return;
     }
 
-    const userId = req.user._id as mongoose.Types.ObjectId;
+    // Get userId if auth is enabled, otherwise use null
+    const userId = req.user?._id as mongoose.Types.ObjectId | undefined;
+
+    // Build update object conditionally
+    const updateFields: any = {
+      status: "ACKNOWLEDGED",
+      acknowledgedAt: new Date()
+    };
+    
+    if (userId) {
+      updateFields.acknowledgedBy = userId;
+    }
 
     const result = await Alert.updateMany(
       { _id: { $in: alertIds } },
-      {
-        $set: {
-          status: "ACKNOWLEDGED",
-          acknowledgedBy: userId,
-          acknowledgedAt: new Date()
-        }
-      }
+      { $set: updateFields }
     );
 
     const response: APIResponse = {
