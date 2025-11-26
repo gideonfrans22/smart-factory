@@ -97,17 +97,13 @@ ProductSchema.virtual("isDeleted").get(function (this: IProduct) {
   return this.deletedAt != null;
 });
 
-// Query middleware to exclude soft-deleted documents by default
+// Query middleware to exclude soft-deleted documents by default and populate references
 ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
   const options = this.getOptions();
   if (!(options as any).includeDeleted) {
     this.where({ deletedAt: null });
   }
-  next();
-});
 
-// Populate references before returning
-ProductSchema.pre<IProduct>("findOne", function (next) {
   this.populate({
     path: "recipes.recipeId",
     options: { sort: { createdAt: 1 } }
@@ -121,29 +117,14 @@ ProductSchema.pre<IProduct>("findOne", function (next) {
   });
   this.populate({
     path: "recipes.recipeId",
-    populate: {
-      path: "mediaIds"
-    }
-  });
-  next();
-});
-ProductSchema.pre<IProduct>("find", function (next) {
-  this.populate({
-    path: "recipes.recipeId",
-    options: { sort: { createdAt: 1 } }
-  });
-  this.populate({
-    path: "recipes.recipeId",
-    populate: {
-      path: "rawMaterials.materialId",
-      select: "materialCode name specifications supplier unit"
-    }
-  });
-  this.populate({
-    path: "recipes.recipeId",
-    populate: {
-      path: "mediaIds"
-    }
+    populate: [
+      {
+        path: "mediaIds"
+      },
+      {
+        path: "steps.deviceTypeId"
+      }
+    ]
   });
   next();
 });
