@@ -1609,9 +1609,9 @@ export const getGroupedTasks = async (
       .populate("createdBy", "name email username")
       .populate(
         "productSnapshot",
-        "name productNumber personInCharge customerName version"
+        "name productNumber personInCharge customerName version remarks"
       )
-      .populate("recipeSnapshot", "name recipeNumber version")
+      .populate("recipeSnapshot", "name recipeNumber version dwgNo remarks")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
