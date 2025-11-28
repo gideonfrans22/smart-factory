@@ -5,7 +5,9 @@ import {
   getProductRecipes,
   createProduct,
   updateProduct,
-  deleteProduct
+  deleteProduct,
+  duplicateProduct,
+  getProductVersionHistory
 } from "../controllers/productController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -52,5 +54,29 @@ router.put("/:id", authenticateToken, requireAdmin, updateProduct);
  * @access Admin only
  */
 router.delete("/:id", authenticateToken, requireAdmin, deleteProduct);
+
+/**
+ * @route POST /api/products/:id/duplicate
+ * @desc Duplicate a product with all its recipes
+ * @access Admin only
+ */
+router.post(
+  "/:id/duplicate",
+  authenticateToken,
+  requireAdmin,
+  duplicateProduct
+);
+
+/**
+ * @route GET /api/products/:id/versions
+ * @desc Get version history of a product with all snapshots
+ * @access Admin only
+ */
+router.get(
+  "/:id/versions",
+  authenticateToken,
+  requireAdmin,
+  getProductVersionHistory
+);
 
 export default router;
