@@ -428,6 +428,8 @@ export const workerLogin = async (
 
     // Update device's currentUser
     device.currentUser = worker._id as any;
+    device.lastHeartbeat = new Date();
+    device.status = "ONLINE";
     await device.save();
 
     // Update worker's last login
