@@ -28,6 +28,7 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
 
     // Get users
     const users = await User.find(query)
+      .populate("modifiedBy", "name email username")
       .select("-password")
       .skip(skip)
       .limit(limitNum)
@@ -83,7 +84,9 @@ export const getUserById = async (
   try {
     const { id } = req.params;
 
-    const user = await User.findById(id).select("-password");
+    const user = await User.findById(id)
+      .populate("modifiedBy", "name email username")
+      .select("-password");
 
     if (!user) {
       const response: APIResponse = {
@@ -209,7 +212,8 @@ export const createUser = async (
       email: email ? email.toLowerCase() : undefined,
       password: hashedPassword,
       role,
-      department: department ? sanitizeInput(department) : undefined
+      department: department ? sanitizeInput(department) : undefined,
+      modifiedBy: req.user?.id
     });
 
     await user.save();
@@ -313,6 +317,9 @@ export const updateUser = async (
     if (password) {
       user.password = await hashPassword(password);
     }
+
+    // Track who modified the user
+    user.modifiedBy = req.user?.id;
 
     await user.save();
 
