@@ -4,7 +4,8 @@ import {
   login,
   refreshToken,
   logout,
-  getProfile
+  getProfile,
+  workerLogin
 } from "../controllers/authController";
 import { authenticateToken } from "../middleware/auth";
 
@@ -44,6 +45,19 @@ router.post("/register", register);
  * @note    Automatically updates lastLoginAt timestamp on successful login
  */
 router.post("/login", login);
+
+/**
+ * @route   POST /api/auth/worker-login
+ * @desc    Worker login without password (device-based authentication)
+ * @body    workerId - Worker user ID (required)
+ * @body    deviceId - Device ID where worker is logging in (required)
+ * @response Returns user object, device info, and tokens { accessToken (15min), refreshToken (7 days) }
+ * @access  Public
+ * @note    No password verification - simplified login for workers at device stations
+ * @note    Updates device's currentUser field automatically
+ * @note    Only works for users with role="worker"
+ */
+router.post("/worker-login", workerLogin);
 
 /**
  * @route   POST /api/auth/refresh
