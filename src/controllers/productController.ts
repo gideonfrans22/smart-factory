@@ -207,7 +207,8 @@ export const createProduct = async (
       customerName,
       personInCharge: assignedPersonInCharge,
       quantityUnit,
-      recipes: recipes || []
+      recipes: recipes || [],
+      modifiedBy: req.user?.id
     });
 
     await product.save();
@@ -281,6 +282,9 @@ export const updateProduct = async (
     if (quantityUnit !== undefined) product.quantityUnit = quantityUnit;
     if (recipes !== undefined) product.recipes = recipes;
 
+    // Track who modified the product
+    product.modifiedBy = req.user?.id;
+
     await product.save();
 
     const populatedProduct = await Product.findById(product._id);
@@ -345,6 +349,9 @@ export const deleteProduct = async (
       res.status(400).json(response);
       return;
     }
+
+    product.modifiedBy = req.user?.id;
+    await product.save();
 
     await Product.findOneAndDelete({
       _id: id
@@ -424,7 +431,8 @@ export const duplicateProduct = async (
       recipes: originalProduct.recipes.map((recipe) => ({
         recipeId: recipe.recipeId,
         quantity: recipe.quantity
-      }))
+      })),
+      modifiedBy: req.user?.id
     });
 
     await duplicatedProduct.save();

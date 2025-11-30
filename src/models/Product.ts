@@ -104,6 +104,7 @@ ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
     this.where({ deletedAt: null });
   }
 
+  this.populate("modifiedBy", "name email");
   this.populate({
     path: "recipes.recipeId",
     options: { sort: { createdAt: 1 } }
