@@ -109,7 +109,6 @@ ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
     path: "recipes.recipeId",
     options: { sort: { createdAt: 1 } }
   });
-  this.populate("recipes.recipeId.modifiedBy", "name email");
   this.populate({
     path: "recipes.recipeId",
     populate: {
@@ -120,6 +119,7 @@ ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
   this.populate({
     path: "recipes.recipeId",
     populate: [
+      { path: "modifiedBy", select: "name email" },
       {
         path: "mediaIds"
       },
