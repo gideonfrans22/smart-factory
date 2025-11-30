@@ -52,7 +52,7 @@ router.post("/register", authenticateToken, requireAdmin, registerDevice);
  * @desc Update device
  * @access Admin only
  */
-router.put("/:id", authenticateToken, requireAdmin, updateDevice);
+router.put("/:id", authenticateToken, updateDevice);
 
 /**
  * @route DELETE /api/devices/:id
