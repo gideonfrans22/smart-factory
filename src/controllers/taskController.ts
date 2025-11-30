@@ -982,10 +982,76 @@ export const failTask = async (
       { path: "productSnapshotId", select: "name version" }
     ]);
 
+    // Cascade failure to all dependent tasks in the chain
+    // Example: task1 -> task2 -> task3. If task1 fails, mark task2 and task3 as failed
+    let failedTaskIds: string[] = [];
+    let project = null;
+    if (task._id) {
+      failedTaskIds = [task._id.toString()];
+
+      // Recursive function to find and fail all dependent tasks
+      const failDependentTasksRecursively = async (taskId: string) => {
+        const dependentTasks = await Task.find({
+          dependentTask: taskId,
+          status: { $in: ["PENDING", "ONGOING", "PAUSED"] }
+        });
+
+        for (const depTask of dependentTasks) {
+          depTask.status = "FAILED";
+          depTask.notes = `Automatically failed due to dependency failure: Task ${task.title}`;
+          await depTask.save();
+          await realtimeService.broadcastTaskStatusChange(depTask.toObject());
+
+          if (depTask._id) {
+            failedTaskIds.push(depTask._id.toString());
+            // Recursively fail tasks that depend on this task
+            await failDependentTasksRecursively(depTask._id.toString());
+          }
+        }
+      };
+
+      await failDependentTasksRecursively(task._id.toString());
+
+      // Check if project should be marked as COMPLETED
+      const projectId = task.projectId;
+
+      if (projectId) {
+        project = await Project.findById(projectId);
+
+        if (project && project.status !== "COMPLETED") {
+          // Get all tasks for this project
+          const projectTasks = await Task.find({ projectId });
+
+          // Check if all tasks are either COMPLETED or FAILED
+          const allTasksFinished = projectTasks.every(
+            (t) => t.status === "COMPLETED" || t.status === "FAILED"
+          );
+
+          if (allTasksFinished) {
+            project.status = "COMPLETED";
+            await project.save(); // Progress auto-calculated by pre-save hook
+            await realtimeService.broadcastProjectUpdate(project.toObject());
+          }
+        }
+      }
+    }
+
     const response: APIResponse = {
       success: true,
-      message: "Task marked as failed",
-      data: task
+      message: `Task marked as failed. ${
+        failedTaskIds.length - 1
+      } dependent task(s) also marked as failed.`,
+      data: {
+        failedTask: task,
+        totalFailedTasks: failedTaskIds.length,
+        project: project
+          ? {
+              _id: project._id,
+              status: project.status,
+              progress: project.progress
+            }
+          : null
+      }
     };
 
     if (task) {
@@ -1088,6 +1154,22 @@ export const completeTask = async (
     // If NOT the last step, find the next pre-generated task
     if (!task.isLastStepInRecipe) {
       nextTask = await Task.findOne({ dependentTask: task._id });
+    }
+
+    // if every tasks in the project are either COMPLETED or FAILED, mark project as COMPLETED
+    if (task.projectId) {
+      const projectTasks = await Task.find({ projectId: task.projectId });
+      const allTasksFinished = projectTasks.every(
+        (t) => t.status === "COMPLETED" || t.status === "FAILED"
+      );
+      if (allTasksFinished) {
+        project = await Project.findById(task.projectId);
+        if (project && project.status !== "COMPLETED") {
+          project.status = "COMPLETED";
+          await project.save(); // Progress auto-calculated by pre-save hook
+          await realtimeService.broadcastProjectUpdate(project.toObject());
+        }
+      }
     }
 
     // If this IS the last step, increment producedQuantity
