@@ -212,6 +212,11 @@ ProjectSchema.pre("save", async function (next) {
     }
   }
 
+  // Update end date if status is COMPLETED
+  if (doc.isModified("status") && doc.status === "COMPLETED" && !doc.endDate) {
+    doc.endDate = new Date();
+  }
+
   next();
 });
 // Pre-get hook to exclude soft-deleted projects
