@@ -147,7 +147,6 @@ ProductSchema.pre("findOneAndDelete", async function (next) {
 ProductSchema.index(
   { designNumber: 1 },
   {
-    unique: true,
     partialFilterExpression: { deletedAt: null }
   }
 );
