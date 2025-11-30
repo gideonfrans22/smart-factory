@@ -1,28 +1,14 @@
 import { Response, NextFunction } from "express";
-// Commented out unused imports during temporary auth bypass
-// import * as jwt from "jsonwebtoken";
-// import { User } from "../models/User";
+import * as jwt from "jsonwebtoken";
+import { User } from "../models/User";
 import { AuthenticatedRequest } from "../types";
-// import { JWTPayload, APIResponse } from "../types";
+import { JWTPayload, APIResponse } from "../types";
 
-/**
- * TEMPORARY: Authentication is disabled for all routes
- * This middleware now passes through all requests without validation
- *
- * To re-enable authentication, uncomment the original implementation below
- * and remove the current bypass logic
- */
 export const authenticateToken = async (
-  _req: AuthenticatedRequest,
-  _res: Response,
+  req: AuthenticatedRequest,
+  res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // TEMPORARY BYPASS: Skip all authentication checks
-  console.log("⚠️  WARNING: Authentication is temporarily disabled");
-  next();
-  return;
-
-  /* ORIGINAL IMPLEMENTATION - CURRENTLY DISABLED
   try {
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.split(" ")[1];
@@ -77,7 +63,6 @@ export const authenticateToken = async (
     };
     res.status(403).json(response);
   }
-  */
 };
 
 /**
