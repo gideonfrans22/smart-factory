@@ -156,25 +156,25 @@ export const createUser = async (
     //   return;
     // }
 
-    // if (role === "admin" && !email) {
-    //   const response: APIResponse = {
-    //     success: false,
-    //     error: "VALIDATION_ERROR",
-    //     message: "Email is required for admin users"
-    //   };
-    //   res.status(400).json(response);
-    //   return;
-    // }
+    if (role === "admin" && !email) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Email is required for admin users"
+      };
+      res.status(400).json(response);
+      return;
+    }
 
-    // if (email && !validateEmail(email)) {
-    //   const response: APIResponse = {
-    //     success: false,
-    //     error: "VALIDATION_ERROR",
-    //     message: "Invalid email format"
-    //   };
-    //   res.status(400).json(response);
-    //   return;
-    // }
+    if (email && !validateEmail(email)) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Invalid email format"
+      };
+      res.status(400).json(response);
+      return;
+    }
 
     // Check if user already exists
     const orConditions = [];
