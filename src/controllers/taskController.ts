@@ -1029,6 +1029,7 @@ export const failTask = async (
 
           if (allTasksFinished) {
             project.status = "COMPLETED";
+            project.endDate = new Date();
             await project.save(); // Progress auto-calculated by pre-save hook
             await realtimeService.broadcastProjectUpdate(project.toObject());
           }
