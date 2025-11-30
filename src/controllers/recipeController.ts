@@ -528,16 +528,6 @@ export const deleteRecipe = async (
   res: Response
 ): Promise<void> => {
   try {
-    if (!req.user) {
-      const errorResponse: APIResponse = {
-        success: false,
-        error: "UNAUTHORIZED",
-        message: "User authentication required"
-      };
-      res.status(401).json(errorResponse);
-      return;
-    }
-
     const { id } = req.params;
 
     const recipe = await Recipe.findById(id);
@@ -568,7 +558,7 @@ export const deleteRecipe = async (
       return;
     }
 
-    recipe.modifiedBy = req.user.id;
+    recipe.modifiedBy = req.user?.id;
     await recipe.save();
 
     await Recipe.findByIdAndDelete(id);
