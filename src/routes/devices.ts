@@ -7,7 +7,9 @@ import {
   deleteDevice,
   getDeviceStatistics,
   getDevicesByTask,
-  getDevicesMonitorData
+  getDevicesMonitorData,
+  workerLoginToDevice,
+  workerLogoutFromDevice
 } from "../controllers/deviceController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -67,5 +69,19 @@ router.delete("/:id", authenticateToken, requireAdmin, deleteDevice);
  * @access Authenticated users
  */
 router.get("/monitor-layout/:id", authenticateToken, getDevicesMonitorData);
+
+/**
+ * @route POST /api/devices/:id/worker-login
+ * @desc Worker login to device (set currentUser)
+ * @access Authenticated workers
+ */
+router.post("/:id/worker-login", authenticateToken, workerLoginToDevice);
+
+/**
+ * @route POST /api/devices/:id/worker-logout
+ * @desc Worker logout from device (clear currentUser and currentTask)
+ * @access Authenticated workers
+ */
+router.post("/:id/worker-logout", authenticateToken, workerLogoutFromDevice);
 
 export default router;

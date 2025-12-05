@@ -4,6 +4,7 @@ import { DeviceType } from "../models/DeviceType";
 import { Task } from "../models/Task";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import { GridLayout } from "../models";
+import { realtimeService } from "../services/realtimeService";
 
 export const getDevices = async (
   req: Request,
@@ -675,6 +676,113 @@ export const getDevicesMonitorData = async (
     res.json(response);
   } catch (error) {
     console.error("Get devices monitor data error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Worker login to device
+ * POST /api/devices/:id/worker-login
+ */
+export const workerLoginToDevice = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    if (!req.user) {
+      const response: APIResponse = {
+        success: false,
+        error: "UNAUTHORIZED",
+        message: "Authentication required"
+      };
+      res.status(401).json(response);
+      return;
+    }
+
+    const device = await Device.findById(id);
+
+    if (!device) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Device not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Update device with current worker
+    device.currentUser = req.user._id as any;
+    await device.save();
+
+    // Broadcast device update via WebSocket
+    await realtimeService.broadcastDeviceUpdate(device);
+
+    const response: APIResponse = {
+      success: true,
+      message: "Worker logged in to device successfully",
+      data: device
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Worker login to device error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Worker logout from device
+ * POST /api/devices/:id/worker-logout
+ */
+export const workerLogoutFromDevice = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const device = await Device.findById(id);
+
+    if (!device) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Device not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Clear current user and task
+    device.currentUser = undefined;
+    device.currentTask = undefined;
+    await device.save();
+
+    // Broadcast device update via WebSocket
+    await realtimeService.broadcastDeviceUpdate(device);
+
+    const response: APIResponse = {
+      success: true,
+      message: "Worker logged out from device successfully",
+      data: device
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Worker logout from device error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",
