@@ -110,12 +110,14 @@ DeviceSchema.virtual("deviceType", {
   justOne: true
 });
 
-// Pre-find hook to always populate deviceType and currentUser
+// Pre-find hook to always populate deviceType, currentUser, and currentTask
 function autoPopulateDeviceTypeAndUser(
   this: mongoose.Query<any, IDevice>,
   next: (err?: Error) => void
 ) {
-  this.populate("deviceType").populate("currentUser");
+  this.populate("deviceType")
+    .populate("currentUser", "name username email")
+    .populate("currentTask", "title status progress priority");
   next();
 }
 DeviceSchema.pre("find", autoPopulateDeviceTypeAndUser);
