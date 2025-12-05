@@ -982,10 +982,77 @@ export const failTask = async (
       { path: "productSnapshotId", select: "name version" }
     ]);
 
+    // Cascade failure to all dependent tasks in the chain
+    // Example: task1 -> task2 -> task3. If task1 fails, mark task2 and task3 as failed
+    let failedTaskIds: string[] = [];
+    let project = null;
+    if (task._id) {
+      failedTaskIds = [task._id.toString()];
+
+      // Recursive function to find and fail all dependent tasks
+      const failDependentTasksRecursively = async (taskId: string) => {
+        const dependentTasks = await Task.find({
+          dependentTask: taskId,
+          status: { $in: ["PENDING", "ONGOING", "PAUSED"] }
+        });
+
+        for (const depTask of dependentTasks) {
+          depTask.status = "FAILED";
+          depTask.notes = `Automatically failed due to dependency failure: Task ${task.title}`;
+          await depTask.save();
+          await realtimeService.broadcastTaskStatusChange(depTask.toObject());
+
+          if (depTask._id) {
+            failedTaskIds.push(depTask._id.toString());
+            // Recursively fail tasks that depend on this task
+            await failDependentTasksRecursively(depTask._id.toString());
+          }
+        }
+      };
+
+      await failDependentTasksRecursively(task._id.toString());
+
+      // Check if project should be marked as COMPLETED
+      const projectId = task.projectId;
+
+      if (projectId) {
+        project = await Project.findById(projectId);
+
+        if (project && project.status !== "COMPLETED") {
+          // Get all tasks for this project
+          const projectTasks = await Task.find({ projectId });
+
+          // Check if all tasks are either COMPLETED or FAILED
+          const allTasksFinished = projectTasks.every(
+            (t) => t.status === "COMPLETED" || t.status === "FAILED"
+          );
+
+          if (allTasksFinished) {
+            project.status = "COMPLETED";
+            project.endDate = new Date();
+            await project.save(); // Progress auto-calculated by pre-save hook
+            await realtimeService.broadcastProjectUpdate(project.toObject());
+          }
+        }
+      }
+    }
+
     const response: APIResponse = {
       success: true,
-      message: "Task marked as failed",
-      data: task
+      message: `Task marked as failed. ${
+        failedTaskIds.length - 1
+      } dependent task(s) also marked as failed.`,
+      data: {
+        failedTask: task,
+        totalFailedTasks: failedTaskIds.length,
+        project: project
+          ? {
+              _id: project._id,
+              status: project.status,
+              progress: project.progress
+            }
+          : null
+      }
     };
 
     if (task) {
@@ -1085,79 +1152,103 @@ export const completeTask = async (
     let nextTask = null;
     let project = null;
 
-    // If NOT the last step, find the next pre-generated task
-    if (!task.isLastStepInRecipe) {
-      nextTask = await Task.findOne({ dependentTask: task._id });
+    // if every tasks in the project are either COMPLETED or FAILED, mark project as COMPLETED
+    if (task.projectId) {
+      const projectTasks = await Task.find({ projectId: task.projectId });
+      const allTasksFinished = projectTasks.every(
+        (t) => t.status === "COMPLETED" || t.status === "FAILED"
+      );
+      if (allTasksFinished) {
+        project = await Project.findById(task.projectId);
+        if (project && project.status !== "COMPLETED") {
+          project.status = "COMPLETED";
+          await project.save(); // Progress auto-calculated by pre-save hook
+          await realtimeService.broadcastProjectUpdate(project.toObject());
+        }
+      }
     }
 
-    // If this IS the last step, increment producedQuantity
-    if (task.isLastStepInRecipe && task.projectId) {
+    // Find next pre-generated task if it exists (linked via dependentTask)
+    nextTask = await Task.findOne({ dependentTask: task._id });
+
+    // Calculate project progress and producedQuantity
+    if (task.projectId) {
       project = await Project.findById(task.projectId);
+
       if (project) {
-        if (task.productId) {
-          // Task is part of a product - complex calculation
-          const productIndex = project.productSnapshot;
+        // Get all tasks for this project
+        const allProjectTasks = await Task.find({ projectId: task.projectId });
+        const totalTasks = allProjectTasks.length;
+        const completedTasks = allProjectTasks.filter(
+          (t) => t.status === "COMPLETED"
+        ).length;
 
-          if (productIndex) {
-            // Get product to find recipe quantity
+        // ✅ Calculate progress: (completed tasks / total tasks) × 100
+        project.progress = roundToTwoDecimals(
+          totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
+        );
+
+        // ✅ Update producedQuantity ONLY when last step of recipe execution completes
+        if (task.isLastStepInRecipe) {
+          if (task.productId) {
+            // Product project: Check if ONE complete set of all recipes is done
             const productSnapshot = await ProductSnapshot.findById(
-              productIndex
+              project.productSnapshot
             );
+
             if (productSnapshot) {
-              // Get executions of this project that are completed
-              const completedExecutions = await Task.find({
-                projectId: task.projectId,
-                productSnapshotId: task.productSnapshotId,
-                isLastStepInRecipe: true,
-                status: "COMPLETED"
-              });
+              // For each recipe in the product, count completed executions
+              let minCompletedSets = Infinity;
 
-              // Calculate how many full recipe executions are needed by the project
-              const totalExecutionsNeeded =
-                productSnapshot.recipes.reduce(
-                  (sum, r) => sum + r.quantity,
-                  0
-                ) * project.targetQuantity;
+              for (const recipeRef of productSnapshot.recipes) {
+                const recipeSnapshotId = recipeRef.recipeSnapshotId.toString();
+                const requiredQuantity = recipeRef.quantity;
 
-              // Determine how many complete sets of recipe executions have been done
-              let completedUnits = Infinity;
-              for (const r of productSnapshot.recipes) {
-                const recipeId = r.recipeSnapshotId.toString();
-                const neededQty = r.quantity;
-                const completedQty = completedExecutions.filter(
-                  (t) =>
-                    t.recipeSnapshotId &&
-                    t.recipeSnapshotId.toString() === recipeId
-                ).length;
-                const possibleUnits = Math.floor(completedQty / neededQty);
-                if (possibleUnits < completedUnits) {
-                  completedUnits = possibleUnits;
+                // Count completed last-step tasks for this recipe
+                const completedExecutions = await Task.countDocuments({
+                  projectId: task.projectId,
+                  recipeSnapshotId: recipeSnapshotId,
+                  isLastStepInRecipe: true,
+                  status: "COMPLETED"
+                });
+
+                // Calculate how many complete sets this recipe can produce
+                const completedSets = Math.floor(
+                  completedExecutions / requiredQuantity
+                );
+
+                // Track the minimum (bottleneck)
+                if (completedSets < minCompletedSets) {
+                  minCompletedSets = completedSets;
                 }
               }
 
-              project.producedQuantity = completedUnits;
-              project.progress = roundToTwoDecimals(
-                (completedExecutions.length / totalExecutionsNeeded) * 100
-              );
+              // Update producedQuantity to the minimum completed sets
+              project.producedQuantity =
+                minCompletedSets === Infinity ? 0 : minCompletedSets;
             }
-          }
-        } else {
-          // Standalone recipe in project - direct increment
-          const recipeIndex = project.recipeSnapshot;
-
-          if (recipeIndex) {
+          } else {
+            // Standalone recipe project: Direct increment per execution
             project.producedQuantity += 1;
-            project.progress = roundToTwoDecimals(
-              (project.producedQuantity / project.targetQuantity) * 100
-            );
           }
         }
 
-        if (project.producedQuantity >= project.targetQuantity) {
+        // Check if project is complete
+        const allTasksFinished = allProjectTasks.every(
+          (t) => t.status === "COMPLETED" || t.status === "FAILED"
+        );
+
+        if (allTasksFinished) {
+          project.status = "COMPLETED";
+          project.endDate = new Date();
+        } else if (project.producedQuantity >= project.targetQuantity) {
+          // All required quantity produced
           project.status = "COMPLETED";
           project.progress = 100;
         }
-        await project.save(); // Progress auto-calculated by pre-save hook
+
+        await project.save();
+        await realtimeService.broadcastProjectUpdate(project.toObject());
       }
     }
 

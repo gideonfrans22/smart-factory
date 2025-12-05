@@ -28,6 +28,7 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
 
     // Get users
     const users = await User.find(query)
+      .populate("modifiedBy", "name email username")
       .select("-password")
       .skip(skip)
       .limit(limitNum)
@@ -83,7 +84,9 @@ export const getUserById = async (
   try {
     const { id } = req.params;
 
-    const user = await User.findById(id).select("-password");
+    const user = await User.findById(id)
+      .populate("modifiedBy", "name email username")
+      .select("-password");
 
     if (!user) {
       const response: APIResponse = {
@@ -156,25 +159,25 @@ export const createUser = async (
     //   return;
     // }
 
-    // if (role === "admin" && !email) {
-    //   const response: APIResponse = {
-    //     success: false,
-    //     error: "VALIDATION_ERROR",
-    //     message: "Email is required for admin users"
-    //   };
-    //   res.status(400).json(response);
-    //   return;
-    // }
+    if (role === "admin" && !email) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Email is required for admin users"
+      };
+      res.status(400).json(response);
+      return;
+    }
 
-    // if (email && !validateEmail(email)) {
-    //   const response: APIResponse = {
-    //     success: false,
-    //     error: "VALIDATION_ERROR",
-    //     message: "Invalid email format"
-    //   };
-    //   res.status(400).json(response);
-    //   return;
-    // }
+    if (email && !validateEmail(email)) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Invalid email format"
+      };
+      res.status(400).json(response);
+      return;
+    }
 
     // Check if user already exists
     const orConditions = [];
@@ -209,7 +212,8 @@ export const createUser = async (
       email: email ? email.toLowerCase() : undefined,
       password: hashedPassword,
       role,
-      department: department ? sanitizeInput(department) : undefined
+      department: department ? sanitizeInput(department) : undefined,
+      modifiedBy: req.user?.id
     });
 
     await user.save();
@@ -313,6 +317,9 @@ export const updateUser = async (
     if (password) {
       user.password = await hashPassword(password);
     }
+
+    // Track who modified the user
+    user.modifiedBy = req.user?.id;
 
     await user.save();
 

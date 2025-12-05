@@ -3,7 +3,7 @@ import { Product, Recipe } from "../models";
 import { RawMaterial } from "../models/RawMaterial";
 import { DeviceType } from "../models/DeviceType";
 import { Project } from "../models/Project";
-import { APIResponse } from "../types";
+import { APIResponse, AuthenticatedRequest } from "../types";
 import { RecipeService } from "../services/recipeService";
 import { SnapshotService } from "../services/snapshotService";
 import mongoose from "mongoose";
@@ -36,6 +36,7 @@ export const getRecipes = async (
 
     const [recipes, total] = await Promise.all([
       Recipe.find(query)
+        .populate("modifiedBy", "name email")
         .populate(
           "rawMaterials.materialId",
           "materialCode name specifications supplier unit"
@@ -185,7 +186,7 @@ export const getRecipeByRecipeNumber = async (
  * Create new recipe
  */
 export const createRecipe = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -309,7 +310,8 @@ export const createRecipe = async (
       unit: unit || "EA", // Default to "EA" if not provided
       outsourcing,
       remarks,
-      mediaIds: mediaIds || []
+      mediaIds: mediaIds || [],
+      modifiedBy: req.user?.id
     });
 
     // Auto-generate recipeNumber if not provided
@@ -351,7 +353,7 @@ export const createRecipe = async (
  * Update recipe
  */
 export const updateRecipe = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -475,6 +477,9 @@ export const updateRecipe = async (
       recipe.steps = processedSteps;
     }
 
+    // Track who modified the recipe
+    recipe.modifiedBy = req.user?.id;
+
     // Increment version on update
     await RecipeService.prepareRecipeForSave(recipe, false);
 
@@ -519,7 +524,7 @@ export const updateRecipe = async (
  * Delete recipe
  */
 export const deleteRecipe = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -553,6 +558,9 @@ export const deleteRecipe = async (
       return;
     }
 
+    recipe.modifiedBy = req.user?.id;
+    await recipe.save();
+
     await Recipe.findByIdAndDelete(id);
 
     const response: APIResponse = {
@@ -575,7 +583,7 @@ export const deleteRecipe = async (
  * Create new version of recipe
  */
 export const createRecipeVersion = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -609,7 +617,8 @@ export const createRecipeVersion = async (
       name: name || existingRecipe.name,
       description: description || existingRecipe.description,
       steps: steps || existingRecipe.steps,
-      estimatedDuration: 0 // Will be calculated by pre-save hook
+      estimatedDuration: 0, // Will be calculated by pre-save hook
+      modifiedBy: req.user?.id
     });
 
     await newRecipe.save();

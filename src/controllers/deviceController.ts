@@ -91,10 +91,20 @@ export const getDeviceById = async (
 };
 
 export const registerDevice = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
+    if (!req.user || !req.user.role || req.user.role !== "admin") {
+      const response: APIResponse = {
+        success: false,
+        error: "FORBIDDEN",
+        message: "Admin privileges required to register device"
+      };
+      res.status(403).json(response);
+      return;
+    }
+
     const { name, deviceTypeId, status, ipAddress, macAddress, config } =
       req.body;
 

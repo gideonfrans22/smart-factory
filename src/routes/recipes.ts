@@ -29,15 +29,15 @@ router.get("/:id", getRecipeById);
 router.get("/:id/dependency-graph", getRecipeDependencyGraph);
 
 // Create new recipe
-router.post("/", createRecipe);
+router.post("/", authenticateToken, createRecipe);
 
 // Update recipe
-router.put("/:id", updateRecipe);
+router.put("/:id", authenticateToken, updateRecipe);
 
 // Delete recipe
-router.delete("/:id", deleteRecipe);
+router.delete("/:id", authenticateToken, deleteRecipe);
 
 // Create new version of recipe
-router.post("/:id/version", createRecipeVersion);
+router.post("/:id/version", authenticateToken, createRecipeVersion);
 
 export default router;

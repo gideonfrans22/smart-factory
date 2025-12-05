@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import * as jwt from "jsonwebtoken";
 import { User } from "../models/User";
+import { Device } from "../models/Device";
 import {
   RegisterData,
   APIResponse,
@@ -372,6 +373,114 @@ export const getProfile = async (
     res.json(response);
   } catch (error) {
     console.error("Get profile error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+export const workerLogin = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { workerId, deviceId } = req.body;
+
+    // Validation
+    if (!workerId || !deviceId) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Worker ID and Device ID are required"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Find worker
+    const worker = await User.findById(workerId);
+
+    if (!worker || worker.role !== "worker" || !worker.isActive) {
+      const response: APIResponse = {
+        success: false,
+        error: "INVALID_CREDENTIALS",
+        message: "Invalid worker ID or worker is inactive"
+      };
+      res.status(401).json(response);
+      return;
+    }
+
+    // Find device
+    const device = await Device.findById(deviceId);
+
+    if (!device) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Device not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Update device's currentUser
+    device.currentUser = worker._id as any;
+    device.lastHeartbeat = new Date();
+    device.status = "ONLINE";
+    await device.save();
+
+    // Update worker's last login
+    worker.lastLoginAt = new Date();
+    await worker.save();
+
+    // Generate JWT tokens
+    const accessTokenPayload: JWTPayload = {
+      sub: (worker._id as any).toString(),
+      role: worker.role,
+      username: worker.username || undefined
+    };
+
+    const refreshTokenPayload: JWTPayload = {
+      sub: (worker._id as any).toString(),
+      role: worker.role,
+      type: "refresh"
+    };
+
+    const accessToken = generateToken(accessTokenPayload, false); // 15 minutes
+    const refreshToken = generateToken(refreshTokenPayload, true); // 7 days
+
+    const response: APIResponse = {
+      success: true,
+      message: "Worker login successful",
+      data: {
+        user: {
+          id: worker._id,
+          name: worker.name,
+          role: worker.role,
+          username: worker.username,
+          department: worker.department,
+          createdAt: worker.createdAt.toISOString(),
+          updatedAt: worker.updatedAt.toISOString()
+        },
+        device: {
+          id: device._id,
+          name: device.name,
+          deviceTypeId: device.deviceTypeId,
+          status: device.status
+        },
+        tokens: {
+          accessToken,
+          refreshToken
+        }
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Worker login error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",

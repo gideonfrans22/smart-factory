@@ -104,6 +104,7 @@ ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
     this.where({ deletedAt: null });
   }
 
+  this.populate("modifiedBy", "name email");
   this.populate({
     path: "recipes.recipeId",
     options: { sort: { createdAt: 1 } }
@@ -118,6 +119,7 @@ ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
   this.populate({
     path: "recipes.recipeId",
     populate: [
+      { path: "modifiedBy", select: "name email" },
       {
         path: "mediaIds"
       },
@@ -147,7 +149,6 @@ ProductSchema.pre("findOneAndDelete", async function (next) {
 ProductSchema.index(
   { designNumber: 1 },
   {
-    unique: true,
     partialFilterExpression: { deletedAt: null }
   }
 );

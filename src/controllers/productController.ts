@@ -2,6 +2,8 @@ import { Response } from "express";
 import { Product } from "../models/Product";
 import { Recipe } from "../models/Recipe";
 import { Project } from "../models/Project";
+import ProductSnapshot from "../models/ProductSnapshot";
+import RecipeSnapshot from "../models/RecipeSnapshot";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import { SnapshotService } from "../services/snapshotService";
 import mongoose from "mongoose";
@@ -205,7 +207,8 @@ export const createProduct = async (
       customerName,
       personInCharge: assignedPersonInCharge,
       quantityUnit,
-      recipes: recipes || []
+      recipes: recipes || [],
+      modifiedBy: req.user?.id
     });
 
     await product.save();
@@ -279,6 +282,9 @@ export const updateProduct = async (
     if (quantityUnit !== undefined) product.quantityUnit = quantityUnit;
     if (recipes !== undefined) product.recipes = recipes;
 
+    // Track who modified the product
+    product.modifiedBy = req.user?.id;
+
     await product.save();
 
     const populatedProduct = await Product.findById(product._id);
@@ -344,6 +350,9 @@ export const deleteProduct = async (
       return;
     }
 
+    product.modifiedBy = req.user?.id;
+    await product.save();
+
     await Product.findOneAndDelete({
       _id: id
     });
@@ -356,6 +365,226 @@ export const deleteProduct = async (
     res.json(response);
   } catch (error) {
     console.error("Delete product error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+// Duplicate product
+export const duplicateProduct = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { newDesignNumber, newProductName } = req.body;
+
+    // Find the original product
+    const originalProduct = await Product.findById(id);
+
+    if (!originalProduct) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Product not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Validate new design number is provided
+    if (!newDesignNumber) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "New design number is required for duplication"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Check if new design number already exists
+    const existingProduct = await Product.findOne({
+      designNumber: newDesignNumber
+    });
+    if (existingProduct) {
+      const response: APIResponse = {
+        success: false,
+        error: "DUPLICATE_DESIGN_NUMBER",
+        message: "Design number already exists"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Create the duplicate product with all recipes and properties
+    const duplicatedProduct = new Product({
+      designNumber: newDesignNumber,
+      productName: newProductName || `${originalProduct.productName} (Copy)`,
+      customerName: originalProduct.customerName,
+      personInCharge: originalProduct.personInCharge,
+      quantityUnit: originalProduct.quantityUnit,
+      recipes: originalProduct.recipes.map((recipe) => ({
+        recipeId: recipe.recipeId,
+        quantity: recipe.quantity
+      })),
+      modifiedBy: req.user?.id
+    });
+
+    await duplicatedProduct.save();
+
+    const populatedProduct = await Product.findById(duplicatedProduct._id);
+
+    const response: APIResponse = {
+      success: true,
+      message: "Product duplicated successfully",
+      data: {
+        original: {
+          _id: originalProduct._id,
+          designNumber: originalProduct.designNumber,
+          productName: originalProduct.productName
+        },
+        duplicate: populatedProduct
+      }
+    };
+
+    res.status(201).json(response);
+  } catch (error) {
+    console.error("Duplicate product error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+// Get product version history
+export const getProductVersionHistory = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    // Verify the product exists
+    const product = await Product.findById(id);
+
+    if (!product) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Product not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get all product snapshots for this product, sorted by version descending
+    const total = await ProductSnapshot.countDocuments({
+      originalProductId: id
+    });
+
+    const snapshots = await ProductSnapshot.find({
+      originalProductId: id
+    })
+      .populate("modifiedBy", "name username email")
+      .sort({ version: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    // For each product snapshot, populate the recipe snapshots
+    const versionsWithRecipes = await Promise.all(
+      snapshots.map(async (snapshot) => {
+        const recipeSnapshotIds = snapshot.recipes.map(
+          (r) => r.recipeSnapshotId
+        );
+
+        const recipeSnapshots = await RecipeSnapshot.find({
+          _id: { $in: recipeSnapshotIds }
+        });
+
+        // Map recipes with their quantities and full snapshot data
+        const recipesWithDetails = snapshot.recipes.map((pr) => {
+          const recipeSnapshot = recipeSnapshots.find(
+            (rs) => rs._id.toString() === pr.recipeSnapshotId.toString()
+          );
+
+          return {
+            recipeSnapshot: recipeSnapshot
+              ? {
+                  _id: recipeSnapshot._id,
+                  originalRecipeId: recipeSnapshot.originalRecipeId,
+                  version: recipeSnapshot.version,
+                  recipeNumber: recipeSnapshot.recipeNumber,
+                  name: recipeSnapshot.name,
+                  description: recipeSnapshot.description,
+                  specification: recipeSnapshot.specification,
+                  estimatedDuration: recipeSnapshot.estimatedDuration,
+                  dwgNo: recipeSnapshot.dwgNo,
+                  unit: recipeSnapshot.unit,
+                  outsourcing: recipeSnapshot.outsourcing,
+                  remarks: recipeSnapshot.remarks,
+                  steps: recipeSnapshot.steps,
+                  rawMaterials: recipeSnapshot.rawMaterials,
+                  createdAt: recipeSnapshot.createdAt
+                }
+              : null,
+            quantity: pr.quantity
+          };
+        });
+
+        return {
+          _id: snapshot._id,
+          version: snapshot.version,
+          productNumber: snapshot.productNumber,
+          name: snapshot.name,
+          description: snapshot.description,
+          customerName: snapshot.customerName,
+          personInCharge: snapshot.personInCharge,
+          recipes: recipesWithDetails,
+          modifiedBy: snapshot.modifiedBy,
+          createdAt: snapshot.createdAt,
+          updatedAt: snapshot.updatedAt
+        };
+      })
+    );
+
+    const response: APIResponse = {
+      success: true,
+      message: "Product version history retrieved successfully",
+      data: {
+        currentProduct: {
+          _id: product._id,
+          designNumber: product.designNumber,
+          productName: product.productName,
+          updatedAt: product.updatedAt
+        },
+        versions: versionsWithRecipes,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+          hasNext: pageNum * limitNum < total,
+          hasPrev: pageNum > 1
+        }
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get product version history error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",

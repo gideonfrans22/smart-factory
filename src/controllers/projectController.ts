@@ -39,6 +39,7 @@ export const getProjects = async (
     // Get projects with proper population
     const projects = await Project.find(query)
       .populate("createdBy", "name email username")
+      .populate("modifiedBy", "name email username")
       .populate("product", "name designNumber")
       .populate("recipe", "name recipeNumber")
       .populate("productSnapshot", "name version originalProductId")
@@ -88,6 +89,7 @@ export const getProjectById = async (
 
     const project = await Project.findById(id)
       .populate("createdBy", "name email username")
+      .populate("modifiedBy", "name email username")
       .populate("product", "name designNumber")
       .populate("recipe", "name recipeNumber")
       .populate("productSnapshot", "name version originalProductId")
@@ -224,7 +226,8 @@ export const createProjectsBatch = async (
         status,
         priority,
         deadline: deadline ? new Date(deadline) : undefined,
-        createdBy
+        createdBy,
+        modifiedBy: req.user?.id
       });
 
       // If status is ACTIVE, create snapshots and tasks immediately
@@ -311,7 +314,8 @@ export const createProjectsBatch = async (
         status,
         priority,
         deadline: deadline ? new Date(deadline) : undefined,
-        createdBy
+        createdBy,
+        modifiedBy: req.user?.id
       });
 
       // If status is ACTIVE, create snapshots and tasks immediately
@@ -417,6 +421,9 @@ export const updateProject = async (
     if (deadline !== undefined)
       project.deadline = deadline ? new Date(deadline) : undefined;
     if (status !== undefined) project.status = status;
+
+    // Track who modified the project
+    project.modifiedBy = req.user?.id;
 
     // If product/recipe is not mentioned in body, retain existing
     // This is important for ACTIVE projects to know which snapshot to use
@@ -659,6 +666,10 @@ export const deleteProject = async (
 
     // Delete all associated tasks first
     const deletedTaskCount = await deleteProjectTasks(project._id as any);
+
+    // set modifiedBy before deletion for audit trail
+    project.modifiedBy = req.user?.id;
+    await project.save();
 
     // Delete project
     await Project.findOneAndDelete({

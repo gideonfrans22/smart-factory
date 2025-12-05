@@ -42,17 +42,17 @@ router.get("/:id", authenticateToken, getDeviceById);
 
 /**
  * @route POST /api/devices/register
- * @desc Register new device (no auth required)
+ * @desc Register new device
  * @access Public
  */
-router.post("/register", registerDevice);
+router.post("/register", authenticateToken, requireAdmin, registerDevice);
 
 /**
  * @route PUT /api/devices/:id
  * @desc Update device
  * @access Admin only
  */
-router.put("/:id", authenticateToken, requireAdmin, updateDevice);
+router.put("/:id", authenticateToken, updateDevice);
 
 /**
  * @route DELETE /api/devices/:id
