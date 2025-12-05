@@ -106,7 +106,7 @@ export const createGridLayout = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { name, description, columns, rows, devices, isDefault } = req.body;
+    const { name, description, columns, rows, devices, isDefault, isMonitorDisplay } = req.body;
 
     // Validation
     if (!name) {
@@ -174,6 +174,7 @@ export const createGridLayout = async (
       rows: rows || 10,
       devices: devices || [],
       isDefault: isDefault || false,
+      isMonitorDisplay: isMonitorDisplay || false,
       createdBy: req.user?._id
     });
 
@@ -211,7 +212,7 @@ export const updateGridLayout = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, description, columns, rows, devices, isDefault } = req.body;
+    const { name, description, columns, rows, devices, isDefault, isMonitorDisplay } = req.body;
 
     const layout = await GridLayout.findById(id);
 
@@ -288,6 +289,7 @@ export const updateGridLayout = async (
     if (rows !== undefined) layout.rows = rows;
     if (devices !== undefined) layout.devices = devices;
     if (isDefault !== undefined) layout.isDefault = isDefault;
+    if (isMonitorDisplay !== undefined) layout.isMonitorDisplay = isMonitorDisplay;
 
     await layout.save();
     await layout.populate([

@@ -16,6 +16,7 @@ export interface IGridLayout extends Document {
   rows: number;
   devices: IDevicePosition[];
   isDefault: boolean;
+  isMonitorDisplay: boolean;
   createdBy?: mongoose.Types.ObjectId;
   modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -97,6 +98,11 @@ const GridLayoutSchema: Schema = new Schema(
       type: Boolean,
       default: false,
       comment: "Whether this is the default layout"
+    },
+    isMonitorDisplay: {
+      type: Boolean,
+      default: false,
+      comment: "Whether this layout should be displayed on monitor TV"
     },
     createdBy: {
       type: Schema.Types.ObjectId,
