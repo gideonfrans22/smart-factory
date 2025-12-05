@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
 import { User } from "../models/User";
 import { Task } from "../models/Task";
+import { Device } from "../models/Device";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import { hashPassword, sanitizeInput, validateEmail } from "../utils/helpers";
+import { realtimeService } from "../services/realtimeService";
 
 /**
  * Get all users with optional filtering and pagination
@@ -322,6 +324,16 @@ export const updateUser = async (
     user.modifiedBy = req.user?.id;
 
     await user.save();
+
+    // If worker updated, emit WebSocket event to all devices using this worker
+    if (user.role === "worker") {
+      const devices = await Device.find({ currentUser: user._id });
+      
+      // Emit device status update for each device to refresh currentUser info
+      for (const device of devices) {
+        await realtimeService.broadcastDeviceUpdate(device);
+      }
+    }
 
     const response: APIResponse = {
       success: true,
