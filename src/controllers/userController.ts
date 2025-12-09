@@ -5,6 +5,7 @@ import { Device } from "../models/Device";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import { hashPassword, sanitizeInput, validateEmail } from "../utils/helpers";
 import { realtimeService } from "../services/realtimeService";
+import mongoose from "mongoose";
 
 /**
  * Get all users with optional filtering and pagination
@@ -138,6 +139,7 @@ export const createUser = async (
   res: Response
 ): Promise<void> => {
   try {
+    const loggedInUser = req.user;
     const { username, name, email, password, role, department } = req.body;
 
     // Validation
@@ -194,7 +196,7 @@ export const createUser = async (
     if (existingUser) {
       const response: APIResponse = {
         success: false,
-        error: "DUPLICATE_ENTRY",
+        error: "DUPLICATE_ERROR",
         message: "Employee number or email already exists"
       };
       res.status(409).json(response);
@@ -215,7 +217,7 @@ export const createUser = async (
       password: hashedPassword,
       role,
       department: department ? sanitizeInput(department) : undefined,
-      modifiedBy: req.user?.id
+      modifiedBy: loggedInUser?._id as mongoose.Types.ObjectId
     });
 
     await user.save();
@@ -250,7 +252,7 @@ export const createUser = async (
         error.message.includes("unique")
       ) {
         errorMessage = "Email or username already exists";
-        errorCode = "DUPLICATE_ENTRY";
+        errorCode = "DUPLICATE_ERROR";
       } else if (error.message.includes("validation")) {
         errorMessage = error.message;
         errorCode = "VALIDATION_ERROR";
@@ -278,6 +280,8 @@ export const updateUser = async (
   res: Response
 ): Promise<void> => {
   try {
+    const loggedInUser = req.user;
+
     const { id } = req.params;
     const { name, email, isActive, role, lastLoginAt, department, password } =
       req.body;
@@ -321,14 +325,14 @@ export const updateUser = async (
     }
 
     // Track who modified the user
-    user.modifiedBy = req.user?.id;
+    user.modifiedBy = loggedInUser?._id as mongoose.Types.ObjectId;
 
     await user.save();
 
     // If worker updated, emit WebSocket event to all devices using this worker
     if (user.role === "worker") {
       const devices = await Device.find({ currentUser: user._id });
-      
+
       // Emit device status update for each device to refresh currentUser info
       for (const device of devices) {
         await realtimeService.broadcastDeviceUpdate(device);
