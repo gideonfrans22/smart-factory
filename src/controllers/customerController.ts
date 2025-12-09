@@ -1,6 +1,7 @@
 import { Response } from "express";
 import Customer from "../models/Customer";
 import { APIResponse, AuthenticatedRequest } from "../types";
+import mongoose from "mongoose";
 
 // Get all customers with pagination and filtering
 export const getCustomers = async (
@@ -100,6 +101,7 @@ export const createCustomer = async (
   res: Response
 ): Promise<void> => {
   try {
+    const user = req.user;
     const { name, personInCharge, notes } = req.body;
 
     // Validate required fields
@@ -113,22 +115,11 @@ export const createCustomer = async (
       return;
     }
 
-    // Check if customer with same name already exists
-    const existingCustomer = await Customer.findOne({ name });
-    if (existingCustomer) {
-      const response: APIResponse = {
-        success: false,
-        error: "DUPLICATE_ERROR",
-        message: "Customer with this name already exists"
-      };
-      res.status(409).json(response);
-      return;
-    }
-
     const customer = new Customer({
       name,
       personInCharge,
-      notes
+      notes,
+      modifiedBy: user?._id
     });
 
     await customer.save();
@@ -169,6 +160,8 @@ export const updateCustomer = async (
   res: Response
 ): Promise<void> => {
   try {
+    const user = req.user;
+
     const { id } = req.params;
     const { name, personInCharge, notes } = req.body;
 
@@ -184,24 +177,11 @@ export const updateCustomer = async (
       return;
     }
 
-    // Check if new name conflicts with another customer
-    if (name && name !== customer.name) {
-      const existingCustomer = await Customer.findOne({ name });
-      if (existingCustomer) {
-        const response: APIResponse = {
-          success: false,
-          error: "DUPLICATE_ERROR",
-          message: "Customer with this name already exists"
-        };
-        res.status(409).json(response);
-        return;
-      }
-    }
-
     // Update fields
     if (name !== undefined) customer.name = name;
     if (personInCharge !== undefined) customer.personInCharge = personInCharge;
     if (notes !== undefined) customer.notes = notes;
+    if (user?._id) customer.modifiedBy = user?._id as mongoose.Types.ObjectId;
 
     await customer.save();
 
