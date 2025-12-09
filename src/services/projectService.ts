@@ -18,7 +18,7 @@ export const generateProjectName = (
 };
 
 /**
- * Generate unique project number with format: SUMAN-YYYY-MM-DD-XXX
+ * Generate unique project number with format: SMYY-MM-XXXX
  * Includes retry logic to handle potential duplicates
  * @param createdAt - Creation date for the project
  * @returns Formatted project number
@@ -26,10 +26,9 @@ export const generateProjectName = (
 export const generateProjectNumber = async (
   createdAt: Date = DateTime
 ): Promise<string> => {
-  const year = createdAt.getFullYear();
+  const year = String(createdAt.getFullYear()).slice(-2);
   const month = String(createdAt.getMonth() + 1).padStart(2, "0");
-  const day = String(createdAt.getDate()).padStart(2, "0");
-  const datePrefix = `SUMAN-${year}-${month}-${day}`;
+  const datePrefix = `SM${year}-${month}`;
 
   // Get start and end of the day for the query
   const startOfDay = new Date(createdAt);
@@ -38,16 +37,16 @@ export const generateProjectNumber = async (
   const endOfDay = new Date(createdAt);
   endOfDay.setHours(23, 59, 59, 999);
 
-  // Count projects created on the same day
-  const latestProjectToday = await Project.findOne({
-    projectNumber: { $regex: `^${datePrefix}-\\d{3}$` }
+  // Count projects created on the same month
+  const latestProjectThisMonth = await Project.findOne({
+    projectNumber: { $regex: `^${datePrefix}-\\d{4}$` }
   }).sort({ projectNumber: -1 });
-  const count = latestProjectToday
-    ? parseInt(latestProjectToday.projectNumber.split("-")[4] || "0", 10)
+  const count = latestProjectThisMonth
+    ? parseInt(latestProjectThisMonth.projectNumber.split("-")[2] || "0", 10)
     : 0;
 
-  // Generate sequential number (count + 1, padded to 3 digits)
-  const sequentialNumber = String(count + 1).padStart(3, "0");
+  // Generate sequential number (count + 1, padded to 4 digits)
+  const sequentialNumber = String(count + 1).padStart(4, "0");
   return `${datePrefix}-${sequentialNumber}`;
 };
 
