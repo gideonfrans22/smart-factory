@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import { Alert } from "../models/Alert";
+import { Alert } from "../models";
 import { realtimeService } from "../services/realtimeService";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
@@ -138,6 +138,15 @@ export const createAlert = async (
       return;
     }
 
+    let additionalData: any = {};
+    if (relatedEntityType === "DEVICE") {
+      additionalData.device = relatedEntityId;
+    } else if (relatedEntityType === "TASK") {
+      additionalData.task = relatedEntityId;
+    } else if (relatedEntityType === "PROJECT") {
+      additionalData.project = relatedEntityId;
+    }
+
     const alert = new Alert({
       type,
       level,
@@ -150,7 +159,8 @@ export const createAlert = async (
       task: taskId,
       project: projectId,
       metadata,
-      status: "UNREAD"
+      status: "UNREAD",
+      ...additionalData
     });
 
     await alert.save();
@@ -398,7 +408,7 @@ export const bulkAcknowledgeAlerts = async (
       status: "ACKNOWLEDGED",
       acknowledgedAt: new Date()
     };
-    
+
     if (userId) {
       updateFields.acknowledgedBy = userId;
     }
