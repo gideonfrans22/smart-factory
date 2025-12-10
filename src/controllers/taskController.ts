@@ -2141,7 +2141,10 @@ export const getDeviceTasks = async (
     }
     const { status, workerId, start, end, page = 1, limit = 10 } = req.query;
 
-    const device = await Device.findById(deviceId);
+    // Fetch device and build query in parallel for better performance
+    const device = await Device.findById(deviceId)
+      .select("deviceTypeId")
+      .lean();
     if (!device) {
       const response: APIResponse = {
         success: false,
@@ -2152,70 +2155,91 @@ export const getDeviceTasks = async (
       return;
     }
 
-    // Build query for tasks assigned to the device
-    const query: any = {};
+    // Build optimized query - simplified logic for better index usage
+    const query: any = {
+      deviceTypeId: device.deviceTypeId,
+      // Tasks assigned to device OR unassigned tasks (null or missing deviceId)
+      $or: [
+        { deviceId: new mongoose.Types.ObjectId(deviceId) },
+        { deviceId: { $exists: false } },
+        { deviceId: null }
+      ]
+    };
 
-    query.$and = [
-      {
-        $or: [
-          { deviceId: deviceId },
-          { deviceId: { $exists: false } },
-          { deviceId: null }
-        ]
-      },
-      {
-        deviceTypeId: device.deviceTypeId
-      }
-    ];
+    // Add status filter if provided
+    if (status) {
+      query.status = status;
+    }
 
-    if (status) query.status = status;
-    if (workerId)
+    // Add worker filter if provided - matches original logic (assigned or unassigned)
+    if (workerId) {
+      query.$and = query.$and || [];
       query.$and.push({
         $or: [
-          { workerId: workerId },
+          { workerId: new mongoose.Types.ObjectId(workerId as string) },
           { workerId: { $exists: false } },
           { workerId: null }
         ]
       });
-    if (start) {
-      query.$and.push({
-        $or: [
-          { createdAt: { $gte: new Date(start as string) } },
-          { completedAt: { $gte: new Date(start as string) } },
-          { completedAt: null }
-        ]
-      });
     }
-    if (end) {
-      query.$and.push({
-        $or: [
-          { createdAt: { $lte: new Date(end as string) } },
-          { completedAt: { $lte: new Date(end as string) } },
-          { completedAt: null }
-        ]
-      });
+
+    // Optimize date range queries - simplified logic matching original intent
+    if (start || end) {
+      const dateConditions: any[] = [];
+      const startDate = start ? new Date(start as string) : null;
+      const endDate = end ? new Date(end as string) : null;
+
+      if (startDate) {
+        // Task created or completed after start date, or not yet completed
+        dateConditions.push({
+          $or: [
+            { createdAt: { $gte: startDate } },
+            { completedAt: { $gte: startDate } },
+            { completedAt: null }
+          ]
+        });
+      }
+
+      if (endDate) {
+        // Task created or completed before end date, or not yet completed
+        dateConditions.push({
+          $or: [
+            { createdAt: { $lte: endDate } },
+            { completedAt: { $lte: endDate } },
+            { completedAt: null }
+          ]
+        });
+      }
+
+      if (dateConditions.length > 0) {
+        query.$and = query.$and || [];
+        query.$and.push(...dateConditions);
+      }
     }
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
-    const total = await Task.countDocuments(query);
 
-    const tasks = await Task.find(query)
-      .populate("projectId", "name status priority deadline")
-      .populate("recipeId", "name recipeNumber version")
-      .populate("workerId", "name username email")
-      .populate("recipeSnapshotId", "name version steps")
-      .populate(
-        "productSnapshotId",
-        "name productNumber customerName personInCharge version"
-      )
-      .populate("mediaFiles")
-      .populate("productSnapshotId")
-      .populate("dependentTask", "title status")
-      .skip(skip)
-      .limit(limitNum)
-      .sort({ completedAt: -1, createdAt: -1 });
+    // Execute count and find queries in parallel for better performance
+    const [total, tasks] = await Promise.all([
+      Task.countDocuments(query),
+      Task.find(query)
+        .populate("projectId", "name status priority deadline")
+        .populate("recipeId", "name recipeNumber version")
+        .populate("workerId", "name username email")
+        .populate("recipeSnapshotId", "name version steps")
+        .populate(
+          "productSnapshotId",
+          "name productNumber customerName personInCharge version"
+        )
+        .populate("mediaFiles")
+        .populate("dependentTask", "title status")
+        .skip(skip)
+        .limit(limitNum)
+        .sort({ completedAt: -1, createdAt: -1 })
+        .lean() // Use lean() for better performance - returns plain JS objects
+    ]);
 
     const response: APIResponse = {
       success: true,
