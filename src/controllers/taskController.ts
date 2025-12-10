@@ -2155,58 +2155,61 @@ export const getDeviceTasks = async (
       return;
     }
 
-    // Build optimized query - simplified logic for better index usage
+    // Build optimized query - prioritize assigned tasks for better index usage
+    const deviceObjectId = new mongoose.Types.ObjectId(deviceId);
     const query: any = {
-      deviceTypeId: device.deviceTypeId,
-      // Tasks assigned to device OR unassigned tasks (null or missing deviceId)
-      $or: [
-        { deviceId: new mongoose.Types.ObjectId(deviceId) },
-        { deviceId: { $exists: false } },
-        { deviceId: null }
-      ]
+      deviceTypeId: device.deviceTypeId
     };
+
+    // Optimize deviceId query - check assigned first, then unassigned
+    // This allows MongoDB to use the deviceId index more efficiently
+    query.$or = [
+      { deviceId: deviceObjectId }, // Assigned to this device
+      { deviceId: null }, // Unassigned
+      { deviceId: { $exists: false } } // Field doesn't exist
+    ];
 
     // Add status filter if provided
     if (status) {
       query.status = status;
     }
 
-    // Add worker filter if provided - matches original logic (assigned or unassigned)
+    // Add worker filter if provided
     if (workerId) {
-      query.$and = query.$and || [];
+      const workerObjectId = new mongoose.Types.ObjectId(workerId as string);
+      if (!query.$and) query.$and = [];
       query.$and.push({
         $or: [
-          { workerId: new mongoose.Types.ObjectId(workerId as string) },
-          { workerId: { $exists: false } },
-          { workerId: null }
+          { workerId: workerObjectId },
+          { workerId: null },
+          { workerId: { $exists: false } }
         ]
       });
     }
 
-    // Optimize date range queries - simplified logic matching original intent
+    // Optimize date range queries - use $or only when necessary, prefer direct field queries
     if (start || end) {
-      const dateConditions: any[] = [];
       const startDate = start ? new Date(start as string) : null;
       const endDate = end ? new Date(end as string) : null;
 
+      // For date ranges, check both createdAt and completedAt
+      // If task is completed, use completedAt; otherwise use createdAt
+      const dateConditions: any[] = [];
+
       if (startDate) {
-        // Task created or completed after start date, or not yet completed
         dateConditions.push({
           $or: [
-            { createdAt: { $gte: startDate } },
             { completedAt: { $gte: startDate } },
-            { completedAt: null }
+            { completedAt: null, createdAt: { $gte: startDate } }
           ]
         });
       }
 
       if (endDate) {
-        // Task created or completed before end date, or not yet completed
         dateConditions.push({
           $or: [
-            { createdAt: { $lte: endDate } },
             { completedAt: { $lte: endDate } },
-            { completedAt: null }
+            { completedAt: null, createdAt: { $lte: endDate } }
           ]
         });
       }
@@ -2222,9 +2225,13 @@ export const getDeviceTasks = async (
     const skip = (pageNum - 1) * limitNum;
 
     // Execute count and find queries in parallel for better performance
+    // Use select to limit fields returned for better performance
     const [total, tasks] = await Promise.all([
       Task.countDocuments(query),
       Task.find(query)
+        .select(
+          "title description projectId recipeId recipeSnapshotId productSnapshotId workerId deviceId deviceTypeId status priority progress notes createdAt updatedAt startedAt completedAt dependentTask mediaFiles recipeExecutionNumber stepOrder"
+        )
         .populate("projectId", "name status priority deadline")
         .populate("recipeId", "name recipeNumber version")
         .populate("workerId", "name username email")
@@ -2233,7 +2240,7 @@ export const getDeviceTasks = async (
           "productSnapshotId",
           "name productNumber customerName personInCharge version"
         )
-        .populate("mediaFiles")
+        .populate("mediaFiles", "url type filename")
         .populate("dependentTask", "title status")
         .skip(skip)
         .limit(limitNum)
