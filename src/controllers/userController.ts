@@ -41,18 +41,7 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
       success: true,
       message: "Users retrieved successfully",
       data: {
-        items: users.map((user) => ({
-          id: user._id,
-          username: user.username,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          department: user.department,
-          isActive: user.isActive,
-          lastLoginAt: user.lastLoginAt,
-          createdAt: user.createdAt.toISOString(),
-          updatedAt: user.updatedAt.toISOString()
-        })),
+        items: users,
         pagination: {
           page: pageNum,
           limit: limitNum,
