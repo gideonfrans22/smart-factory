@@ -1,4 +1,4 @@
-import mongoose, { Document, Query, Schema } from "mongoose";
+import mongoose, { Document, Schema } from "mongoose";
 
 export interface IUser extends Document {
   username?: string;
@@ -86,10 +86,7 @@ UserSchema.virtual("id").get(function (this: IUser) {
   return this._id;
 });
 
-// populate modifiedBy
-UserSchema.pre("find", function (this: Query<IUser[], IUser>) {
-  this.populate("modifiedBy");
-});
+// WARNING NEVER AUTO POPULATE MODIFIEDBY
 
 // Indexes
 UserSchema.index({ role: 1 });
