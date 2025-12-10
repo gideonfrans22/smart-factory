@@ -36,7 +36,7 @@ router.get("/:id", authenticateToken, getReportById);
  * @desc Download report file
  * @access Authenticated users
  */
-router.get("/download/:id", authenticateToken, downloadReport);
+router.get("/download/:id", downloadReport);
 
 /**
  * @route DELETE /api/reports/:id
