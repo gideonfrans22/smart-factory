@@ -244,7 +244,7 @@ RecipeSchema.index({ Product: 1 }); // For querying recipes by product
 // Unique compound index on recipeNumber and version (sparse to allow null recipeNumbers)
 RecipeSchema.index(
   { recipeNumber: 1, version: 1 },
-  { unique: true, sparse: true, partialFilterExpression: { deletedAt: null } }
+  { unique: true, partialFilterExpression: { deletedAt: null } }
 );
 
 // Helper function to validate step dependencies

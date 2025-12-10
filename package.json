@@ -11,6 +11,7 @@
     "clean": "rm -rf dist",
     "seed": "ts-node ./src/utils/seed.ts",
     "recreate-task-indexes": "ts-node ./src/utils/recreate_task_indexes.ts",
+    "recreate-all-indexes": "ts-node ./src/utils/recreate_all_indexes.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

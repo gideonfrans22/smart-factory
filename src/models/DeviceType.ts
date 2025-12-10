@@ -27,6 +27,7 @@ const DeviceTypeSchema: Schema = new Schema(
       type: String,
       required: true,
       unique: true,
+      index: 1,
       trim: true,
       maxlength: 100
     },
@@ -50,9 +51,6 @@ const DeviceTypeSchema: Schema = new Schema(
     toObject: { virtuals: true }
   }
 );
-
-// Indexes
-DeviceTypeSchema.index({ name: 1 });
 
 // translate _id to id
 DeviceTypeSchema.virtual("id").get(function (this: IDeviceType) {
