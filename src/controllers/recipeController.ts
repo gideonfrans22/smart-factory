@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { Product, Recipe } from "../models";
+import { IProductRecipe, Product, Recipe } from "../models";
 import { RawMaterial } from "../models/RawMaterial";
 import { DeviceType } from "../models/DeviceType";
 import { Project } from "../models/Project";
@@ -556,6 +556,20 @@ export const deleteRecipe = async (
       };
       res.status(400).json(errorResponse);
       return;
+    }
+
+    // Delete recipe from all related products' recipes array
+    const productsUsingRecipe = await Product.find({
+      "recipes.recipeId": id
+    });
+    for (const product of productsUsingRecipe) {
+      product.recipes = product.recipes.filter(
+        (recipe: IProductRecipe) => recipe.recipeId?._id.toString() !== id
+      );
+      await product.save();
+      await SnapshotService.getOrCreateProductSnapshot(
+        product._id as mongoose.Types.ObjectId
+      );
     }
 
     recipe.modifiedBy = req.user?.id;

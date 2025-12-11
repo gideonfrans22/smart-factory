@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, { Document, Query, Schema } from "mongoose";
 
 export interface ICustomer extends Document {
   name: string;
@@ -44,10 +44,16 @@ const customerSchema = new Schema<ICustomer>(
 );
 
 // Index for faster lookups
-customerSchema.index(
-  { name: 1 },
-  { unique: true, sparse: true, partialFilterExpression: { deletedAt: null } }
-);
+customerSchema.index({ name: 1 });
+
+customerSchema.virtual("id").get(function (this: ICustomer) {
+  return this._id;
+});
+
+// populate modifiedBy
+customerSchema.pre("find", function (this: Query<ICustomer[], ICustomer>) {
+  this.populate("modifiedBy");
+});
 
 const Customer = mongoose.model<ICustomer>("Customer", customerSchema);
 

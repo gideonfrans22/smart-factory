@@ -168,3 +168,106 @@ export const deleteProjectTasks = async (
   const result = await Task.deleteMany({ projectId });
   return result.deletedCount || 0;
 };
+
+/**
+ * Recalculate project progress and producedQuantity after task changes
+ * @param projectId - The project ID
+ * @returns Updated project document
+ */
+export const recalculateProjectMetrics = async (
+  projectId: string | mongoose.Types.ObjectId
+): Promise<any> => {
+  const Project = mongoose.model("Project");
+  const ProductSnapshot = mongoose.model("ProductSnapshot");
+  const project = await Project.findById(projectId);
+
+  if (!project) {
+    return null;
+  }
+
+  // Get all tasks for this project
+  const allProjectTasks = await Task.find({ projectId });
+  const totalTasks = allProjectTasks.length;
+  const completedTasks = allProjectTasks.filter(
+    (t) => t.status === "COMPLETED"
+  ).length;
+
+  // Calculate progress: (completed tasks / total tasks) × 100
+  const { roundToTwoDecimals } = await import("../utils/helpers");
+  project.progress = roundToTwoDecimals(
+    totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
+  );
+
+  // Recalculate producedQuantity based on completed last-step tasks
+  if (project.productSnapshot) {
+    // Product project: Calculate based on completed recipe executions
+    const productSnapshot = await ProductSnapshot.findById(
+      project.productSnapshot
+    );
+    if (productSnapshot) {
+      let minCompletedSets = Infinity;
+
+      for (const recipeRef of productSnapshot.recipes) {
+        const recipeSnapshotId = recipeRef.recipeSnapshotId.toString();
+        const requiredQuantity = recipeRef.quantity;
+
+        // Count completed last-step tasks for this recipe
+        const completedExecutions = await Task.countDocuments({
+          projectId: project._id,
+          recipeSnapshotId: recipeSnapshotId,
+          isLastStepInRecipe: true,
+          status: "COMPLETED"
+        });
+
+        // Calculate how many complete sets this recipe can produce
+        const completedSets = Math.floor(
+          completedExecutions / requiredQuantity
+        );
+
+        // Track the minimum (bottleneck)
+        if (completedSets < minCompletedSets) {
+          minCompletedSets = completedSets;
+        }
+      }
+
+      // Update producedQuantity to the minimum completed sets
+      project.producedQuantity =
+        minCompletedSets === Infinity ? 0 : minCompletedSets;
+    }
+  } else if (project.recipeSnapshot) {
+    // Standalone recipe project: Count completed last-step tasks
+    const completedExecutions = await Task.countDocuments({
+      projectId: project._id,
+      isLastStepInRecipe: true,
+      status: "COMPLETED"
+    });
+    project.producedQuantity = completedExecutions;
+  }
+
+  // Check if project should be marked as COMPLETED
+  const allTasksFinished = allProjectTasks.every(
+    (t) => t.status === "COMPLETED" || t.status === "FAILED"
+  );
+
+  if (allTasksFinished && project.status !== "COMPLETED") {
+    project.status = "COMPLETED";
+    project.endDate = new Date();
+  } else if (!allTasksFinished && project.status === "COMPLETED") {
+    // If tasks were deleted and project is no longer complete, revert status
+    project.status = "ACTIVE";
+    project.endDate = undefined;
+  } else if (
+    project.producedQuantity >= project.targetQuantity &&
+    project.status !== "COMPLETED"
+  ) {
+    // All required quantity produced
+    project.status = "COMPLETED";
+    project.progress = 100;
+    if (!project.endDate) {
+      project.endDate = new Date();
+    }
+  }
+
+  await project.save();
+  return project;
+};

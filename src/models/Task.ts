@@ -203,21 +203,20 @@ TaskSchema.virtual("id").get(function (this: ITask) {
 });
 
 // Indexes
-TaskSchema.index({ projectId: 1 });
-TaskSchema.index({ recipeId: 1 });
-TaskSchema.index({ productId: 1 });
-TaskSchema.index({ recipeStepId: 1 });
-TaskSchema.index({ recipeSnapshotId: 1 });
-TaskSchema.index({ productSnapshotId: 1 });
-TaskSchema.index({ deviceTypeId: 1 });
-TaskSchema.index({ deviceId: 1 });
-TaskSchema.index({ workerId: 1 });
-TaskSchema.index({ status: 1 });
-TaskSchema.index({ priority: 1 });
-TaskSchema.index({ startedAt: 1, completedAt: 1 });
+// Single-field indexes for frequently queried fields
+TaskSchema.index({ projectId: 1 }); // Very frequently queried alone
+TaskSchema.index({ recipeId: 1 }); // Frequently queried alone
+TaskSchema.index({ productId: 1 }); // Used in task filtering
+TaskSchema.index({ recipeSnapshotId: 1 }); // Frequently queried alone
+TaskSchema.index({ productSnapshotId: 1 }); // Used in queries
+TaskSchema.index({ deviceTypeId: 1 }); // Frequently queried alone
+TaskSchema.index({ deviceId: 1 }); // Frequently queried alone
+TaskSchema.index({ workerId: 1 }); // Frequently queried alone
+TaskSchema.index({ status: 1 }); // Very frequently queried alone
+TaskSchema.index({ dependentTask: 1 }); // Used to find dependent tasks
 
 // Compound indexes for snapshot queries
-TaskSchema.index({ recipeSnapshotId: 1, recipeStepId: 1 }); // Find tasks for specific step in snapshot
+TaskSchema.index({ recipeSnapshotId: 1, recipeStepId: 1 }); // Find tasks for specific step in snapshot (covers recipeStepId queries)
 TaskSchema.index({ productSnapshotId: 1, status: 1 }); // Find tasks for product snapshot by status
 TaskSchema.index({ projectId: 1, recipeSnapshotId: 1 }); // Find all tasks for a recipe in a project
 
@@ -233,8 +232,29 @@ TaskSchema.index({
   recipeId: 1,
   isLastStepInRecipe: 1,
   status: 1
-}); // Find completed recipe executions
-TaskSchema.index({ recipeExecutionNumber: 1, status: 1 }); // Query by execution number and status
+}); // Find completed recipe executions (covers recipeExecutionNumber + status queries)
+
+// Sort optimization indexes
+TaskSchema.index({ createdAt: -1 }); // Most common sort pattern
+TaskSchema.index({ completedAt: -1, createdAt: -1 }); // Common sort pattern for completed tasks
+
+// Compound indexes for device/worker task queries (optimized for getDeviceTasks endpoint)
+TaskSchema.index({
+  deviceTypeId: 1,
+  deviceId: 1,
+  status: 1,
+  completedAt: -1,
+  createdAt: -1
+}); // Device tasks query with sort
+TaskSchema.index({
+  deviceTypeId: 1,
+  deviceId: 1,
+  workerId: 1,
+  status: 1,
+  completedAt: -1,
+  createdAt: -1
+}); // Device tasks with worker filter
+TaskSchema.index({ deviceTypeId: 1, deviceId: 1, createdAt: -1 }); // Device tasks date range queries
 
 // Pre-save validation hook
 TaskSchema.pre("save", async function (next) {

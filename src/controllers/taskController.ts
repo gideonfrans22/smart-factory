@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import { Task } from "../models/Task";
 import { Project } from "../models/Project";
 import { Recipe } from "../models/Recipe";
@@ -653,8 +654,10 @@ export const deleteTask = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
+    const { cascadeDelete = "false" } = req.query; // Optional: cascade delete dependent tasks
 
-    const task = await Task.findByIdAndDelete(id);
+    // Find the task first (don't delete yet)
+    const task = await Task.findById(id);
 
     if (!task) {
       const response: APIResponse = {
@@ -666,22 +669,157 @@ export const deleteTask = async (
       return;
     }
 
-    const response: APIResponse = {
-      success: true,
-      message: "Task deleted successfully"
-    };
+    // Check for dependent tasks (tasks that depend on this task)
+    const dependentTasks = await Task.find({
+      dependentTask: task._id
+    });
 
-    if (task) {
-      await realtimeService.broadcastTaskStatusChange(task.toObject());
+    // If there are dependent tasks and cascadeDelete is not enabled, prevent deletion
+    if (dependentTasks.length > 0 && cascadeDelete !== "true") {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: `Cannot delete task: ${dependentTasks.length} task(s) depend on this task. Use cascadeDelete=true to delete dependent tasks as well.`,
+        data: {
+          dependentTasksCount: dependentTasks.length,
+          dependentTasks: dependentTasks.map((t) => ({
+            _id: t._id,
+            title: t.title,
+            status: t.status
+          }))
+        }
+      };
+      res.status(400).json(response);
+      return;
     }
 
+    const taskId = task._id as mongoose.Types.ObjectId;
+    const projectId = task.projectId;
+    const deviceId = task.deviceId;
+
+    // Store task data for realtime broadcast before deletion
+    const taskData = task.toObject();
+
+    // If cascadeDelete is enabled, delete all dependent tasks recursively
+    let deletedDependentTasks: any[] = [];
+    if (cascadeDelete === "true" && dependentTasks.length > 0) {
+      const deleteDependentTasksRecursively = async (
+        taskIds: mongoose.Types.ObjectId[]
+      ) => {
+        const tasksToDelete = await Task.find({
+          _id: { $in: taskIds }
+        });
+
+        for (const depTask of tasksToDelete) {
+          const depTaskId = depTask._id as mongoose.Types.ObjectId;
+
+          // Find tasks that depend on this dependent task
+          const nextDependentTasks = await Task.find({
+            dependentTask: depTaskId
+          });
+
+          if (nextDependentTasks.length > 0) {
+            // Recursively delete nested dependent tasks
+            await deleteDependentTasksRecursively(
+              nextDependentTasks.map((t) => t._id as mongoose.Types.ObjectId)
+            );
+          }
+
+          // Clean up device reference if assigned
+          if (depTask.deviceId) {
+            const device = await Device.findById(depTask.deviceId);
+            if (
+              device &&
+              device.currentTask?.toString() === depTaskId.toString()
+            ) {
+              device.currentTask = undefined;
+              device.currentUser = undefined;
+              await device.save();
+            }
+          }
+
+          deletedDependentTasks.push(depTask.toObject());
+          await Task.findByIdAndDelete(depTaskId);
+        }
+      };
+
+      await deleteDependentTasksRecursively(
+        dependentTasks.map((t) => t._id as mongoose.Types.ObjectId)
+      );
+    } else if (dependentTasks.length > 0) {
+      // If not cascading, update dependent tasks to remove the dependency
+      // This allows them to become independent (first-step tasks)
+      await Task.updateMany(
+        { dependentTask: taskId },
+        { $unset: { dependentTask: "" } }
+      );
+    }
+
+    // Clean up device reference if task is assigned to a device
+    if (deviceId) {
+      const device = await Device.findById(deviceId);
+      if (device && device.currentTask?.toString() === taskId.toString()) {
+        device.currentTask = undefined;
+        device.currentUser = undefined;
+        await device.save();
+      }
+    }
+
+    // Delete the task
+    await Task.findByIdAndDelete(taskId);
+
+    // Recalculate project metrics if task was part of a project
+    let updatedProject = null;
+    if (projectId) {
+      const { recalculateProjectMetrics } = await import(
+        "../services/taskService"
+      );
+      updatedProject = await recalculateProjectMetrics(projectId);
+
+      // Broadcast project update
+      if (updatedProject) {
+        await realtimeService.broadcastProjectUpdate(updatedProject.toObject());
+      }
+    }
+
+    // Broadcast task deletion
+    await realtimeService.broadcastTaskStatusChange(taskData);
+
+    const response: APIResponse = {
+      success: true,
+      message: `Task deleted successfully${
+        deletedDependentTasks.length > 0
+          ? `. ${deletedDependentTasks.length} dependent task(s) also deleted.`
+          : dependentTasks.length > 0
+          ? `. ${dependentTasks.length} dependent task(s) dependency removed.`
+          : ""
+      }`,
+      data: {
+        deletedTask: {
+          _id: taskData._id,
+          title: taskData.title,
+          status: taskData.status,
+          projectId: taskData.projectId
+        },
+        deletedDependentTasksCount: deletedDependentTasks.length,
+        project: updatedProject
+          ? {
+              _id: updatedProject._id,
+              progress: updatedProject.progress,
+              producedQuantity: updatedProject.producedQuantity,
+              status: updatedProject.status
+            }
+          : null
+      }
+    };
+
     res.json(response);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Delete task error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",
-      message: "Internal server error"
+      message: error.message || "Internal server error"
     };
     res.status(500).json(response);
   }
@@ -2003,7 +2141,10 @@ export const getDeviceTasks = async (
     }
     const { status, workerId, start, end, page = 1, limit = 10 } = req.query;
 
-    const device = await Device.findById(deviceId);
+    // Fetch device and build query in parallel for better performance
+    const device = await Device.findById(deviceId)
+      .select("deviceTypeId")
+      .lean();
     if (!device) {
       const response: APIResponse = {
         success: false,
@@ -2014,70 +2155,98 @@ export const getDeviceTasks = async (
       return;
     }
 
-    // Build query for tasks assigned to the device
-    const query: any = {};
+    // Build optimized query - prioritize assigned tasks for better index usage
+    const deviceObjectId = new mongoose.Types.ObjectId(deviceId);
+    const query: any = {
+      deviceTypeId: device.deviceTypeId
+    };
 
-    query.$and = [
-      {
-        $or: [
-          { deviceId: deviceId },
-          { deviceId: { $exists: false } },
-          { deviceId: null }
-        ]
-      },
-      {
-        deviceTypeId: device.deviceTypeId
-      }
+    // Optimize deviceId query - check assigned first, then unassigned
+    // This allows MongoDB to use the deviceId index more efficiently
+    query.$or = [
+      { deviceId: deviceObjectId }, // Assigned to this device
+      { deviceId: null }, // Unassigned
+      { deviceId: { $exists: false } } // Field doesn't exist
     ];
 
-    if (status) query.status = status;
-    if (workerId)
+    // Add status filter if provided
+    if (status) {
+      query.status = status;
+    }
+
+    // Add worker filter if provided
+    if (workerId) {
+      const workerObjectId = new mongoose.Types.ObjectId(workerId as string);
+      if (!query.$and) query.$and = [];
       query.$and.push({
         $or: [
-          { workerId: workerId },
-          { workerId: { $exists: false } },
-          { workerId: null }
-        ]
-      });
-    if (start) {
-      query.$and.push({
-        $or: [
-          { createdAt: { $gte: new Date(start as string) } },
-          { completedAt: { $gte: new Date(start as string) } },
-          { completedAt: null }
+          { workerId: workerObjectId },
+          { workerId: null },
+          { workerId: { $exists: false } }
         ]
       });
     }
-    if (end) {
-      query.$and.push({
-        $or: [
-          { createdAt: { $lte: new Date(end as string) } },
-          { completedAt: { $lte: new Date(end as string) } },
-          { completedAt: null }
-        ]
-      });
+
+    // Optimize date range queries - use $or only when necessary, prefer direct field queries
+    if (start || end) {
+      const startDate = start ? new Date(start as string) : null;
+      const endDate = end ? new Date(end as string) : null;
+
+      // For date ranges, check both createdAt and completedAt
+      // If task is completed, use completedAt; otherwise use createdAt
+      const dateConditions: any[] = [];
+
+      if (startDate) {
+        dateConditions.push({
+          $or: [
+            { completedAt: { $gte: startDate } },
+            { completedAt: null, createdAt: { $gte: startDate } }
+          ]
+        });
+      }
+
+      if (endDate) {
+        dateConditions.push({
+          $or: [
+            { completedAt: { $lte: endDate } },
+            { completedAt: null, createdAt: { $lte: endDate } }
+          ]
+        });
+      }
+
+      if (dateConditions.length > 0) {
+        query.$and = query.$and || [];
+        query.$and.push(...dateConditions);
+      }
     }
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
-    const total = await Task.countDocuments(query);
 
-    const tasks = await Task.find(query)
-      .populate("projectId", "name status priority deadline")
-      .populate("recipeId", "name recipeNumber version")
-      .populate("workerId", "name username email")
-      .populate("recipeSnapshotId", "name version steps")
-      .populate(
-        "productSnapshotId",
-        "name productNumber customerName personInCharge version"
-      )
-      .populate("mediaFiles")
-      .populate("productSnapshotId")
-      .populate("dependentTask", "title status")
-      .skip(skip)
-      .limit(limitNum)
-      .sort({ completedAt: -1, createdAt: -1 });
+    // Execute count and find queries in parallel for better performance
+    // Use select to limit fields returned for better performance
+    const [total, tasks] = await Promise.all([
+      Task.countDocuments(query),
+      Task.find(query)
+        .select(
+          "title description projectId recipeId recipeSnapshotId productSnapshotId workerId deviceId deviceTypeId status priority progress notes createdAt updatedAt startedAt completedAt dependentTask mediaFiles recipeExecutionNumber stepOrder"
+        )
+        .populate("projectId", "name status priority deadline")
+        .populate("recipeId", "name recipeNumber version")
+        .populate("workerId", "name username email")
+        .populate("recipeSnapshotId", "name version steps")
+        .populate(
+          "productSnapshotId",
+          "name productNumber customerName personInCharge version"
+        )
+        .populate("mediaFiles", "url type filename")
+        .populate("dependentTask", "title status")
+        .skip(skip)
+        .limit(limitNum)
+        .sort({ completedAt: -1, createdAt: -1 })
+        .lean() // Use lean() for better performance - returns plain JS objects
+    ]);
 
     const response: APIResponse = {
       success: true,
@@ -2219,6 +2388,199 @@ export const getWorkerTasks = async (
       success: false,
       error: "INTERNAL_SERVER_ERROR",
       message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Batch update multiple tasks
+ * PATCH /api/tasks/batch
+ *
+ * Updates multiple tasks with the same set of fields.
+ * Returns results showing which tasks were updated successfully and which failed.
+ */
+export const batchUpdateTasks = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { taskIds, updates } = req.body;
+
+    // Validation
+    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "taskIds must be a non-empty array"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    if (!updates || typeof updates !== "object") {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "updates must be an object"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    const {
+      status,
+      priority,
+      notes,
+      mediaFiles,
+      deviceId,
+      workerId,
+      pausedDuration,
+      startedAt,
+      completedAt,
+      progress
+    } = updates;
+
+    // Validate status change requirements
+    if (status === "ONGOING") {
+      // Check if workerId is provided or exists on all tasks
+      if (!workerId) {
+        const tasksWithoutWorker = await Task.find({
+          _id: { $in: taskIds },
+          $or: [{ workerId: { $exists: false } }, { workerId: null }]
+        });
+        if (tasksWithoutWorker.length > 0) {
+          const response: APIResponse = {
+            success: false,
+            error: "VALIDATION_ERROR",
+            message:
+              "workerId is required to set task status to ONGOING. Some tasks do not have a workerId assigned."
+          };
+          res.status(400).json(response);
+          return;
+        }
+      }
+
+      // Check if deviceId is provided or exists on all tasks
+      if (!deviceId) {
+        const tasksWithoutDevice = await Task.find({
+          _id: { $in: taskIds },
+          $or: [{ deviceId: { $exists: false } }, { deviceId: null }]
+        });
+        if (tasksWithoutDevice.length > 0) {
+          const response: APIResponse = {
+            success: false,
+            error: "VALIDATION_ERROR",
+            message:
+              "deviceId is required to set task status to ONGOING. Some tasks do not have a deviceId assigned."
+          };
+          res.status(400).json(response);
+          return;
+        }
+      }
+    }
+
+    // Build update object with only provided fields
+    const updateFields: any = {};
+    if (status !== undefined) updateFields.status = status;
+    if (priority !== undefined) updateFields.priority = priority;
+    if (notes !== undefined) updateFields.notes = notes;
+    if (mediaFiles !== undefined) updateFields.mediaFiles = mediaFiles;
+    if (deviceId !== undefined) updateFields.deviceId = deviceId;
+    if (workerId !== undefined) updateFields.workerId = workerId;
+    if (pausedDuration !== undefined)
+      updateFields.pausedDuration = pausedDuration;
+    if (startedAt !== undefined)
+      updateFields.startedAt = startedAt ? new Date(startedAt) : undefined;
+    if (completedAt !== undefined)
+      updateFields.completedAt = completedAt
+        ? new Date(completedAt)
+        : undefined;
+    if (progress !== undefined) updateFields.progress = progress;
+
+    // Recalculate actual duration if both start and complete times are provided
+    if (startedAt && completedAt) {
+      updateFields.actualDuration = Math.floor(
+        (new Date(completedAt).getTime() - new Date(startedAt).getTime()) /
+          60000
+      );
+    }
+
+    // Find all tasks first to validate they exist
+    const tasks = await Task.find({ _id: { $in: taskIds } });
+    const foundIds = tasks.map((t) => String(t._id));
+    const notFoundIds = (taskIds as string[]).filter(
+      (id: string) => !foundIds.includes(id)
+    );
+
+    // Update all found tasks
+    const updateResult = await Task.updateMany(
+      { _id: { $in: foundIds } },
+      { $set: updateFields }
+    );
+
+    // Fetch updated tasks with populated references
+    const updatedTasks = await Task.find({ _id: { $in: foundIds } })
+      .populate([
+        { path: "projectId", select: "name status" },
+        { path: "workerId", select: "name username email" },
+        { path: "deviceId", select: "name deviceName" },
+        { path: "recipeSnapshotId", select: "name version" },
+        { path: "productSnapshotId", select: "name version" }
+      ])
+      .sort({ createdAt: -1 });
+
+    // Broadcast status changes if status was updated
+    if (status !== undefined) {
+      for (const task of updatedTasks) {
+        await realtimeService.broadcastTaskStatusChange(task.toObject());
+      }
+    }
+
+    // Handle device updates - clear currentTask from devices if status changed to COMPLETED or FAILED
+    if (status === "COMPLETED" || status === "FAILED") {
+      const tasksToClear = await Task.find({
+        _id: { $in: foundIds },
+        deviceId: { $exists: true, $ne: null }
+      });
+      for (const task of tasksToClear) {
+        if (task.deviceId) {
+          const device = await Device.findById(task.deviceId);
+          if (device) {
+            device.currentTask = undefined;
+            device.currentUser = undefined;
+            await device.save();
+          }
+        }
+      }
+    }
+
+    const response: APIResponse = {
+      success: true,
+      message: `Batch update completed. ${updateResult.modifiedCount} task(s) updated successfully.`,
+      data: {
+        updated: updatedTasks,
+        summary: {
+          totalRequested: taskIds.length,
+          found: foundIds.length,
+          updated: updateResult.modifiedCount,
+          notFound: notFoundIds
+        }
+      }
+    };
+
+    // Include warnings if some tasks were not found
+    if (notFoundIds.length > 0) {
+      response.message += ` ${notFoundIds.length} task(s) not found.`;
+    }
+
+    res.json(response);
+  } catch (error: any) {
+    console.error("Batch update tasks error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: error.message || "Internal server error"
     };
     res.status(500).json(response);
   }

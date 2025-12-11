@@ -86,6 +86,8 @@ UserSchema.virtual("id").get(function (this: IUser) {
   return this._id;
 });
 
+// WARNING NEVER AUTO POPULATE MODIFIEDBY
+
 // Indexes
 UserSchema.index({ role: 1 });
 UserSchema.index({ isActive: 1 });

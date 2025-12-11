@@ -15,7 +15,8 @@ import {
   getTaskStatistics,
   getGroupedTasks,
   getWorkerTasks,
-  getDeviceTasks
+  getDeviceTasks,
+  batchUpdateTasks
 } from "../controllers/taskController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -189,6 +190,26 @@ router.post("/:id/status", authenticateToken, updateTaskStatus);
 // ========================================
 
 /**
+ * @route PATCH /api/tasks/batch
+ * @desc Batch update multiple tasks with the same set of fields
+ * @body taskIds - Array of task IDs to update (required)
+ * @body updates - Object containing fields to update (required)
+ * @body updates.status - Status (optional)
+ * @body updates.priority - Priority (LOW, MEDIUM, HIGH, URGENT) (optional)
+ * @body updates.notes - Notes text (optional)
+ * @body updates.mediaFiles - Array of media file paths (optional)
+ * @body updates.deviceId - Device ID (optional)
+ * @body updates.workerId - Worker ID (optional)
+ * @body updates.pausedDuration - Paused duration in milliseconds (optional)
+ * @body updates.startedAt - Started timestamp (optional)
+ * @body updates.completedAt - Completed timestamp (optional)
+ * @body updates.progress - Progress percentage 0-100 (optional)
+ * @response Returns updated tasks and summary of results
+ * @access Authenticated users
+ */
+router.patch("/batch", authenticateToken, batchUpdateTasks);
+
+/**
  * @route PATCH /api/tasks/:id
  * @desc Partial update of task fields (does NOT change status - use POST endpoints for that)
  * @body status - Status (optional, but prefer using POST endpoints)
@@ -213,8 +234,19 @@ router.patch("/:id", authenticateToken, updateTask);
 
 /**
  * @route DELETE /api/tasks/:id
- * @desc Delete a task permanently
+ * @desc Delete a task permanently with comprehensive handling of dependencies
+ * @query cascadeDelete - "true" to delete dependent tasks recursively (default: "false")
+ * @response Handles:
+ *   - Dependent tasks (prevents deletion or cascades based on cascadeDelete)
+ *   - Project progress recalculation
+ *   - Project producedQuantity recalculation
+ *   - Device cleanup (clears currentTask reference)
+ *   - Project completion status update
+ *   - Realtime broadcasts
  * @access Admin only
+ * @note If task has dependent tasks and cascadeDelete=false, deletion is prevented
+ * @note If cascadeDelete=true, all dependent tasks are deleted recursively
+ * @note If cascadeDelete=false but dependent tasks exist, their dependency is removed
  */
 router.delete("/:id", authenticateToken, requireAdmin, deleteTask);
 

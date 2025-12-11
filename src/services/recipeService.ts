@@ -1,6 +1,12 @@
-import { Recipe } from "../models/Recipe";
-import { Product } from "../models/Product";
+import {
+  IRawMaterialReference,
+  IRecipe,
+  IRecipeStep,
+  Recipe
+} from "../models/Recipe";
+import { IProductRecipe, Product } from "../models/Product";
 import mongoose from "mongoose";
+import { ProductService } from "./productService";
 
 /**
  * Service for recipe-related operations
@@ -79,6 +85,69 @@ export class RecipeService {
       if (generatedNumber) {
         recipe.recipeNumber = generatedNumber;
       }
+    }
+  }
+
+  static async duplicateRecipesForProduct(
+    originalProductId: mongoose.Types.ObjectId | string,
+    duplicatedProductId: mongoose.Types.ObjectId | string
+  ): Promise<IProductRecipe[]> {
+    try {
+      const originalProduct = await ProductService.getProductByIdMinimal(
+        originalProductId
+      );
+      if (!originalProduct) {
+        throw new Error("Original product not found");
+      }
+
+      const newRecipes: IProductRecipe[] = [];
+
+      originalProduct.recipes.forEach(async (recipe: IProductRecipe) => {
+        const originalRecipe = recipe.recipeId as unknown as IRecipe;
+        const steps = originalRecipe.steps.map((step: IRecipeStep) => {
+          return {
+            deviceTypeId: step.deviceTypeId,
+            qualityChecks: step.qualityChecks,
+            dependsOn: step.dependsOn,
+            mediaIds: step.mediaIds,
+            order: step.order,
+            name: step.name,
+            description: step.description,
+            estimatedDuration: step.estimatedDuration
+          };
+        });
+        const rawMaterials = originalRecipe.rawMaterials.map(
+          (rawMaterial: IRawMaterialReference) => {
+            return {
+              ...rawMaterial,
+              materialId: new mongoose.Types.ObjectId(),
+              quantityRequired: rawMaterial.quantityRequired
+            };
+          }
+        );
+        const newRecipe = new Recipe({
+          ...originalRecipe,
+          product: duplicatedProductId,
+          version: 1,
+          name: originalRecipe.name,
+          description: originalRecipe.description,
+          rawMaterials: rawMaterials,
+          estimatedDuration: originalRecipe.estimatedDuration,
+          steps: steps
+        });
+        await this.prepareRecipeForSave(newRecipe, true);
+
+        await newRecipe.save();
+
+        newRecipes.push({
+          recipeId: newRecipe._id as mongoose.Types.ObjectId,
+          quantity: recipe.quantity
+        });
+      });
+      return newRecipes;
+    } catch (error) {
+      console.error("Error duplicating recipes for product:", error);
+      throw error;
     }
   }
 }

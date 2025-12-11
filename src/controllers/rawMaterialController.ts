@@ -2,6 +2,7 @@ import { Response } from "express";
 import { RawMaterial } from "../models/RawMaterial";
 import { Recipe } from "../models/Recipe";
 import { APIResponse, AuthenticatedRequest } from "../types";
+import mongoose from "mongoose";
 
 // Get all raw materials with pagination and filtering
 export const getAllRawMaterials = async (
@@ -107,6 +108,8 @@ export const createRawMaterial = async (
   res: Response
 ): Promise<void> => {
   try {
+    const user = req.user;
+
     const {
       materialCode,
       name,
@@ -150,7 +153,8 @@ export const createRawMaterial = async (
       specifications,
       supplier,
       unit,
-      currentStock
+      currentStock,
+      modifiedBy: user?._id
     });
 
     await rawMaterial.save();
@@ -201,6 +205,7 @@ export const updateRawMaterial = async (
   res: Response
 ): Promise<void> => {
   try {
+    const user = req.user;
     const { id } = req.params;
     const {
       materialCode,
@@ -249,7 +254,10 @@ export const updateRawMaterial = async (
     if (supplier !== undefined) rawMaterial.supplier = supplier;
     if (unit !== undefined) rawMaterial.unit = unit;
     if (currentStock !== undefined) rawMaterial.currentStock = currentStock;
+    if (user?._id)
+      rawMaterial.modifiedBy = user?._id as mongoose.Types.ObjectId;
 
+    // Track who modified the raw material
     await rawMaterial.save();
 
     const response: APIResponse = {

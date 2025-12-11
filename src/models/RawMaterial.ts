@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, { Document, Query, Schema } from "mongoose";
 
 export interface IDimensions {
   length?: number;
@@ -21,7 +21,7 @@ export interface ISpecifications {
 }
 
 export interface IRawMaterial extends Document {
-  materialCode: string; // Unique identifier (e.g., "MAT-001")
+  materialCode: string; // identifier (e.g., "AL, SS, CU, etc.")
   name: string; // e.g., "Steel Plate"
   description?: string; // Optional description of the material
   specifications?: ISpecifications[]; // Array of specifications
@@ -126,6 +126,14 @@ const RawMaterialSchema: Schema = new Schema(
 RawMaterialSchema.virtual("id").get(function (this: IRawMaterial) {
   return this._id;
 });
+
+// populate modifiedBy
+RawMaterialSchema.pre(
+  "find",
+  function (this: Query<IRawMaterial[], IRawMaterial>) {
+    this.populate("modifiedBy");
+  }
+);
 
 // Indexes
 RawMaterialSchema.index({ materialCode: 1 });
