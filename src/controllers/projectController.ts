@@ -10,7 +10,7 @@ import {
   deleteProjectTasks
 } from "../services/taskService";
 import { realtimeService } from "../services/realtimeService";
-import { Task } from "../models";
+import { ProductSnapshot, RecipeSnapshot, Task } from "../models";
 
 /**
  * Get all projects with optional filtering and pagination
@@ -603,6 +603,117 @@ export const updateProject = async (
         };
         res.status(400).json(response);
         return;
+      }
+    }
+
+    // Handle update for ACTIVE projects
+    if (project.status === "ACTIVE") {
+      if (priority !== undefined) {
+        project.priority = priority;
+
+        // update all tasks priority
+        await Task.updateMany(
+          { projectId: project._id },
+          { $set: { priority: priority } }
+        );
+      }
+
+      if (
+        !!productIdToUse &&
+        targetQuantity !== undefined &&
+        targetQuantity !== project.targetQuantity
+      ) {
+        const product = await Product.findById(productIdToUse);
+        if (!product) {
+          const response: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: `Product not found: ${productIdToUse}`
+          };
+          res.status(404).json(response);
+          return;
+        }
+
+        const productSnapshot = await ProductSnapshot.findById(
+          project.productSnapshot as any
+        );
+        if (!productSnapshot) {
+          const response: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: `Product snapshot not found: ${project.productSnapshot}`
+          };
+          res.status(404).json(response);
+          return;
+        }
+
+        // Update the target quantity
+        project.targetQuantity = targetQuantity;
+
+        // Update the project name
+        project.name = generateProjectName(
+          product.productName,
+          undefined,
+          targetQuantity || project.targetQuantity
+        );
+
+        // delete all tasks
+        await deleteProjectTasks(project._id as any);
+
+        // create new tasks
+        createdTasks = await generateTasksForProject(
+          project,
+          productSnapshot,
+          undefined
+        );
+      } else if (
+        !!recipeIdToUse &&
+        targetQuantity !== undefined &&
+        targetQuantity !== project.targetQuantity
+      ) {
+        const recipe = await Recipe.findById(recipeIdToUse);
+        if (!recipe) {
+          const response: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: `Recipe not found: ${recipeIdToUse}`
+          };
+          res.status(404).json(response);
+          return;
+        }
+
+        const recipeSnapshot = await RecipeSnapshot.findById(
+          project.recipeSnapshot as any
+        );
+        if (!recipeSnapshot) {
+          const response: APIResponse = {
+            success: false,
+            error: "NOT_FOUND",
+            message: `Recipe snapshot not found: ${project.recipeSnapshot}`
+          };
+          res.status(404).json(response);
+          return;
+        }
+
+        // Update the target quantity
+        project.targetQuantity = targetQuantity;
+
+        // Update the project name
+        project.name = generateProjectName(
+          undefined,
+          recipe.name,
+          targetQuantity || project.targetQuantity
+        );
+
+        // delete all tasks
+        await deleteProjectTasks(project._id as any);
+
+        // create new tasks
+        createdTasks = await generateTasksForProject(
+          project,
+          undefined,
+          recipeSnapshot
+        );
       }
     }
 
