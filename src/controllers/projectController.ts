@@ -623,17 +623,6 @@ export const updateProject = async (
         targetQuantity !== undefined &&
         targetQuantity !== project.targetQuantity
       ) {
-        const product = await Product.findById(productIdToUse);
-        if (!product) {
-          const response: APIResponse = {
-            success: false,
-            error: "NOT_FOUND",
-            message: `Product not found: ${productIdToUse}`
-          };
-          res.status(404).json(response);
-          return;
-        }
-
         const productSnapshot = await ProductSnapshot.findById(
           project.productSnapshot as any
         );
@@ -652,7 +641,7 @@ export const updateProject = async (
 
         // Update the project name
         project.name = generateProjectName(
-          product.productName,
+          productSnapshot.name,
           undefined,
           targetQuantity || project.targetQuantity
         );
@@ -671,17 +660,6 @@ export const updateProject = async (
         targetQuantity !== undefined &&
         targetQuantity !== project.targetQuantity
       ) {
-        const recipe = await Recipe.findById(recipeIdToUse);
-        if (!recipe) {
-          const response: APIResponse = {
-            success: false,
-            error: "NOT_FOUND",
-            message: `Recipe not found: ${recipeIdToUse}`
-          };
-          res.status(404).json(response);
-          return;
-        }
-
         const recipeSnapshot = await RecipeSnapshot.findById(
           project.recipeSnapshot as any
         );
@@ -701,7 +679,7 @@ export const updateProject = async (
         // Update the project name
         project.name = generateProjectName(
           undefined,
-          recipe.name,
+          recipeSnapshot.name,
           targetQuantity || project.targetQuantity
         );
 
