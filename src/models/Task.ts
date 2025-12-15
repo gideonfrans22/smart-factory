@@ -32,6 +32,7 @@ export interface ITask extends Document {
   pausedDuration?: number;
   startedAt?: Date;
   completedAt?: Date;
+  deadline?: Date; // Task deadline (can be inherited from project or set independently)
   progress: number;
   notes?: string;
   qualityData?: any;
@@ -173,6 +174,10 @@ const TaskSchema: Schema = new Schema(
     },
     completedAt: {
       type: Date
+    },
+    deadline: {
+      type: Date,
+      comment: "Task deadline (inherited from project or set independently)"
     },
     progress: {
       type: Number,

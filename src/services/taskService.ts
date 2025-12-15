@@ -75,6 +75,7 @@ export const generateTasksForProject = async (
             status: "PENDING",
             priority: project.priority,
             estimatedDuration: step.estimatedDuration,
+            deadline: project.deadline, // Inherit deadline from project
             progress: 0,
             pausedDuration: 0,
             dependentTask: previousTaskId // Link to previous step
@@ -133,6 +134,7 @@ export const generateTasksForProject = async (
           status: "PENDING",
           priority: project.priority,
           estimatedDuration: step.estimatedDuration,
+          deadline: project.deadline, // Inherit deadline from project
           progress: 0,
           pausedDuration: 0,
           dependentTask: previousTaskId // Link to previous step
