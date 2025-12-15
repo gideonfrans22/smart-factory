@@ -105,7 +105,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
 
     const total = await Task.countDocuments(query);
     const tasks = await Task.find(query)
-      .populate("projectId", "name status priority deadline")
+      .populate("projectId", "name status priority deadline progress targetQuantity producedQuantity")
       .populate("workerId", "name username")
       .populate("deviceId", "name deviceName")
       .populate({
@@ -157,7 +157,7 @@ export const getTaskById = async (
     const { id } = req.params;
 
     const task = await Task.findById(id)
-      .populate("projectId")
+      .populate("projectId", "name status priority deadline progress targetQuantity producedQuantity")
       .populate("workerId", "name username")
       .populate({
         path: "recipeSnapshotId",
@@ -2257,7 +2257,7 @@ export const getDeviceTasks = async (
         .select(
           "title description projectId recipeId recipeSnapshotId productSnapshotId workerId deviceId deviceTypeId status priority progress notes createdAt updatedAt startedAt completedAt dependentTask mediaFiles recipeExecutionNumber stepOrder"
         )
-        .populate("projectId", "name status priority deadline")
+        .populate("projectId", "name status priority deadline progress targetQuantity producedQuantity")
         .populate("recipeId", "name recipeNumber version")
         .populate("workerId", "name username email")
         .populate("recipeSnapshotId", "name version steps")
@@ -2359,7 +2359,7 @@ export const getWorkerTasks = async (
     const total = await Task.countDocuments(query);
 
     const tasks = await Task.find(query)
-      .populate("projectId", "name status priority deadline")
+      .populate("projectId", "name status priority deadline progress targetQuantity producedQuantity")
       .populate("recipeId", "name recipeNumber version")
       .populate("deviceId", "name deviceName")
       .populate("recipeSnapshotId", "name version steps")
