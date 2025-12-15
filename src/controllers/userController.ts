@@ -358,7 +358,7 @@ export const updateUser = async (
 };
 
 /**
- * Delete user
+ * Delete user with admin protection
  * DELETE /api/users/:id
  */
 export const deleteUser = async (
@@ -368,6 +368,7 @@ export const deleteUser = async (
   try {
     const { id } = req.params;
 
+    // Check if user exists
     const user = await User.findById(id);
 
     if (!user) {
@@ -380,11 +381,64 @@ export const deleteUser = async (
       return;
     }
 
+    // Check if user is admin
+    if (user.role === "admin") {
+      // Count remaining admins
+      const adminCount = await User.countDocuments({ role: "admin" });
+
+      // Ensure at least 1 admin remains
+      if (adminCount <= 1) {
+        const response: APIResponse = {
+          success: false,
+          error: "FORBIDDEN",
+          message: "Cannot delete last admin. At least one admin must remain in the system."
+        };
+        res.status(403).json(response);
+        return;
+      }
+    }
+
+    // Check for active tasks assigned to this user
+    const activeTasks = await Task.countDocuments({
+      workerId: id,
+      status: { $in: ["ONGOING", "PAUSED", "PAUSED_EMERGENCY"] }
+    });
+
+    if (activeTasks > 0) {
+      const response: APIResponse = {
+        success: false,
+        error: "CONFLICT",
+        message: `Cannot delete user: ${activeTasks} active task(s) are currently assigned to this user`
+      };
+      res.status(409).json(response);
+      return;
+    }
+
+    // Check if user is currently operating any device
+    const activeDevices = await Device.countDocuments({ currentUser: id });
+
+    if (activeDevices > 0) {
+      const response: APIResponse = {
+        success: false,
+        error: "CONFLICT",
+        message: `Cannot delete user: Currently operating ${activeDevices} device(s)`
+      };
+      res.status(409).json(response);
+      return;
+    }
+
+    // Delete the user
     await User.findByIdAndDelete(id);
+
+    // Count remaining admins after deletion
+    const remainingAdmins = await User.countDocuments({ role: "admin" });
 
     const response: APIResponse = {
       success: true,
-      message: "User deleted successfully"
+      message: "User deleted successfully",
+      data: {
+        remainingAdmins
+      }
     };
 
     res.json(response);
