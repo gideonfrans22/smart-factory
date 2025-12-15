@@ -18,8 +18,15 @@ export interface ITask extends Document {
   deviceId?: mongoose.Types.ObjectId; // Optional: Specific device assigned (required when ONGOING)
   workerId?: mongoose.Types.ObjectId; // Optional at creation, required for ONGOING/COMPLETED
   dependentTask?: mongoose.Types.ObjectId; // Reference to the task that must be completed before this task
-  status: "PENDING" | "ONGOING" | "PAUSED" | "COMPLETED" | "FAILED";
+  status: "PENDING" | "ONGOING" | "PAUSED" | "PAUSED_EMERGENCY" | "COMPLETED" | "FAILED";
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  pauseHistory?: Array<{
+    pausedAt: Date;
+    resumedAt?: Date;
+    reason: string;
+    pausedBy: string;
+    resolvedBy?: string;
+  }>;
   estimatedDuration?: number;
   actualDuration?: number;
   pausedDuration?: number;
@@ -136,7 +143,7 @@ const TaskSchema: Schema = new Schema(
     status: {
       type: String,
       required: true,
-      enum: ["PENDING", "ONGOING", "PAUSED", "COMPLETED", "FAILED"],
+      enum: ["PENDING", "ONGOING", "PAUSED", "PAUSED_EMERGENCY", "COMPLETED", "FAILED"],
       default: "PENDING"
     },
     priority: {
@@ -180,6 +187,19 @@ const TaskSchema: Schema = new Schema(
     qualityData: {
       type: Schema.Types.Mixed,
       comment: "Quality control data for this task"
+    },
+    pauseHistory: {
+      type: [
+        {
+          pausedAt: { type: Date, required: true },
+          resumedAt: { type: Date },
+          reason: { type: String, required: true },
+          pausedBy: { type: String, required: true },
+          resolvedBy: { type: String }
+        }
+      ],
+      default: [],
+      comment: "History of task pauses and resumes"
     },
     mediaFiles: {
       type: [{ type: Schema.Types.ObjectId, ref: "Media" }],
