@@ -260,13 +260,13 @@ export const createRecipe = async (
       const step = steps[i];
 
       // Validate required fields
-      if (!step.name || !step.estimatedDuration || !step.deviceTypeId) {
+      if (!step.name || step.estimatedDuration < 0 || !step.deviceTypeId) {
         const errorResponse: APIResponse = {
           success: false,
           error: "VALIDATION_ERROR",
           message: `Step ${
             i + 1
-          }: name, estimatedDuration, and deviceTypeId are required`
+          }: name, estimatedDuration >= 0, and deviceTypeId are required`
         };
         res.status(400).json(errorResponse);
         return;
@@ -445,13 +445,13 @@ export const updateRecipe = async (
         const step = steps[i];
 
         // Validate required fields
-        if (!step.name || !step.estimatedDuration || !step.deviceTypeId) {
+        if (!step.name || step.estimatedDuration < 0 || !step.deviceTypeId) {
           const errorResponse: APIResponse = {
             success: false,
             error: "VALIDATION_ERROR",
             message: `Step ${
               i + 1
-            }: name, estimatedDuration, and deviceTypeId are required`
+            }: name, estimatedDuration >= 0, and deviceTypeId are required`
           };
           res.status(400).json(errorResponse);
           return;
