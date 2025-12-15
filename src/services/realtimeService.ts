@@ -330,6 +330,38 @@ class RealtimeService {
   }
 
   /**
+   * Broadcast project progress update (when task completed)
+   */
+  public async broadcastProjectProgress(project: IProject): Promise<void> {
+    try {
+      const io = getIO();
+
+      const payload = {
+        projectId: project._id?.toString(),
+        progress: project.progress,
+        producedQuantity: project.producedQuantity,
+        targetQuantity: project.targetQuantity,
+        status: project.status,
+        updatedAt: project.updatedAt
+      };
+
+      const projectId = project._id?.toString();
+      // Publish to MQTT
+      mqttService.publish(`project/${projectId}/progress`, payload);
+
+      // Broadcast via WebSocket
+      io.to(`project:${projectId}`).emit("project:progress", payload);
+      io.to("global").emit("project:progress", payload);
+
+      console.log(
+        `📊 Project progress broadcasted: ${projectId} - ${project.progress}%`
+      );
+    } catch (error) {
+      console.error("❌ Error broadcasting project progress:", error);
+    }
+  }
+
+  /**
    * Broadcast project status/progress update
    */
   public async broadcastProjectUpdate(project: IProject): Promise<void> {

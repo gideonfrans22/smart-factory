@@ -1351,6 +1351,19 @@ export const completeTask = async (
           totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
         );
 
+        console.log(`📊 Project Progress Updated:`, {
+          projectId: project._id,
+          projectName: project.name,
+          completedTasks,
+          totalTasks,
+          progress: project.progress,
+          producedQuantity: project.producedQuantity,
+          targetQuantity: project.targetQuantity
+        });
+
+        // 🔔 Broadcast project progress update immediately after calculation
+        await realtimeService.broadcastProjectProgress(project);
+
         // ✅ Update producedQuantity ONLY when last step of recipe execution completes
         if (task.isLastStepInRecipe) {
           if (task.productId) {
