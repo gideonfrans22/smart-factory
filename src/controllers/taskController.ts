@@ -926,6 +926,7 @@ export const startTask = async (
  * POST /api/tasks/:id/resume
  *
  * ⚠️ CRITICAL: This endpoint MUST preserve the existing progress value!
+ * Enhanced to support emergency resume with resolution tracking
  */
 export const resumeTask = async (
   req: AuthenticatedRequest,
@@ -933,7 +934,7 @@ export const resumeTask = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    // ✅ NO REQUEST BODY NEEDED - Resume preserves existing worker/device assignment
+    const { resolvedBy } = req.body;
 
     // Find task
     const task = await Task.findById(id);
@@ -947,12 +948,12 @@ export const resumeTask = async (
       return;
     }
 
-    // Validate task can be resumed (PAUSED or COMPLETED with progress < 100 or FAILED)
-    if (!["PAUSED", "COMPLETED", "FAILED"].includes(task.status)) {
+    // Validate task can be resumed (PAUSED, PAUSED_EMERGENCY, or COMPLETED with progress < 100 or FAILED)
+    if (!["PAUSED", "PAUSED_EMERGENCY", "COMPLETED", "FAILED"].includes(task.status)) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: `Cannot resume task with status ${task.status}. Only PAUSED, COMPLETED (partial), or FAILED tasks can be resumed.`
+        message: `Cannot resume task with status ${task.status}. Only PAUSED, PAUSED_EMERGENCY, COMPLETED (partial), or FAILED tasks can be resumed.`
       };
       res.status(400).json(response);
       return;
@@ -974,6 +975,21 @@ export const resumeTask = async (
     // DO NOT modify progress - keep existing value!
     // DO NOT modify workerId/deviceId - already assigned when task was started!
     task.status = "ONGOING";
+
+    // Update the last pause entry with resolution info
+    if (task.pauseHistory && task.pauseHistory.length > 0) {
+      const lastPause = task.pauseHistory[task.pauseHistory.length - 1];
+      if (!lastPause.resumedAt) {
+        lastPause.resumedAt = new Date();
+        lastPause.resolvedBy = resolvedBy || req.user?.name || "Admin";
+        
+        // Calculate paused duration
+        const pauseDuration = Math.floor(
+          (lastPause.resumedAt.getTime() - lastPause.pausedAt.getTime()) / (1000 * 60)
+        );
+        task.pausedDuration = (task.pausedDuration || 0) + pauseDuration;
+      }
+    }
 
     await task.save();
     await task.populate([
@@ -1009,6 +1025,7 @@ export const resumeTask = async (
 /**
  * Pause an ongoing task
  * POST /api/tasks/:id/pause
+ * Enhanced to support emergency pause with reason and history tracking
  */
 export const pauseTask = async (
   req: AuthenticatedRequest,
@@ -1016,6 +1033,7 @@ export const pauseTask = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
+    const { reason, reportedBy, isEmergency } = req.body;
 
     // Find task
     const task = await Task.findById(id);
@@ -1040,11 +1058,18 @@ export const pauseTask = async (
       return;
     }
 
-    // Update task to PAUSED
-    task.status = "PAUSED";
+    // Update task to PAUSED or PAUSED_EMERGENCY based on flag
+    task.status = isEmergency ? "PAUSED_EMERGENCY" : "PAUSED";
 
-    // Optionally track pause duration for accurate time tracking
-    // (Implementation can be enhanced later with pauseStartTime tracking)
+    // Track pause in history
+    if (!task.pauseHistory) {
+      task.pauseHistory = [];
+    }
+    task.pauseHistory.push({
+      pausedAt: new Date(),
+      reason: reason || (isEmergency ? "Emergency pause" : "Manual pause"),
+      pausedBy: reportedBy || req.user?.name || "System"
+    });
 
     await task.save();
     await task.populate([
