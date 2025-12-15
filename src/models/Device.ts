@@ -11,6 +11,13 @@ export interface IDevice extends Document {
   macAddress?: string; // MAC address for network identification
   lastHeartbeat?: Date;
   config: Record<string, any>;
+  errorReason?: string; // Description of error/emergency
+  statusHistory?: Array<{
+    status: string;
+    changedAt: Date;
+    reason?: string;
+    changedBy?: string;
+  }>;
   // Grid display properties (defaults for when device is not in a layout)
   defaultRowSpan: number;
   defaultColSpan: number;
@@ -65,6 +72,23 @@ const DeviceSchema: Schema = new Schema(
     config: {
       type: Schema.Types.Mixed,
       default: {}
+    },
+    errorReason: {
+      type: String,
+      trim: true,
+      comment: "Description of current error or emergency"
+    },
+    statusHistory: {
+      type: [
+        {
+          status: { type: String, required: true },
+          changedAt: { type: Date, required: true, default: Date.now },
+          reason: { type: String },
+          changedBy: { type: String }
+        }
+      ],
+      default: [],
+      comment: "History of device status changes"
     },
     defaultRowSpan: {
       type: Number,
