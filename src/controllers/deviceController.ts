@@ -179,7 +179,7 @@ export const updateDevice = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, deviceTypeId, status, currentUser, ipAddress, config } =
+    const { name, deviceTypeId, status, currentUser, ipAddress, config, errorReason, statusChangeReason } =
       req.body;
 
     const device = await Device.findById(id);
@@ -226,14 +226,34 @@ export const updateDevice = async (
       }
       device.name = name;
     }
-    if (status) device.status = status;
-    if (ipAddress) device.ipAddress = ipAddress;
-    if (config) device.config = config;
-
-    // Update heartbeat if status is being updated
-    if (status) {
+    
+    // Track status changes with history
+    if (status && status !== device.status) {
+      const previousStatus = device.status;
+      device.status = status;
+      
+      // Add to status history
+      if (!device.statusHistory) {
+        device.statusHistory = [];
+      }
+      device.statusHistory.push({
+        status,
+        changedAt: new Date(),
+        reason: statusChangeReason || errorReason || `Status changed from ${previousStatus} to ${status}`,
+        changedBy: req.user?.name || "System"
+      });
+      
+      // Update heartbeat when status changes
       device.lastHeartbeat = new Date();
     }
+    
+    // Handle error reason
+    if (errorReason !== undefined) {
+      device.errorReason = errorReason || undefined;
+    }
+    
+    if (ipAddress) device.ipAddress = ipAddress;
+    if (config) device.config = config;
 
     if (currentUser) {
       device.currentUser = currentUser;
