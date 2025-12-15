@@ -139,6 +139,7 @@ export class SnapshotService {
       description: product.customerName,
       customerName: product.customerName,
       personInCharge: product.personInCharge,
+      department: product.department,
       recipes: recipeSnapshotRefs,
       updatedAt: product.updatedAt
     };

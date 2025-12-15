@@ -19,18 +19,21 @@ export const getProducts = async (
       limit = 10,
       search,
       customerName,
-      personInCharge
+      personInCharge,
+      department
     } = req.query;
 
     const query: any = {};
     if (customerName)
       query.customerName = { $regex: customerName, $options: "i" };
     if (personInCharge) query.personInCharge = personInCharge;
+    if (department) query.department = { $regex: department, $options: "i" };
     if (search) {
       query.$or = [
         { designNumber: { $regex: search, $options: "i" } },
         { productName: { $regex: search, $options: "i" } },
-        { customerName: { $regex: search, $options: "i" } }
+        { customerName: { $regex: search, $options: "i" } },
+        { department: { $regex: search, $options: "i" } }
       ];
     }
 
@@ -172,6 +175,7 @@ export const createProduct = async (
       productName,
       customerName,
       personInCharge,
+      department,
       quantityUnit,
       recipes
     } = req.body;
@@ -206,6 +210,7 @@ export const createProduct = async (
       productName,
       customerName,
       personInCharge: assignedPersonInCharge,
+      department,
       quantityUnit,
       recipes: recipes || [],
       modifiedBy: req.user?.id
@@ -245,6 +250,7 @@ export const updateProduct = async (
       productName,
       customerName,
       personInCharge,
+      department,
       quantityUnit,
       recipes
     } = req.body;
@@ -279,6 +285,7 @@ export const updateProduct = async (
     if (productName) product.productName = productName;
     if (customerName !== undefined) product.customerName = customerName;
     if (personInCharge) product.personInCharge = personInCharge;
+    if (department !== undefined) product.department = department;
     if (quantityUnit !== undefined) product.quantityUnit = quantityUnit;
     if (recipes !== undefined) product.recipes = recipes;
 

@@ -10,6 +10,7 @@ export interface IProduct extends Document {
   productName: string; // 제품명
   customerName?: string; // 고객명
   personInCharge?: string; // 담당자 (담당자명)
+  department?: string; // 부서명
   quantityUnit?: string; // 수량 단위
   recipes: IProductRecipe[]; // Array of recipes with quantities
   deletedAt?: Date; // Soft delete timestamp
@@ -58,6 +59,11 @@ const ProductSchema: Schema = new Schema(
     personInCharge: {
       type: String,
       required: false,
+      trim: true,
+      maxlength: 100
+    },
+    department: {
+      type: String,
       trim: true,
       maxlength: 100
     },

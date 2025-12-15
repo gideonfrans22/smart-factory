@@ -3,6 +3,7 @@ import mongoose, { Document, Query, Schema } from "mongoose";
 export interface ICustomer extends Document {
   name: string;
   personInCharge: string;
+  department?: string; // 부서명
   notes?: string;
   modifiedBy?: mongoose.Types.ObjectId; // User who last updated this customer
   deletedAt?: Date; // Soft delete timestamp
@@ -23,6 +24,11 @@ const customerSchema = new Schema<ICustomer>(
       required: [true, "Person in charge is required"],
       trim: true,
       maxlength: [200, "Person in charge cannot exceed 200 characters"]
+    },
+    department: {
+      type: String,
+      trim: true,
+      maxlength: [100, "Department cannot exceed 100 characters"]
     },
     notes: {
       type: String,

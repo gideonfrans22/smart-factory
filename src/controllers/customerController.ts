@@ -9,14 +9,18 @@ export const getCustomers = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { page = 1, limit = 10, search } = req.query;
+    const { page = 1, limit = 10, search, department } = req.query;
 
     const query: any = {};
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
-        { personInCharge: { $regex: search, $options: "i" } }
+        { personInCharge: { $regex: search, $options: "i" } },
+        { department: { $regex: search, $options: "i" } }
       ];
+    }
+    if (department) {
+      query.department = { $regex: department, $options: "i" };
     }
 
     const pageNum = parseInt(page as string);
@@ -102,7 +106,7 @@ export const createCustomer = async (
 ): Promise<void> => {
   try {
     const user = req.user;
-    const { name, personInCharge, notes } = req.body;
+    const { name, personInCharge, department, notes } = req.body;
 
     // Validate required fields
     if (!name || !personInCharge) {
@@ -118,6 +122,7 @@ export const createCustomer = async (
     const customer = new Customer({
       name,
       personInCharge,
+      department,
       notes,
       modifiedBy: user?._id
     });
@@ -163,7 +168,7 @@ export const updateCustomer = async (
     const user = req.user;
 
     const { id } = req.params;
-    const { name, personInCharge, notes } = req.body;
+    const { name, personInCharge, department, notes } = req.body;
 
     const customer = await Customer.findById(id);
 
@@ -180,6 +185,7 @@ export const updateCustomer = async (
     // Update fields
     if (name !== undefined) customer.name = name;
     if (personInCharge !== undefined) customer.personInCharge = personInCharge;
+    if (department !== undefined) customer.department = department;
     if (notes !== undefined) customer.notes = notes;
     if (user?._id) customer.modifiedBy = user?._id as mongoose.Types.ObjectId;
 

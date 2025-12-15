@@ -116,7 +116,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
           select: "quantityRequired name rawMaterialNumber specification"
         }
       })
-      .populate("productSnapshotId", "name version")
+      .populate("productSnapshotId", "name version customerName personInCharge department")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -167,7 +167,7 @@ export const getTaskById = async (
           select: "quantityRequired name rawMaterialNumber specification"
         }
       })
-      .populate("productSnapshotId", "name version")
+      .populate("productSnapshotId", "name version customerName personInCharge department")
       .populate("dependentTask", "title status");
 
     if (!task) {
@@ -1868,7 +1868,7 @@ export const getGroupedTasks = async (
           path: "recipeSnapshotId",
           populate: { path: "rawMaterials" }
         })
-        .populate("productSnapshotId", "name version")
+        .populate("productSnapshotId", "name version customerName personInCharge department")
         .sort({ createdAt: 1 });
 
       // Initialize project structure

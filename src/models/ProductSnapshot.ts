@@ -16,6 +16,7 @@ export interface IProductSnapshot extends Document {
   description?: string;
   customerName?: string; // 고객명
   personInCharge?: string; // 담당자 (담당자명)
+  department?: string; // 부서명
   recipes: IProductRecipeSnapshotReference[]; // References to RecipeSnapshots
   modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date; // For smart caching: compare with Product.updatedAt
@@ -65,6 +66,7 @@ const ProductSnapshotSchema = new Schema<IProductSnapshot>(
     description: { type: String },
     customerName: { type: String },
     personInCharge: { type: String },
+    department: { type: String },
     recipes: {
       type: [ProductRecipeSnapshotReferenceSchema],
       required: true,
