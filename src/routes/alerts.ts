@@ -9,7 +9,8 @@ import {
   bulkReadAlerts,
   bulkAcknowledgeAlerts,
   bulkResolveAlerts,
-  deleteAlert
+  deleteAlert,
+  resolveEmergencyAlert
 } from "../controllers/alertController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -148,6 +149,21 @@ router.patch("/:id/acknowledge", authenticateToken, acknowledgeAlert);
  * @note    Resolving indicates the underlying issue has been fixed
  */
 router.patch("/:id/resolve", authenticateToken, resolveAlert);
+
+/**
+ * @route   PUT /api/alerts/:id/resolve-emergency
+ * @desc    Resolve emergency alert with automatic recovery actions
+ * @body    resolvedBy - Name of person resolving (optional)
+ * @body    resolutionNotes - Notes about how issue was resolved (optional)
+ * @response Returns { alert, actionsPerformed } with details of auto-recovery
+ * @access  Private (authenticated users)
+ * @note    Only works for EMERGENCY type alerts
+ * @note    Automatically restores device from MAINTENANCE to previous status
+ * @note    Automatically resumes PAUSED_EMERGENCY tasks to ONGOING
+ * @note    Updates alert status to RESOLVED with timestamp
+ * @critical Use this endpoint for emergency resolution with cascading recovery
+ */
+router.put("/:id/resolve-emergency", authenticateToken, resolveEmergencyAlert);
 
 // ========================================
 // ALERT DELETION
