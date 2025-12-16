@@ -2,7 +2,6 @@ import { Router } from "express";
 import {
   register,
   login,
-  refreshToken,
   logout,
   getProfile,
   workerLogin
@@ -33,11 +32,11 @@ router.post("/register", register);
 
 /**
  * @route   POST /api/auth/login
- * @desc    Login user and get JWT tokens
+ * @desc    Login user and get JWT token
  * @body    username - Username (required for workers)
  * @body    email - Email (required for admins)
  * @body    password - Password (required for admins, optional for workers)
- * @response Returns user object and tokens { accessToken (15min), refreshToken (7 days) }
+ * @response Returns user object and accessToken (24 hours validity)
  * @response User object includes: id, name, username, email, role, department, lastLoginAt, createdAt, updatedAt
  * @access  Public
  * @note    Admin login: Requires email + password
@@ -51,24 +50,13 @@ router.post("/login", login);
  * @desc    Worker login without password (device-based authentication)
  * @body    workerId - Worker user ID (required)
  * @body    deviceId - Device ID where worker is logging in (required)
- * @response Returns user object, device info, and tokens { accessToken (15min), refreshToken (7 days) }
+ * @response Returns user object, device info, and accessToken (24 hours validity)
  * @access  Public
  * @note    No password verification - simplified login for workers at device stations
  * @note    Updates device's currentUser field automatically
  * @note    Only works for users with role="worker"
  */
 router.post("/worker-login", workerLogin);
-
-/**
- * @route   POST /api/auth/refresh
- * @desc    Refresh access token using refresh token
- * @body    refreshToken - Valid refresh token from login response (required)
- * @response Returns new accessToken (15min validity)
- * @access  Public
- * @note    Use this when accessToken expires to get a new one without re-login
- * @note    Refresh token is valid for 7 days
- */
-router.post("/refresh", refreshToken);
 
 // ========================================
 // PROTECTED AUTH ENDPOINTS

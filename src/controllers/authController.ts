@@ -1,19 +1,18 @@
 import { Request, Response } from "express";
-import * as jwt from "jsonwebtoken";
-import { User } from "../models/User";
 import { Device } from "../models/Device";
+import { User } from "../models/User";
 import {
-  RegisterData,
   APIResponse,
+  AuthenticatedRequest,
   JWTPayload,
-  AuthenticatedRequest
+  RegisterData
 } from "../types";
 import {
-  hashPassword,
   comparePassword,
   generateToken,
-  validateEmail,
-  sanitizeInput
+  hashPassword,
+  sanitizeInput,
+  validateEmail
 } from "../utils/helpers";
 
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -177,7 +176,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     user.lastLoginAt = new Date();
     await user.save();
 
-    // Generate JWT tokens according to specification
+    // Generate JWT token
     // Access Token: { sub, role, username (workers only), iat, exp }
     const accessTokenPayload: JWTPayload = {
       sub: (user._id as any).toString(),
@@ -187,15 +186,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         : {})
     };
 
-    // Refresh Token: { sub, type: "refresh", iat, exp }
-    const refreshTokenPayload: JWTPayload = {
-      sub: (user._id as any).toString(),
-      role: user.role,
-      type: "refresh"
-    };
-
-    const accessToken = generateToken(accessTokenPayload, false); // 15 minutes
-    const refreshToken = generateToken(refreshTokenPayload, true); // 7 days
+    const accessToken = generateToken(accessTokenPayload); // 24 hours
 
     const response: APIResponse = {
       success: true,
@@ -211,10 +202,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           createdAt: user.createdAt.toISOString(),
           updatedAt: user.updatedAt.toISOString()
         },
-        tokens: {
-          accessToken,
-          refreshToken
-        }
+        accessToken
       }
     };
 
@@ -230,94 +218,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const refreshToken = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-      const response: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Refresh token is required"
-      };
-      res.status(400).json(response);
-      return;
-    }
-
-    // Verify refresh token
-    const JWT_SECRET = process.env.JWT_SECRET;
-    if (!JWT_SECRET) {
-      throw new Error("JWT_SECRET not configured");
-    }
-
-    const decoded = jwt.verify(refreshToken, JWT_SECRET) as JWTPayload;
-
-    // Check if it's a refresh token
-    if (decoded.type !== "refresh") {
-      const response: APIResponse = {
-        success: false,
-        error: "INVALID_TOKEN",
-        message: "Invalid refresh token"
-      };
-      res.status(401).json(response);
-      return;
-    }
-
-    // Fetch user to get latest username if worker
-    const user = await User.findById(decoded.sub).select("-password");
-
-    if (!user || !user.isActive) {
-      const response: APIResponse = {
-        success: false,
-        error: "INVALID_TOKEN",
-        message: "User not found or inactive"
-      };
-      res.status(401).json(response);
-      return;
-    }
-
-    // Generate new access token with updated payload structure
-    const accessTokenPayload: JWTPayload = {
-      sub: decoded.sub,
-      role: user.role,
-      ...(user.role === "worker" && user.username
-        ? { username: user.username }
-        : {})
-    };
-
-    const accessToken = generateToken(accessTokenPayload, false);
-
-    const response: APIResponse = {
-      success: true,
-      message: "Token refreshed successfully",
-      data: {
-        accessToken
-      }
-    };
-
-    res.json(response);
-  } catch (error) {
-    console.error("Refresh token error:", error);
-    const response: APIResponse = {
-      success: false,
-      error: "INVALID_TOKEN",
-      message: "Invalid or expired refresh token"
-    };
-    res.status(401).json(response);
-  }
-};
-
 export const logout = async (
   _req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
     // In a production environment, you would:
-    // 1. Invalidate the refresh token in database
-    // 2. Add the access token to a blacklist with TTL
+    // 1. Add the access token to a blacklist with TTL
     // For now, we'll just return success
 
     const response: APIResponse = {
@@ -436,21 +343,14 @@ export const workerLogin = async (
     worker.lastLoginAt = new Date();
     await worker.save();
 
-    // Generate JWT tokens
+    // Generate JWT token
     const accessTokenPayload: JWTPayload = {
       sub: (worker._id as any).toString(),
       role: worker.role,
       username: worker.username || undefined
     };
 
-    const refreshTokenPayload: JWTPayload = {
-      sub: (worker._id as any).toString(),
-      role: worker.role,
-      type: "refresh"
-    };
-
-    const accessToken = generateToken(accessTokenPayload, false); // 15 minutes
-    const refreshToken = generateToken(refreshTokenPayload, true); // 7 days
+    const accessToken = generateToken(accessTokenPayload); // 24 hours
 
     const response: APIResponse = {
       success: true,
@@ -471,10 +371,7 @@ export const workerLogin = async (
           deviceTypeId: device.deviceTypeId,
           status: device.status
         },
-        tokens: {
-          accessToken,
-          refreshToken
-        }
+        accessToken
       }
     };
 

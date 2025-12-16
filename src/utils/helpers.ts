@@ -4,8 +4,7 @@ import { JWTPayload } from "../types";
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || "12");
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
-const JWT_ACCESS_TOKEN_EXPIRES = "15m"; // 15 minutes for access tokens
-const JWT_REFRESH_TOKEN_EXPIRES = "7d"; // 7 days for refresh tokens
+const JWT_ACCESS_TOKEN_EXPIRES = "24h"; // 24 hours for access tokens
 
 export const hashPassword = async (password: string): Promise<string> => {
   return await bcrypt.hash(password, SALT_ROUNDS);
@@ -18,15 +17,9 @@ export const comparePassword = async (
   return await bcrypt.compare(password, hashedPassword);
 };
 
-export const generateToken = (
-  payload: JWTPayload,
-  isRefreshToken: boolean = false
-): string => {
-  const expiresIn = isRefreshToken
-    ? JWT_REFRESH_TOKEN_EXPIRES
-    : JWT_ACCESS_TOKEN_EXPIRES;
+export const generateToken = (payload: JWTPayload): string => {
   return jwt.sign(payload as object, JWT_SECRET, {
-    expiresIn
+    expiresIn: JWT_ACCESS_TOKEN_EXPIRES
   } as jwt.SignOptions);
 };
 

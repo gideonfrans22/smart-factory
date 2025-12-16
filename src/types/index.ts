@@ -24,7 +24,6 @@ export interface JWTPayload {
   username?: string; // Employee number for workers only
   iat?: number; // Issued at timestamp
   exp?: number; // Expiration timestamp
-  type?: "refresh"; // For refresh tokens
 }
 
 export interface ProcessLineStatus {

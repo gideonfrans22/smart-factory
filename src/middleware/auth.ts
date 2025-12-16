@@ -30,17 +30,6 @@ export const authenticateToken = async (
 
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
 
-    // Check if it's not a refresh token (refresh tokens shouldn't be used for authentication)
-    if (decoded.type === "refresh") {
-      const response: APIResponse = {
-        success: false,
-        error: "UNAUTHORIZED",
-        message: "Cannot use refresh token for authentication"
-      };
-      res.status(401).json(response);
-      return;
-    }
-
     const user = await User.findById(decoded.sub).select("-password");
 
     if (!user || !user.isActive) {
