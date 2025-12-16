@@ -198,7 +198,7 @@ const TaskSchema: Schema = new Schema(
         {
           pausedAt: { type: Date, required: true },
           resumedAt: { type: Date },
-          reason: { type: String, required: true },
+          reason: { type: String, required: false },
           pausedBy: { type: String, required: true },
           resolvedBy: { type: String }
         }

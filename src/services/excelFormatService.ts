@@ -358,7 +358,7 @@ export function createApprovalForm(
     startCol + roles.length * formWidth - 1
   );
   const titleCell = worksheet.getCell(startRow, startCol);
-  titleCell.value = "📝 APPROVAL SIGNATURES";
+  titleCell.value = "결재";
   titleCell.font = {
     bold: true,
     size: 12,
@@ -404,7 +404,7 @@ export function createApprovalForm(
     // Name field
     worksheet.mergeCells(startRow + 2, currentCol, startRow + 2, colEnd);
     const nameCell = worksheet.getCell(startRow + 2, currentCol);
-    nameCell.value = "Name: _______________";
+    nameCell.value = "이름: _______________";
     nameCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
     nameCell.border = {
       left: index === 0 ? { style: "medium" } : { style: "thin" },
@@ -415,7 +415,7 @@ export function createApprovalForm(
     // Date field
     worksheet.mergeCells(startRow + 3, currentCol, startRow + 3, colEnd);
     const dateCell = worksheet.getCell(startRow + 3, currentCol);
-    dateCell.value = "Date: ________________";
+    dateCell.value = "날짜: ________________";
     dateCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
     dateCell.border = {
       left: index === 0 ? { style: "medium" } : { style: "thin" },
