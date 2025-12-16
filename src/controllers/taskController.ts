@@ -1033,7 +1033,7 @@ export const pauseTask = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { reason, reportedBy, isEmergency } = req.body;
+    const { reason, notes, reportedBy, isEmergency } = req.body;
 
     // Find task
     const task = await Task.findById(id);
@@ -1065,9 +1065,13 @@ export const pauseTask = async (
     if (!task.pauseHistory) {
       task.pauseHistory = [];
     }
+    
+    // Use reason or notes (both optional), with fallback to default messages
+    const pauseReason = reason || notes || (isEmergency ? "Emergency pause" : "Manual pause");
+    
     task.pauseHistory.push({
       pausedAt: new Date(),
-      reason: reason || (isEmergency ? "Emergency pause" : "Manual pause"),
+      reason: pauseReason,
       pausedBy: reportedBy || req.user?.name || "System"
     });
 
