@@ -4,8 +4,10 @@
   "description": "Smart Factory Backend API built with Node.js and TypeScript",
   "main": "dist/index.js",
   "scripts": {
-    "start": "node dist/index.js",
+    "start": "node dist/cluster.js",
+    "start:single": "node dist/index.js",
     "dev": "nodemon src/index.ts",
+    "dev:cluster": "ts-node src/cluster.ts",
     "build": "tsc",
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",

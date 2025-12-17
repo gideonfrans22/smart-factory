@@ -1,3 +1,15 @@
+/**
+ * ⚠️ DEPRECATED: This PM2 configuration is no longer used.
+ * The application now uses Node.js Cluster Module for process management.
+ * 
+ * To start the application:
+ *   npm run build && npm start
+ * 
+ * To configure cluster workers, set CLUSTER_WORKERS environment variable
+ * (defaults to number of CPU cores if not set)
+ * 
+ * This file is kept for reference only.
+ */
 module.exports = {
     apps: [
         {

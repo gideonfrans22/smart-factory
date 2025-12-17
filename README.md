@@ -6,6 +6,7 @@ A Node.js backend API built with TypeScript and Express.js for the Smart Factory
 
 - ✅ TypeScript for type safety
 - ✅ Express.js web framework
+- ✅ Node.js Cluster Module for multi-worker process management
 - ✅ Hot reloading with nodemon
 - ✅ Source maps for debugging
 - ✅ Strict TypeScript configuration
@@ -42,9 +43,11 @@ The server will start on `http://localhost:3000`
 
 ## Available Scripts
 
-- `npm run dev` - Start development server with hot reload
+- `npm run dev` - Start development server with hot reload (single process)
+- `npm run dev:cluster` - Start development server with cluster mode
 - `npm run build` - Build the project for production
-- `npm run start` - Start the production server
+- `npm run start` - Start the production server with cluster (spawns multiple workers)
+- `npm run start:single` - Start production server as single process (no cluster)
 - `npm run build:watch` - Build the project in watch mode
 - `npm run clean` - Remove the dist folder
 
@@ -58,7 +61,8 @@ The server will start on `http://localhost:3000`
 ```
 backend/
 ├── src/
-│   ├── index.ts              # Main application file
+│   ├── index.ts              # Worker process entry point
+│   ├── cluster.ts            # Cluster master process
 │   ├── config/               # Database & MQTT configuration
 │   ├── controllers/          # Route controllers
 │   ├── middleware/           # Authentication & file upload
@@ -68,6 +72,7 @@ backend/
 │   ├── types/                # TypeScript type definitions
 │   └── utils/                # Helper functions & seed data
 ├── docs/
+│   ├── CLUSTER_SETUP.md      # Cluster module setup guide
 │   ├── MONGODB_SCHEMA.md     # Complete database schema
 │   ├── RAW_MATERIAL_IMPLEMENTATION.md  # Raw material system
 │   ├── TASK_FLOW_ARCHITECTURE.md       # Task workflow
@@ -84,6 +89,7 @@ backend/
 
 📚 **Current Documentation** (in `docs/`):
 
+- **[CLUSTER_SETUP.md](docs/CLUSTER_SETUP.md)** - Node.js Cluster Module setup and configuration
 - **[MONGODB_SCHEMA.md](docs/MONGODB_SCHEMA.md)** - Complete database schema with all 14 collections
 - **[RAW_MATERIAL_IMPLEMENTATION.md](docs/RAW_MATERIAL_IMPLEMENTATION.md)** - Raw material management system
 - **[TASK_FLOW_ARCHITECTURE.md](docs/TASK_FLOW_ARCHITECTURE.md)** - Task workflow and recipe integration

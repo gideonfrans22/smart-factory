@@ -19,7 +19,12 @@ class MQTTService {
       brokerUrl: process.env.MQTT_BROKER_URL || "mqtt://localhost:1883",
       username: process.env.MQTT_USERNAME,
       password: process.env.MQTT_PASSWORD,
-      clientId: process.env.MQTT_CLIENT_ID || "smart_factory_backend"
+      // Ensure clientId is UNIQUE per process, especially important in cluster mode.
+      // If multiple clients connect with the same clientId, the broker will drop
+      // the previous connection, causing ECONNRESET errors.
+      clientId: `${
+        process.env.MQTT_CLIENT_ID || "smart_factory_backend"
+      }-${process.pid}`
     };
   }
 

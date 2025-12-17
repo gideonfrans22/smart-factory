@@ -145,7 +145,9 @@ const startServer = async (): Promise<void> => {
 
     // Start HTTP server (with WebSocket attached)
     httpServer.listen(PORT, () => {
-      console.log("🚀 Smart Factory Backend Server Started");
+      const workerId = process.env.NODE_APP_INSTANCE || "standalone";
+      console.log(`🚀 Smart Factory Backend Server Started`);
+      console.log(`👷 Worker ID: ${workerId} | PID: ${process.pid}`);
       console.log(`📱 REST API: http://localhost:${PORT}`);
       console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
       console.log(
@@ -154,23 +156,67 @@ const startServer = async (): Promise<void> => {
       console.log(`🏭 Environment: ${process.env.NODE_ENV || "development"}`);
       console.log("✅ All services initialized successfully");
     });
+
+    // Handle server errors
+    httpServer.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.syscall !== "listen") {
+        throw error;
+      }
+
+      const bind = typeof PORT === "string" ? `Pipe ${PORT}` : `Port ${PORT}`;
+
+      switch (error.code) {
+        case "EACCES":
+          console.error(`❌ ${bind} requires elevated privileges`);
+          process.exit(1);
+          break;
+        case "EADDRINUSE":
+          console.error(`❌ ${bind} is already in use`);
+          process.exit(1);
+          break;
+        default:
+          throw error;
+      }
+    });
   } catch (error) {
     console.error("❌ Failed to start server:", error);
     process.exit(1);
   }
 };
 
-// Handle graceful shutdown
-process.on("SIGTERM", async () => {
-  console.log("📤 SIGTERM received, shutting down gracefully...");
-  mqttService.disconnect();
-  process.exit(0);
+// Handle graceful shutdown for worker processes
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\n📤 ${signal} received on worker ${process.pid}, shutting down gracefully...`);
+  
+  try {
+    // Disconnect MQTT
+    mqttService.disconnect();
+    console.log("✅ MQTT disconnected");
+    
+    // Give time for ongoing requests to complete
+    setTimeout(() => {
+      console.log("✅ Worker shutdown complete");
+      process.exit(0);
+    }, 2000);
+  } catch (error) {
+    console.error("❌ Error during graceful shutdown:", error);
+    process.exit(1);
+  }
+};
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+// Handle uncaught exceptions
+process.on("uncaughtException", (error) => {
+  console.error("❌ Worker uncaught exception:", error);
+  gracefulShutdown("uncaughtException");
 });
 
-process.on("SIGINT", async () => {
-  console.log("📤 SIGINT received, shutting down gracefully...");
-  mqttService.disconnect();
-  process.exit(0);
+// Handle unhandled promise rejections
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("❌ Worker unhandled rejection at:", promise, "reason:", reason);
+  gracefulShutdown("unhandledRejection");
 });
 
 // Start the server
