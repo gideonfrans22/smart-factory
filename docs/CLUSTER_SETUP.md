@@ -63,32 +63,123 @@ Create a systemd service file at `/etc/systemd/system/smart-factory-backend.serv
 ```ini
 [Unit]
 Description=Smart Factory Backend API
-After=network.target
+After=network.target mongodb.service
+Wants=mongodb.service
 
 [Service]
 Type=simple
 User=your-user
+Group=your-group
 WorkingDirectory=/path/to/backend
+
+# Load environment variables from .env file
+# The '-' prefix means systemd won't fail if the file doesn't exist
+EnvironmentFile=-/path/to/backend/.env
+
+# Override or set specific environment variables if needed
+# These will take precedence over values in .env file
 Environment=NODE_ENV=production
-Environment=CLUSTER_WORKERS=4
+
+# Path to Node.js executable (adjust if using nvm or different path)
+# To find your Node.js path: which node
 ExecStart=/usr/bin/node /path/to/backend/dist/cluster.js
+
+# Restart policy
 Restart=always
 RestartSec=10
-StandardOutput=syslog
-StandardError=syslog
+
+# Resource limits (optional, adjust based on your needs)
+LimitNOFILE=65536
+MemoryLimit=2G
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=smart-factory-backend
+
+# Graceful shutdown timeout (in seconds)
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
 ```
 
+**Important Notes:**
+
+1. **Replace placeholders:**
+
+   - `your-user` - The user account that will run the service (e.g., `ubuntu`, `deploy`)
+   - `your-group` - The group for the user (usually same as username)
+   - `/path/to/backend` - Full path to your backend directory (e.g., `/home/ubuntu/PM_BE`)
+
+2. **Node.js path:**
+
+   - Find your Node.js executable: `which node` or `which nodejs`
+   - If using nvm, you may need to use the full path: `/home/your-user/.nvm/versions/node/v18.20.8/bin/node`
+   - Or create a wrapper script that loads nvm first
+
+3. **Environment file format:**
+
+   - The `.env` file should be in standard format: `KEY=VALUE` (no quotes, no spaces around `=`)
+   - Example:
+     ```
+     PORT=3000
+     MONGODB_URI=mongodb://localhost:27017/smart_factory
+     JWT_SECRET=your-secret-key
+     MQTT_BROKER_URL=mqtt://localhost:1883
+     CLUSTER_WORKERS=4
+     ```
+
+4. **File permissions:**
+
+   - Ensure `.env` file has proper permissions (not world-readable if it contains secrets):
+     ```bash
+     chmod 600 /path/to/backend/.env
+     chown your-user:your-group /path/to/backend/.env
+     ```
+
+5. **Using nvm with systemd:**
+   If you're using nvm, create a wrapper script at `/path/to/backend/start.sh`:
+   ```bash
+   #!/bin/bash
+   export NVM_DIR="$HOME/.nvm"
+   [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+   cd /path/to/backend
+   node dist/cluster.js
+   ```
+   Then make it executable: `chmod +x /path/to/backend/start.sh`
+   And update ExecStart in the service file:
+   ```ini
+   ExecStart=/path/to/backend/start.sh
+   ```
+
 Then enable and start the service:
 
 ```bash
+# Copy the service file (adjust paths first!)
+sudo cp smart-factory-backend.service /etc/systemd/system/
+
+# Or create it directly
+sudo nano /etc/systemd/system/smart-factory-backend.service
+
+# Reload systemd to recognize the new service
 sudo systemctl daemon-reload
+
+# Enable the service to start on boot
 sudo systemctl enable smart-factory-backend
+
+# Start the service
 sudo systemctl start smart-factory-backend
+
+# Check status
 sudo systemctl status smart-factory-backend
+
+# View logs
+sudo journalctl -u smart-factory-backend -f
 ```
 
 ### Option 2: Process Manager Script
@@ -147,6 +238,7 @@ The cluster module uses round-robin load balancing by default. For WebSocket con
 ### Workers Keep Restarting
 
 Check logs for errors. Common issues:
+
 - Database connection failures
 - Port already in use
 - Memory issues
@@ -166,6 +258,48 @@ pkill -f "node dist/cluster.js"
 - Monitor memory usage per worker
 - Consider using fewer workers if memory is constrained
 
+### Systemd Service Issues
+
+**Service won't start:**
+
+```bash
+# Check service status
+sudo systemctl status smart-factory-backend
+
+# View detailed logs
+sudo journalctl -u smart-factory-backend -n 50
+
+# Check if .env file exists and is readable
+sudo -u your-user cat /path/to/backend/.env
+
+# Verify Node.js path
+which node
+```
+
+**Environment variables not loading:**
+
+- Ensure `.env` file format is correct: `KEY=VALUE` (no quotes, no spaces)
+- Check file permissions: `ls -la /path/to/backend/.env`
+- Verify the path in `EnvironmentFile=` matches actual file location
+- Check if variables are being overridden by `Environment=` directives
+
+**Permission denied errors:**
+
+- Ensure the service user owns the backend directory:
+  ```bash
+  sudo chown -R your-user:your-group /path/to/backend
+  ```
+- Check file permissions on `dist/cluster.js`:
+  ```bash
+  ls -la /path/to/backend/dist/cluster.js
+  ```
+
+**Node.js not found:**
+
+- If using nvm, use the wrapper script approach mentioned above
+- Or set the full path to Node.js in `ExecStart`
+- Verify Node.js is accessible: `sudo -u your-user which node`
+
 ## Migration from PM2
 
 If you were previously using PM2:
@@ -174,4 +308,3 @@ If you were previously using PM2:
 2. Update deployment scripts to use `npm start` instead of `pm2 reload`
 3. Set up systemd service or another process manager for the master process
 4. Configure `CLUSTER_WORKERS` environment variable if needed
-
