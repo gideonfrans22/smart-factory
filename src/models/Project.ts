@@ -172,7 +172,10 @@ ProjectSchema.index(
   { projectNumber: 1 },
   {
     unique: true,
-    partialFilterExpression: { projectNumber: { $type: "string" } }
+    partialFilterExpression: {
+      projectNumber: { $type: "string" },
+      deletedAt: null
+    }
   }
 );
 ProjectSchema.index({ status: 1 });
