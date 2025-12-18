@@ -35,6 +35,7 @@ export interface ReportGenerationResult {
     sheetsGenerated: string[];
     recordCount: number;
     generationTime: number; // in milliseconds
+    period?: "daily" | "weekly" | "monthly" | "all-time";
   };
 }
 
@@ -289,22 +290,22 @@ export async function generateWorkerPerformanceReport(
 }
 
 /**
- * Generate Production Rate Report
- * Includes 5 sheets: Production Overview, Step-by-Step Efficiency, Bottleneck Analysis, Week-over-Week Trends, Raw Data
+ * Generate Worker Performance KPI Report
+ * Single sheet with personalized KPI data for one worker
  */
-export async function generateProductionRateReport(
+export async function generateWorkerPerformanceKPIReport(
   startDate: Date,
   endDate: Date,
   _userId: string,
+  workerId: string,
   reportId?: string,
   lang?: string
 ): Promise<ReportGenerationResult> {
   const startTime = Date.now();
-  console.log(lang);
 
   try {
     console.log(
-      `[ProductionReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}`
+      `[WorkerKPIReport] Starting generation for worker: ${workerId}, date range: ${startDate.toISOString()} to ${endDate.toISOString()}`
     );
 
     // Create new workbook
@@ -313,52 +314,124 @@ export async function generateProductionRateReport(
     workbook.created = new Date();
     workbook.modified = new Date();
 
-    // Generate each sheet
+    // Generate KPI sheet
     const sheetsGenerated: string[] = [];
     const dateRange = { startDate, endDate };
 
-    // Sheet 1: Production Overview
-    await ProductionReportService.generateProductionOverviewSheet(
+    await WorkerReportService.generateWorkerKPISheet(
       workbook,
-      dateRange
+      dateRange,
+      workerId,
+      lang
     );
-    sheetsGenerated.push("Production Overview");
-
-    // Sheet 2: Step-by-Step Efficiency
-    await ProductionReportService.generateStepEfficiencySheet(
-      workbook,
-      dateRange
-    );
-    sheetsGenerated.push("Step Efficiency");
-
-    // Sheet 3: Bottleneck Analysis
-    await ProductionReportService.generateBottleneckAnalysisSheet(
-      workbook,
-      dateRange
-    );
-    sheetsGenerated.push("Bottleneck Analysis");
-
-    // Sheet 4: Week-over-Week Trends
-    await ProductionReportService.generateProductionTrendsSheet(
-      workbook,
-      dateRange
-    );
-    sheetsGenerated.push("Production Trends");
-
-    // Sheet 5: Raw Production Data
-    await ProductionReportService.generateRawProductionDataSheet(
-      workbook,
-      dateRange
-    );
-    sheetsGenerated.push("Raw Production Data");
-
-    // Get total record count from raw data sheet
-    const rawDataSheet = workbook.getWorksheet("Raw Production Data");
-    const totalRecords = rawDataSheet ? rawDataSheet.rowCount - 3 : 0;
+    sheetsGenerated.push("Worker KPI");
 
     // Save workbook to file
     const fileName = generateReportFileName(
-      "ProductionRateReport",
+      "WorkerPerformanceKPI",
+      startDate,
+      endDate
+    );
+    const filePath = await saveWorkbook(workbook, fileName);
+
+    const generationTime = Date.now() - startTime;
+    console.log(
+      `[WorkerKPIReport] Generation complete in ${generationTime}ms. File: ${filePath}`
+    );
+
+    // Update report status if reportId provided
+    if (reportId) {
+      await Report.findByIdAndUpdate(reportId, {
+        status: "COMPLETED",
+        filePath,
+        completedAt: new Date(),
+        metadata: {
+          sheetsGenerated,
+          recordCount: 1, // One worker row
+          generationTime
+        }
+      });
+    }
+
+    return {
+      success: true,
+      filePath,
+      fileName,
+      reportId,
+      metadata: {
+        sheetsGenerated,
+        recordCount: 1,
+        generationTime
+      }
+    };
+  } catch (error: any) {
+    console.error("[WorkerKPIReport] Generation failed:", error);
+
+    // Update report status if reportId provided
+    if (reportId) {
+      await Report.findByIdAndUpdate(reportId, {
+        status: "FAILED",
+        errorMessage: error.message,
+        completedAt: new Date()
+      });
+    }
+
+    return {
+      success: false,
+      error: error.message,
+      reportId
+    };
+  }
+}
+
+/**
+ * Generate Production Rate Report
+ * Single comprehensive KPI sheet with all production metrics
+ */
+export async function generateProductionRateReport(
+  startDate: Date,
+  endDate: Date,
+  _userId: string,
+  reportId?: string,
+  lang?: string,
+  period?: "daily" | "weekly" | "monthly"
+): Promise<ReportGenerationResult> {
+  const startTime = Date.now();
+  console.log(lang);
+
+  try {
+    console.log(
+      `[ProductionReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}${
+        period ? ` (${period})` : ""
+      }`
+    );
+
+    // Create new workbook
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "Smart Factory System";
+    workbook.created = new Date();
+    workbook.modified = new Date();
+
+    // Generate single KPI sheet
+    const sheetsGenerated: string[] = [];
+    const dateRange = { startDate, endDate };
+
+    // Single comprehensive KPI sheet
+    await ProductionReportService.generateProductionRateKPISheet(
+      workbook,
+      dateRange,
+      period
+    );
+    sheetsGenerated.push("Production Rate KPIs");
+
+    // Get total record count (approximate based on sections)
+    const kpiSheet = workbook.getWorksheet("Production Rate KPIs");
+    const totalRecords = kpiSheet ? kpiSheet.rowCount - 10 : 0;
+
+    // Save workbook to file
+    const periodSuffix = period ? `_${period.toUpperCase()}` : "";
+    const fileName = generateReportFileName(
+      `ProductionRateReport${periodSuffix}`,
       startDate,
       endDate
     );
@@ -378,7 +451,8 @@ export async function generateProductionRateReport(
         metadata: {
           sheetsGenerated,
           recordCount: totalRecords,
-          generationTime
+          generationTime,
+          period: period || "all-time"
         }
       });
     }
@@ -391,7 +465,8 @@ export async function generateProductionRateReport(
       metadata: {
         sheetsGenerated,
         recordCount: totalRecords,
-        generationTime
+        generationTime,
+        period: period || "all-time"
       }
     };
   } catch (error: any) {

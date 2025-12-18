@@ -1,7 +1,8 @@
-import mongoose from "mongoose";
 import ExcelJS from "exceljs";
-import { Task } from "../models/Task";
+import mongoose from "mongoose";
+import { Alert } from "../models/Alert";
 import { Project } from "../models/Project";
+import { Task } from "../models/Task";
 import * as ExcelFormatService from "./excelFormatService";
 
 /**
@@ -114,6 +115,52 @@ export interface RecipeProductionTrend {
     completed: number;
     efficiency: number;
   }>;
+}
+
+// ==================== KPI INTERFACES ====================
+
+export interface ProductProductionRate {
+  productId: string;
+  productName: string;
+  targetQuantity: number;
+  producedQuantity: number;
+  productionRate: number; // percentage
+}
+
+export interface PriorityDistribution {
+  LOW: number;
+  MEDIUM: number;
+  HIGH: number;
+  URGENT: number;
+}
+
+export interface CustomerProduction {
+  customerName: string;
+  productionVolume: number;
+  percentage: number;
+}
+
+export interface ProductWorkingHours {
+  productId: string;
+  productName: string;
+  minHours: number;
+  maxHours: number;
+  totalHours: number;
+}
+
+export interface ProjectLeadTime {
+  projectId: string;
+  projectName: string;
+  startDate: Date;
+  endDate: Date;
+  leadTimeDays: number;
+}
+
+export interface MachineTypeErrorRate {
+  deviceTypeId: string;
+  deviceTypeName: string;
+  errorCount: number;
+  errorRate: number; // percentage
 }
 
 // ==================== DATA AGGREGATION FUNCTIONS ====================
@@ -856,7 +903,574 @@ export async function getRecipeProductionTrends(
   return trends;
 }
 
+// ==================== KPI CALCULATION FUNCTIONS ====================
+
+/**
+ * Calculate delivery delay count: Projects that are late to finish
+ */
+export async function calculateDeliveryDelayCount(
+  dateRange: DateRangeFilter
+): Promise<number> {
+  const { startDate, endDate } = dateRange;
+
+  const delayedProjects = await Project.countDocuments({
+    $and: [
+      {
+        $or: [
+          // Completed projects that finished after deadline
+          {
+            status: "COMPLETED",
+            deadline: { $exists: true, $ne: null },
+            endDate: { $exists: true, $ne: null },
+            $expr: { $gt: ["$endDate", "$deadline"] }
+          },
+          // Active projects past their deadline
+          {
+            status: { $in: ["ACTIVE", "ON_HOLD"] },
+            deadline: { $exists: true, $ne: null, $lt: endDate }
+          }
+        ]
+      },
+      {
+        $or: [
+          { createdAt: { $gte: startDate, $lte: endDate } },
+          { startDate: { $gte: startDate, $lte: endDate } },
+          { endDate: { $gte: startDate, $lte: endDate } }
+        ]
+      }
+    ]
+  });
+
+  return delayedProjects;
+}
+
+/**
+ * Calculate production rate by product: Actual production/target production
+ */
+export async function calculateProductionRateByProduct(
+  dateRange: DateRangeFilter
+): Promise<ProductProductionRate[]> {
+  const { startDate, endDate } = dateRange;
+
+  const productStats = await Project.aggregate([
+    {
+      $match: {
+        product: { $exists: true, $ne: null },
+        $or: [
+          { createdAt: { $gte: startDate, $lte: endDate } },
+          { startDate: { $gte: startDate, $lte: endDate } },
+          { endDate: { $gte: startDate, $lte: endDate } }
+        ]
+      }
+    },
+    {
+      $group: {
+        _id: "$product",
+        targetQuantity: { $sum: "$targetQuantity" },
+        producedQuantity: { $sum: "$producedQuantity" }
+      }
+    },
+    {
+      $lookup: {
+        from: "products",
+        localField: "_id",
+        foreignField: "_id",
+        as: "product"
+      }
+    },
+    {
+      $unwind: {
+        path: "$product",
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $project: {
+        productId: { $toString: "$_id" },
+        productName: {
+          $ifNull: ["$product.productName", "Unknown Product"]
+        },
+        targetQuantity: 1,
+        producedQuantity: 1,
+        productionRate: {
+          $cond: [
+            { $gt: ["$targetQuantity", 0] },
+            {
+              $multiply: [
+                { $divide: ["$producedQuantity", "$targetQuantity"] },
+                100
+              ]
+            },
+            0
+          ]
+        }
+      }
+    },
+    {
+      $sort: { productionRate: -1 }
+    }
+  ]);
+
+  return productStats;
+}
+
+/**
+ * Calculate overall product production rate: Actual Output/Target Output
+ */
+export async function calculateOverallProductionRate(
+  dateRange: DateRangeFilter
+): Promise<number> {
+  const { startDate, endDate } = dateRange;
+
+  const totals = await Project.aggregate([
+    {
+      $match: {
+        $or: [
+          { createdAt: { $gte: startDate, $lte: endDate } },
+          { startDate: { $gte: startDate, $lte: endDate } },
+          { endDate: { $gte: startDate, $lte: endDate } }
+        ]
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        totalTarget: { $sum: "$targetQuantity" },
+        totalProduced: { $sum: "$producedQuantity" }
+      }
+    }
+  ]);
+
+  if (totals.length === 0 || totals[0].totalTarget === 0) {
+    return 0;
+  }
+
+  return (totals[0].totalProduced / totals[0].totalTarget) * 100;
+}
+
+/**
+ * Calculate priority ratio: Distribution percentage of each priority level
+ */
+export async function calculatePriorityRatio(
+  dateRange: DateRangeFilter
+): Promise<PriorityDistribution> {
+  const { startDate, endDate } = dateRange;
+
+  const priorityStats = await Project.aggregate([
+    {
+      $match: {
+        $or: [
+          { createdAt: { $gte: startDate, $lte: endDate } },
+          { startDate: { $gte: startDate, $lte: endDate } },
+          { endDate: { $gte: startDate, $lte: endDate } }
+        ]
+      }
+    },
+    {
+      $group: {
+        _id: "$priority",
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  const total = priorityStats.reduce((sum, stat) => sum + stat.count, 0);
+
+  const distribution: PriorityDistribution = {
+    LOW: 0,
+    MEDIUM: 0,
+    HIGH: 0,
+    URGENT: 0
+  };
+
+  priorityStats.forEach((stat) => {
+    const priority = stat._id as keyof PriorityDistribution;
+    if (total > 0) {
+      distribution[priority] = (stat.count / total) * 100;
+    }
+  });
+
+  return distribution;
+}
+
+/**
+ * Calculate percentage of customers: Percentage of production volume by customer
+ */
+export async function calculateCustomerProductionPercentage(
+  dateRange: DateRangeFilter
+): Promise<CustomerProduction[]> {
+  const { startDate, endDate } = dateRange;
+
+  const customerStats = await Project.aggregate([
+    {
+      $match: {
+        productSnapshot: { $exists: true, $ne: null },
+        $or: [
+          { createdAt: { $gte: startDate, $lte: endDate } },
+          { startDate: { $gte: startDate, $lte: endDate } },
+          { endDate: { $gte: startDate, $lte: endDate } }
+        ]
+      }
+    },
+    {
+      $lookup: {
+        from: "productsnapshots",
+        localField: "productSnapshot",
+        foreignField: "_id",
+        as: "productSnapshot"
+      }
+    },
+    {
+      $unwind: {
+        path: "$productSnapshot",
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $group: {
+        _id: {
+          $ifNull: ["$productSnapshot.customerName", "Unknown Customer"]
+        },
+        productionVolume: { $sum: "$producedQuantity" }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        totalVolume: { $sum: "$productionVolume" },
+        customers: { $push: "$$ROOT" }
+      }
+    },
+    {
+      $unwind: "$customers"
+    },
+    {
+      $project: {
+        _id: 0,
+        customerName: "$customers._id",
+        productionVolume: "$customers.productionVolume",
+        percentage: {
+          $cond: [
+            { $gt: ["$totalVolume", 0] },
+            {
+              $multiply: [
+                { $divide: ["$customers.productionVolume", "$totalVolume"] },
+                100
+              ]
+            },
+            0
+          ]
+        }
+      }
+    },
+    {
+      $sort: { productionVolume: -1 }
+    }
+  ]);
+
+  return customerStats;
+}
+
+/**
+ * Calculate part defect rate: Number of defective parts/part production
+ */
+export async function calculatePartDefectRate(
+  dateRange: DateRangeFilter
+): Promise<number> {
+  const { startDate, endDate } = dateRange;
+
+  const [defectCount, totalParts] = await Promise.all([
+    Alert.countDocuments({
+      type: "DEFECT",
+      createdAt: { $gte: startDate, $lte: endDate }
+    }),
+    Project.aggregate([
+      {
+        $match: {
+          $or: [
+            { createdAt: { $gte: startDate, $lte: endDate } },
+            { startDate: { $gte: startDate, $lte: endDate } },
+            { endDate: { $gte: startDate, $lte: endDate } }
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$producedQuantity" }
+        }
+      }
+    ])
+  ]);
+
+  const totalPartsProduced = totalParts.length > 0 ? totalParts[0].total : 0;
+
+  if (totalPartsProduced === 0) {
+    return 0;
+  }
+
+  return (defectCount / totalPartsProduced) * 100;
+}
+
+/**
+ * Calculate working hours by product: Minimum time, maximum time, total time
+ */
+export async function calculateWorkingHoursByProduct(
+  dateRange: DateRangeFilter
+): Promise<ProductWorkingHours[]> {
+  const { startDate, endDate } = dateRange;
+
+  const productHours = await Task.aggregate([
+    {
+      $match: {
+        status: "COMPLETED",
+        actualDuration: { $gt: 0 },
+        completedAt: { $gte: startDate, $lte: endDate },
+        productId: { $exists: true, $ne: null }
+      }
+    },
+    {
+      $lookup: {
+        from: "projects",
+        localField: "projectId",
+        foreignField: "_id",
+        as: "project"
+      }
+    },
+    {
+      $unwind: {
+        path: "$project",
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $lookup: {
+        from: "productsnapshots",
+        localField: "project.productSnapshot",
+        foreignField: "_id",
+        as: "productSnapshot"
+      }
+    },
+    {
+      $unwind: {
+        path: "$productSnapshot",
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $group: {
+        _id: {
+          $ifNull: ["$productSnapshot.originalProductId", "$productId", null]
+        },
+        productName: {
+          $first: {
+            $ifNull: ["$productSnapshot.name", "Unknown Product"]
+          }
+        },
+        durations: { $push: "$actualDuration" },
+        totalHours: { $sum: { $divide: ["$actualDuration", 60] } }
+      }
+    },
+    {
+      $project: {
+        productId: { $toString: "$_id" },
+        productName: 1,
+        minHours: {
+          $divide: [{ $min: "$durations" }, 60]
+        },
+        maxHours: {
+          $divide: [{ $max: "$durations" }, 60]
+        },
+        totalHours: 1
+      }
+    },
+    {
+      $sort: { totalHours: -1 }
+    }
+  ]);
+
+  return productHours;
+}
+
+/**
+ * Calculate lead time: Total time from start date to complete date
+ */
+export async function calculateLeadTime(
+  dateRange: DateRangeFilter
+): Promise<ProjectLeadTime[]> {
+  const { startDate, endDate } = dateRange;
+
+  const projects = await Project.find({
+    status: "COMPLETED",
+    startDate: { $exists: true, $ne: null },
+    endDate: { $exists: true, $ne: null },
+    $or: [
+      { createdAt: { $gte: startDate, $lte: endDate } },
+      { startDate: { $gte: startDate, $lte: endDate } },
+      { endDate: { $gte: startDate, $lte: endDate } }
+    ]
+  })
+    .select("_id name startDate endDate")
+    .lean();
+
+  return projects.map((project) => {
+    const leadTimeMs =
+      new Date(project.endDate!).getTime() -
+      new Date(project.startDate!).getTime();
+    const leadTimeDays = Math.ceil(leadTimeMs / (1000 * 60 * 60 * 24));
+
+    return {
+      projectId: project._id.toString(),
+      projectName: project.name,
+      startDate: project.startDate!,
+      endDate: project.endDate!,
+      leadTimeDays
+    };
+  });
+}
+
+/**
+ * Calculate machine type error rate: error occurrences per machine type/total error over all machine types
+ */
+export async function calculateMachineTypeErrorRate(
+  dateRange: DateRangeFilter
+): Promise<MachineTypeErrorRate[]> {
+  const { startDate, endDate } = dateRange;
+
+  const errorStats = await Alert.aggregate([
+    {
+      $match: {
+        type: "MACHINE_ERROR",
+        createdAt: { $gte: startDate, $lte: endDate },
+        device: { $exists: true, $ne: null }
+      }
+    },
+    {
+      $lookup: {
+        from: "devices",
+        localField: "device",
+        foreignField: "_id",
+        as: "device"
+      }
+    },
+    {
+      $unwind: {
+        path: "$device",
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $lookup: {
+        from: "devicetypes",
+        localField: "device.deviceTypeId",
+        foreignField: "_id",
+        as: "deviceType"
+      }
+    },
+    {
+      $unwind: {
+        path: "$deviceType",
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $group: {
+        _id: "$deviceType._id",
+        deviceTypeName: { $first: "$deviceType.name" },
+        errorCount: { $sum: 1 }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        totalErrors: { $sum: "$errorCount" },
+        types: { $push: "$$ROOT" }
+      }
+    },
+    {
+      $unwind: "$types"
+    },
+    {
+      $project: {
+        _id: 0,
+        deviceTypeId: { $toString: "$types._id" },
+        deviceTypeName: {
+          $ifNull: ["$types.deviceTypeName", "Unknown Device Type"]
+        },
+        errorCount: "$types.errorCount",
+        errorRate: {
+          $cond: [
+            { $gt: ["$totalErrors", 0] },
+            {
+              $multiply: [
+                { $divide: ["$types.errorCount", "$totalErrors"] },
+                100
+              ]
+            },
+            0
+          ]
+        }
+      }
+    },
+    {
+      $sort: { errorCount: -1 }
+    }
+  ]);
+
+  return errorStats;
+}
+
 // ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Adjust date range based on period type
+ */
+export function adjustDateRangeForPeriod(
+  startDate: Date,
+  endDate: Date,
+  period?: "daily" | "weekly" | "monthly"
+): DateRangeFilter {
+  if (!period) {
+    return { startDate, endDate };
+  }
+
+  const adjustedStart = new Date(startDate);
+  const adjustedEnd = new Date(endDate);
+
+  switch (period) {
+    case "daily":
+      // Set to start of day and end of same day
+      adjustedStart.setHours(0, 0, 0, 0);
+      adjustedEnd.setTime(adjustedStart.getTime());
+      adjustedEnd.setHours(23, 59, 59, 999);
+      break;
+
+    case "weekly":
+      // Set to Monday of the week containing startDate
+      const dayOfWeek = adjustedStart.getDay();
+      const diff =
+        adjustedStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust to Monday
+      adjustedStart.setDate(diff);
+      adjustedStart.setHours(0, 0, 0, 0);
+      // Set to Sunday of the same week
+      adjustedEnd.setTime(adjustedStart.getTime());
+      adjustedEnd.setDate(adjustedStart.getDate() + 6);
+      adjustedEnd.setHours(23, 59, 59, 999);
+      break;
+
+    case "monthly":
+      // Set to first day of month
+      adjustedStart.setDate(1);
+      adjustedStart.setHours(0, 0, 0, 0);
+      // Set to last day of month
+      adjustedEnd.setMonth(adjustedStart.getMonth() + 1);
+      adjustedEnd.setDate(0);
+      adjustedEnd.setHours(23, 59, 59, 999);
+      break;
+  }
+
+  return { startDate: adjustedStart, endDate: adjustedEnd };
+}
 
 /**
  * Format duration in minutes (from DB) to readable string
@@ -1950,4 +2564,384 @@ export async function generateRawProductionDataSheet(
   console.log(
     `✓ Raw Production Data Sheet generated with ${tasks.length} task records`
   );
+}
+
+/**
+ * Generate comprehensive Production Rate KPI Sheet
+ * Single sheet containing all KPI calculations
+ */
+export async function generateProductionRateKPISheet(
+  workbook: ExcelJS.Workbook,
+  dateRange: DateRangeFilter,
+  period?: "daily" | "weekly" | "monthly"
+): Promise<void> {
+  console.log("Generating Production Rate KPI Sheet...");
+
+  // Adjust date range based on period
+  const adjustedDateRange = adjustDateRangeForPeriod(
+    dateRange.startDate,
+    dateRange.endDate,
+    period
+  );
+
+  const worksheet = workbook.addWorksheet("Production Rate KPIs");
+  let currentRow = 1;
+
+  // ===== TITLE =====
+  worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
+  const titleCell = worksheet.getCell(`A${currentRow}`);
+  const periodLabel = period
+    ? period.charAt(0).toUpperCase() + period.slice(1)
+    : "All Time";
+  titleCell.value = `PRODUCTION RATE KPI REPORT - ${periodLabel}`;
+  titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
+  titleCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+  };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  worksheet.getRow(currentRow).height = 30;
+  currentRow += 2;
+
+  // Date range info
+  worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
+  const dateRangeCell = worksheet.getCell(`A${currentRow}`);
+  dateRangeCell.value = `Date Range: ${adjustedDateRange.startDate.toLocaleDateString()} - ${adjustedDateRange.endDate.toLocaleDateString()}`;
+  dateRangeCell.font = { size: 11 };
+  dateRangeCell.alignment = { horizontal: "center" };
+  currentRow += 2;
+
+  // Calculate all KPIs in parallel
+  const [
+    deliveryDelayCount,
+    productionRateByProduct,
+    overallProductionRate,
+    priorityRatio,
+    customerProduction,
+    partDefectRate,
+    workingHoursByProduct,
+    leadTimeData,
+    machineTypeErrorRate
+  ] = await Promise.all([
+    calculateDeliveryDelayCount(adjustedDateRange),
+    calculateProductionRateByProduct(adjustedDateRange),
+    calculateOverallProductionRate(adjustedDateRange),
+    calculatePriorityRatio(adjustedDateRange),
+    calculateCustomerProductionPercentage(adjustedDateRange),
+    calculatePartDefectRate(adjustedDateRange),
+    calculateWorkingHoursByProduct(adjustedDateRange),
+    calculateLeadTime(adjustedDateRange),
+    calculateMachineTypeErrorRate(adjustedDateRange)
+  ]);
+
+  // ===== SECTION 1: Overall KPIs =====
+  worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
+  const section1Header = worksheet.getCell(`A${currentRow}`);
+  section1Header.value = "Overall KPIs";
+  section1Header.font = { size: 14, bold: true };
+  section1Header.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "E0E0E0" }
+  };
+  currentRow++;
+
+  // Delivery Delay Count
+  worksheet.getCell(`A${currentRow}`).value = "Delivery Delay Count:";
+  worksheet.getCell(`B${currentRow}`).value = deliveryDelayCount;
+  worksheet.getCell(`B${currentRow}`).font = { bold: true };
+  currentRow++;
+
+  // Overall Production Rate
+  worksheet.getCell(`A${currentRow}`).value =
+    "Overall Product Production Rate:";
+  worksheet.getCell(`B${currentRow}`).value = `${overallProductionRate.toFixed(
+    2
+  )}%`;
+  worksheet.getCell(`B${currentRow}`).font = { bold: true };
+  worksheet.getCell(`B${currentRow}`).numFmt = "0.00";
+  currentRow += 2;
+
+  // ===== SECTION 2: Production Rate by Product =====
+  worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
+  const section2Header = worksheet.getCell(`A${currentRow}`);
+  section2Header.value = "Production Rate by Product";
+  section2Header.font = { size: 14, bold: true };
+  section2Header.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "E0E0E0" }
+  };
+  currentRow++;
+
+  // Headers
+  const productHeaders = [
+    "Product Name",
+    "Target Quantity",
+    "Produced Quantity",
+    "Production Rate (%)"
+  ];
+  productHeaders.forEach((header, idx) => {
+    const cell = worksheet.getCell(currentRow, idx + 1);
+    cell.value = header;
+    cell.font = { bold: true };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    cell.alignment = { horizontal: "center" };
+  });
+  currentRow++;
+
+  // Data rows
+  productionRateByProduct.forEach((product) => {
+    worksheet.getCell(`A${currentRow}`).value = product.productName;
+    worksheet.getCell(`B${currentRow}`).value = product.targetQuantity;
+    worksheet.getCell(`B${currentRow}`).numFmt = "#,##0";
+    worksheet.getCell(`C${currentRow}`).value = product.producedQuantity;
+    worksheet.getCell(`C${currentRow}`).numFmt = "#,##0";
+    worksheet.getCell(`D${currentRow}`).value = product.productionRate;
+    worksheet.getCell(`D${currentRow}`).numFmt = "0.00";
+    currentRow++;
+  });
+  currentRow += 2;
+
+  // ===== SECTION 3: Priority Distribution =====
+  worksheet.mergeCells(`A${currentRow}:C${currentRow}`);
+  const section3Header = worksheet.getCell(`A${currentRow}`);
+  section3Header.value = "Priority Distribution";
+  section3Header.font = { size: 14, bold: true };
+  section3Header.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "E0E0E0" }
+  };
+  currentRow++;
+
+  // Headers
+  worksheet.getCell(`A${currentRow}`).value = "Priority";
+  worksheet.getCell(`B${currentRow}`).value = "Percentage (%)";
+  [
+    worksheet.getCell(`A${currentRow}`),
+    worksheet.getCell(`B${currentRow}`)
+  ].forEach((cell) => {
+    cell.font = { bold: true };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    cell.alignment = { horizontal: "center" };
+  });
+  currentRow++;
+
+  // Data rows
+  Object.entries(priorityRatio).forEach(([priority, percentage]) => {
+    worksheet.getCell(`A${currentRow}`).value = priority;
+    worksheet.getCell(`B${currentRow}`).value = percentage;
+    worksheet.getCell(`B${currentRow}`).numFmt = "0.00";
+    currentRow++;
+  });
+  currentRow += 2;
+
+  // ===== SECTION 4: Customer Production Percentage =====
+  worksheet.mergeCells(`A${currentRow}:C${currentRow}`);
+  const section4Header = worksheet.getCell(`A${currentRow}`);
+  section4Header.value = "Customer Production Percentage";
+  section4Header.font = { size: 14, bold: true };
+  section4Header.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "E0E0E0" }
+  };
+  currentRow++;
+
+  // Headers
+  worksheet.getCell(`A${currentRow}`).value = "Customer Name";
+  worksheet.getCell(`B${currentRow}`).value = "Production Volume";
+  worksheet.getCell(`C${currentRow}`).value = "Percentage (%)";
+  [
+    worksheet.getCell(`A${currentRow}`),
+    worksheet.getCell(`B${currentRow}`),
+    worksheet.getCell(`C${currentRow}`)
+  ].forEach((cell) => {
+    cell.font = { bold: true };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    cell.alignment = { horizontal: "center" };
+  });
+  currentRow++;
+
+  // Data rows
+  customerProduction.forEach((customer) => {
+    worksheet.getCell(`A${currentRow}`).value = customer.customerName;
+    worksheet.getCell(`B${currentRow}`).value = customer.productionVolume;
+    worksheet.getCell(`B${currentRow}`).numFmt = "#,##0";
+    worksheet.getCell(`C${currentRow}`).value = customer.percentage;
+    worksheet.getCell(`C${currentRow}`).numFmt = "0.00";
+    currentRow++;
+  });
+  currentRow += 2;
+
+  // ===== SECTION 5: Part Defect Rate =====
+  worksheet.mergeCells(`A${currentRow}:B${currentRow}`);
+  const section5Header = worksheet.getCell(`A${currentRow}`);
+  section5Header.value = "Part Defect Rate";
+  section5Header.font = { size: 14, bold: true };
+  section5Header.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "E0E0E0" }
+  };
+  currentRow++;
+
+  worksheet.getCell(`A${currentRow}`).value = "Defect Rate:";
+  worksheet.getCell(`B${currentRow}`).value = `${partDefectRate.toFixed(2)}%`;
+  worksheet.getCell(`B${currentRow}`).font = { bold: true };
+  worksheet.getCell(`B${currentRow}`).numFmt = "0.00";
+  currentRow += 2;
+
+  // ===== SECTION 6: Working Hours by Product =====
+  worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
+  const section6Header = worksheet.getCell(`A${currentRow}`);
+  section6Header.value = "Working Hours by Product";
+  section6Header.font = { size: 14, bold: true };
+  section6Header.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "E0E0E0" }
+  };
+  currentRow++;
+
+  // Headers
+  const hoursHeaders = [
+    "Product Name",
+    "Minimum Hours",
+    "Maximum Hours",
+    "Total Hours"
+  ];
+  hoursHeaders.forEach((header, idx) => {
+    const cell = worksheet.getCell(currentRow, idx + 1);
+    cell.value = header;
+    cell.font = { bold: true };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    cell.alignment = { horizontal: "center" };
+  });
+  currentRow++;
+
+  // Data rows
+  workingHoursByProduct.forEach((product) => {
+    worksheet.getCell(`A${currentRow}`).value = product.productName;
+    worksheet.getCell(`B${currentRow}`).value = product.minHours;
+    worksheet.getCell(`B${currentRow}`).numFmt = "0.00";
+    worksheet.getCell(`C${currentRow}`).value = product.maxHours;
+    worksheet.getCell(`C${currentRow}`).numFmt = "0.00";
+    worksheet.getCell(`D${currentRow}`).value = product.totalHours;
+    worksheet.getCell(`D${currentRow}`).numFmt = "0.00";
+    currentRow++;
+  });
+  currentRow += 2;
+
+  // ===== SECTION 7: Lead Time Analysis =====
+  worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
+  const section7Header = worksheet.getCell(`A${currentRow}`);
+  section7Header.value = "Lead Time Analysis";
+  section7Header.font = { size: 14, bold: true };
+  section7Header.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "E0E0E0" }
+  };
+  currentRow++;
+
+  // Headers
+  const leadTimeHeaders = [
+    "Project Name",
+    "Start Date",
+    "End Date",
+    "Lead Time (Days)"
+  ];
+  leadTimeHeaders.forEach((header, idx) => {
+    const cell = worksheet.getCell(currentRow, idx + 1);
+    cell.value = header;
+    cell.font = { bold: true };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    cell.alignment = { horizontal: "center" };
+  });
+  currentRow++;
+
+  // Data rows
+  leadTimeData.forEach((project) => {
+    worksheet.getCell(`A${currentRow}`).value = project.projectName;
+    worksheet.getCell(`B${currentRow}`).value = project.startDate;
+    worksheet.getCell(`B${currentRow}`).numFmt = "yyyy-mm-dd";
+    worksheet.getCell(`C${currentRow}`).value = project.endDate;
+    worksheet.getCell(`C${currentRow}`).numFmt = "yyyy-mm-dd";
+    worksheet.getCell(`D${currentRow}`).value = project.leadTimeDays;
+    worksheet.getCell(`D${currentRow}`).numFmt = "#,##0";
+    currentRow++;
+  });
+  currentRow += 2;
+
+  // ===== SECTION 8: Machine Type Error Rate =====
+  worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
+  const section8Header = worksheet.getCell(`A${currentRow}`);
+  section8Header.value = "Machine Type Error Rate";
+  section8Header.font = { size: 14, bold: true };
+  section8Header.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "E0E0E0" }
+  };
+  currentRow++;
+
+  // Headers
+  const errorHeaders = ["Machine Type", "Error Count", "Error Rate (%)"];
+  errorHeaders.forEach((header, idx) => {
+    const cell = worksheet.getCell(currentRow, idx + 1);
+    cell.value = header;
+    cell.font = { bold: true };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    cell.alignment = { horizontal: "center" };
+  });
+  currentRow++;
+
+  // Data rows
+  machineTypeErrorRate.forEach((machineType) => {
+    worksheet.getCell(`A${currentRow}`).value = machineType.deviceTypeName;
+    worksheet.getCell(`B${currentRow}`).value = machineType.errorCount;
+    worksheet.getCell(`B${currentRow}`).numFmt = "#,##0";
+    worksheet.getCell(`C${currentRow}`).value = machineType.errorRate;
+    worksheet.getCell(`C${currentRow}`).numFmt = "0.00";
+    currentRow++;
+  });
+
+  // Set column widths
+  worksheet.getColumn(1).width = 30;
+  worksheet.getColumn(2).width = 18;
+  worksheet.getColumn(3).width = 18;
+  worksheet.getColumn(4).width = 18;
+  worksheet.getColumn(5).width = 18;
+
+  // Freeze header rows
+  worksheet.views = [{ state: "frozen", ySplit: 1 }];
+
+  console.log("✓ Production Rate KPI Sheet generated successfully");
 }

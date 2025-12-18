@@ -221,6 +221,37 @@ const TRANSLATIONS = {
     qualityScore: { en: "Quality Score", ko: "품질 점수" },
     efficiency: { en: "Efficiency %", ko: "효율성 %" },
     notes: { en: "Notes", ko: "비고" }
+  },
+
+  // Worker KPI Report
+  workerKPI: {
+    title: {
+      en: "WORKER PERFORMANCE KPI REPORT",
+      ko: "작업자 성과 KPI 보고서"
+    },
+    workerName: { en: "Worker Name", ko: "작업자 이름" },
+    department: { en: "Department", ko: "부서" },
+    workProficiency: { en: "Work Proficiency", ko: "작업 숙련도" },
+    proficiencyLevel: { en: "Proficiency Level", ko: "숙련도 수준" },
+    proficiencyScore: { en: "Proficiency Score", ko: "숙련도 점수" },
+    totalWorkingHours: { en: "Total Working Hours", ko: "총 근무 시간" },
+    productionVolume: { en: "Production Volume", ko: "생산량" },
+    overtimeHours: { en: "Overtime Hours", ko: "초과 근무 시간" },
+    jobProcessingDelays: {
+      en: "Job Processing Delays",
+      ko: "작업 처리 지연 횟수"
+    },
+    jobProcessingLatency: {
+      en: "Job Processing Latency (minutes)",
+      ko: "작업 처리 지연 시간 (분)"
+    },
+    partDefects: { en: "Part Defects", ko: "부품 불량 수" },
+    initial: { en: "Initial", ko: "초급" },
+    intermediate: { en: "Intermediate", ko: "중급" },
+    advanced: { en: "Advanced", ko: "고급" },
+    period: { en: "Period", ko: "기간" },
+    from: { en: "From", ko: "시작일" },
+    to: { en: "To", ko: "종료일" }
   }
 };
 
@@ -1177,6 +1208,319 @@ export async function getWorkerDailyActivity(
   }
 
   return result;
+}
+
+// ==================== KPI CALCULATION FUNCTIONS ====================
+
+export interface WorkerProficiencyResult {
+  score: number; // 0-100
+  level: "initial" | "intermediate" | "advanced";
+  breakdown: {
+    completionRate: number;
+    qualityScore: number;
+    speedEfficiency: number;
+    consistency: number;
+  };
+}
+
+export interface WorkerKPIData {
+  workerId: string;
+  workerName: string;
+  department: string;
+  proficiency: WorkerProficiencyResult;
+  totalWorkingHours: number;
+  productionVolume: number;
+  overtimeHours: number;
+  jobProcessingDelays: number;
+  jobProcessingLatency: number; // Average execution latency in minutes
+  partDefects: number; // Failed job count
+}
+
+/**
+ * Calculate Worker Proficiency Score (0-100)
+ * Based on Section 1 of worker_KPI_calculations.md
+ */
+export async function calculateWorkerProficiency(
+  dateRange: DateRangeFilter,
+  workerId: string
+): Promise<WorkerProficiencyResult> {
+  const { startDate, endDate } = dateRange;
+
+  const tasks = await Task.find({
+    workerId: new mongoose.Types.ObjectId(workerId),
+    $or: [
+      { createdAt: { $gte: startDate, $lte: endDate } },
+      { startedAt: { $gte: startDate, $lte: endDate } },
+      { completedAt: { $gte: startDate, $lte: endDate } }
+    ]
+  }).lean();
+
+  const totalAssignedTasks = tasks.length;
+  const completedTasks = tasks.filter((t) => t.status === "COMPLETED").length;
+  const failedTasks = tasks.filter((t) => t.status === "FAILED").length;
+  const tasksWithinEstimate = tasks.filter(
+    (t) =>
+      t.status === "COMPLETED" &&
+      t.actualDuration &&
+      t.estimatedDuration &&
+      t.actualDuration <= t.estimatedDuration
+  ).length;
+
+  // Component 1: Completion Rate (40 points)
+  const completionRate =
+    totalAssignedTasks > 0 ? (completedTasks / totalAssignedTasks) * 40 : 0;
+
+  // Component 2: Quality Score (30 points)
+  const qualityScore =
+    completedTasks > 0
+      ? ((completedTasks - failedTasks) / completedTasks) * 30
+      : 0;
+
+  // Component 3: Speed Efficiency (20 points)
+  const speedEfficiency =
+    completedTasks > 0 ? (tasksWithinEstimate / completedTasks) * 20 : 0;
+
+  // Component 4: Consistency (10 points)
+  const completedTaskDurations = tasks
+    .filter(
+      (t) =>
+        t.status === "COMPLETED" && t.actualDuration && t.actualDuration > 0
+    )
+    .map((t) => t.actualDuration!);
+
+  let consistency = 0;
+  if (completedTaskDurations.length > 1) {
+    const meanDuration =
+      completedTaskDurations.reduce((sum, d) => sum + d, 0) /
+      completedTaskDurations.length;
+    const variance =
+      completedTaskDurations.reduce(
+        (sum, d) => sum + Math.pow(d - meanDuration, 2),
+        0
+      ) / completedTaskDurations.length;
+    const stdDeviation = Math.sqrt(variance);
+    consistency = Math.max(0, (1 - stdDeviation / meanDuration) * 10);
+  } else if (completedTaskDurations.length === 1) {
+    consistency = 10; // Perfect consistency with one task
+  }
+
+  // Final Score
+  const proficiencyScore =
+    completionRate + qualityScore + speedEfficiency + consistency;
+
+  // Classification
+  let level: "initial" | "intermediate" | "advanced";
+  if (proficiencyScore >= 75) {
+    level = "advanced";
+  } else if (proficiencyScore >= 40) {
+    level = "intermediate";
+  } else {
+    level = "initial";
+  }
+
+  return {
+    score: Math.min(100, Math.max(0, proficiencyScore)),
+    level,
+    breakdown: {
+      completionRate,
+      qualityScore,
+      speedEfficiency,
+      consistency
+    }
+  };
+}
+
+/**
+ * Calculate Worker Overtime Hours (duration-based)
+ * Based on Section 4 of worker_KPI_calculations.md
+ */
+export async function calculateWorkerOvertimeHours(
+  dateRange: DateRangeFilter,
+  workerId: string
+): Promise<number> {
+  const { startDate, endDate } = dateRange;
+
+  const tasks = await Task.find({
+    workerId: new mongoose.Types.ObjectId(workerId),
+    status: "COMPLETED",
+    completedAt: { $gte: startDate, $lte: endDate },
+    estimatedDuration: { $exists: true, $gt: 0 },
+    actualDuration: { $exists: true, $gt: 0 }
+  }).lean();
+
+  let totalOvertimeSeconds = 0;
+
+  tasks.forEach((task) => {
+    if (
+      task.estimatedDuration &&
+      task.actualDuration &&
+      task.actualDuration > task.estimatedDuration
+    ) {
+      // Convert minutes to seconds for calculation
+      const overtimeMinutes = task.actualDuration - task.estimatedDuration;
+      totalOvertimeSeconds += overtimeMinutes * 60;
+    }
+  });
+
+  // Convert seconds to hours
+  return totalOvertimeSeconds / 3600;
+}
+
+/**
+ * Calculate Worker Job Processing Delay Count
+ * Based on Section 5 of worker_KPI_calculations.md
+ */
+export async function calculateWorkerJobProcessingDelays(
+  dateRange: DateRangeFilter,
+  workerId: string
+): Promise<number> {
+  const { startDate, endDate } = dateRange;
+
+  const tasks = await Task.find({
+    workerId: new mongoose.Types.ObjectId(workerId),
+    completedAt: { $gte: startDate, $lte: endDate }
+  }).lean();
+
+  let delayCount = 0;
+
+  tasks.forEach((task) => {
+    // Delay Type 1: Missed Deadline
+    if (task.deadline && task.completedAt && task.completedAt > task.deadline) {
+      delayCount++;
+      return; // Count once per task
+    }
+
+    // Delay Type 2: Exceeded Estimated Duration
+    if (
+      task.estimatedDuration &&
+      task.actualDuration &&
+      task.actualDuration > task.estimatedDuration
+    ) {
+      delayCount++;
+      return; // Count once per task
+    }
+  });
+
+  return delayCount;
+}
+
+/**
+ * Calculate Worker Job Processing Latency (Average Execution Latency)
+ * Based on Section 6 of worker_KPI_calculations.md
+ * Excludes tasks with 0 estimated duration
+ */
+export async function calculateWorkerJobProcessingLatency(
+  dateRange: DateRangeFilter,
+  workerId: string
+): Promise<number> {
+  const { startDate, endDate } = dateRange;
+
+  const tasks = await Task.find({
+    workerId: new mongoose.Types.ObjectId(workerId),
+    status: "COMPLETED",
+    completedAt: { $gte: startDate, $lte: endDate },
+    estimatedDuration: { $exists: true, $gt: 0 },
+    actualDuration: { $exists: true, $gt: 0 }
+  }).lean();
+
+  const latencies: number[] = [];
+
+  tasks.forEach((task) => {
+    if (
+      task.estimatedDuration &&
+      task.actualDuration &&
+      task.estimatedDuration > 0
+    ) {
+      const executionLatency = task.actualDuration - task.estimatedDuration;
+      latencies.push(executionLatency);
+    }
+  });
+
+  if (latencies.length === 0) {
+    return 0;
+  }
+
+  const avgLatency =
+    latencies.reduce((sum, l) => sum + l, 0) / latencies.length;
+  return avgLatency; // Returns in minutes
+}
+
+/**
+ * Calculate Worker Failed Job Count (Part Defects)
+ * Based on Section 7 of worker_KPI_calculations.md
+ */
+export async function calculateWorkerFailedJobCount(
+  dateRange: DateRangeFilter,
+  workerId: string
+): Promise<number> {
+  const { startDate, endDate } = dateRange;
+
+  const failedCount = await Task.countDocuments({
+    workerId: new mongoose.Types.ObjectId(workerId),
+    status: "FAILED",
+    $or: [
+      { createdAt: { $gte: startDate, $lte: endDate } },
+      { startedAt: { $gte: startDate, $lte: endDate } },
+      { completedAt: { $gte: startDate, $lte: endDate } }
+    ]
+  });
+
+  return failedCount;
+}
+
+/**
+ * Get comprehensive Worker KPI Data
+ */
+export async function getWorkerKPIData(
+  dateRange: DateRangeFilter,
+  workerId: string
+): Promise<WorkerKPIData | null> {
+  const worker = await User.findById(workerId).lean();
+  if (!worker) {
+    return null;
+  }
+
+  // Calculate all KPIs in parallel
+  const [
+    proficiency,
+    totalWorkingHoursData,
+    productionVolume,
+    overtimeHours,
+    jobProcessingDelays,
+    jobProcessingLatency,
+    partDefects
+  ] = await Promise.all([
+    calculateWorkerProficiency(dateRange, workerId),
+    calculateWorkerHours(dateRange, workerId),
+    Task.countDocuments({
+      workerId: new mongoose.Types.ObjectId(workerId),
+      status: "COMPLETED",
+      completedAt: {
+        $gte: dateRange.startDate,
+        $lte: dateRange.endDate
+      }
+    }),
+    calculateWorkerOvertimeHours(dateRange, workerId),
+    calculateWorkerJobProcessingDelays(dateRange, workerId),
+    calculateWorkerJobProcessingLatency(dateRange, workerId),
+    calculateWorkerFailedJobCount(dateRange, workerId)
+  ]);
+
+  const totalWorkingHours =
+    totalWorkingHoursData.length > 0 ? totalWorkingHoursData[0].totalHours : 0;
+
+  return {
+    workerId,
+    workerName: worker.name,
+    department: worker.department || "N/A",
+    proficiency,
+    totalWorkingHours,
+    productionVolume,
+    overtimeHours,
+    jobProcessingDelays,
+    jobProcessingLatency,
+    partDefects
+  };
 }
 
 // ==================== HELPER FUNCTIONS ====================
@@ -2374,4 +2718,241 @@ export async function generateRawWorkerDataSheet(
   console.log(
     `✓ Raw Worker Data Sheet generated with ${tasks.length} task records`
   );
+}
+
+/**
+ * Generate Worker Performance KPI Report Sheet
+ * Single sheet with one row per worker (personalized report)
+ */
+export async function generateWorkerKPISheet(
+  workbook: ExcelJS.Workbook,
+  dateRange: DateRangeFilter,
+  workerId: string,
+  lang?: string
+): Promise<void> {
+  console.log("Generating Worker KPI Sheet...");
+
+  const worksheet = workbook.addWorksheet("Worker KPI");
+  let currentRow = 1;
+
+  // Get KPI data
+  const kpiData = await getWorkerKPIData(dateRange, workerId);
+  if (!kpiData) {
+    throw new Error("Worker not found or no data available");
+  }
+
+  // ===== TITLE =====
+  worksheet.mergeCells(`A${currentRow}:L${currentRow}`);
+  const titleCell = worksheet.getCell(`A${currentRow}`);
+  titleCell.value = getTranslation("workerKPI.title", lang);
+  titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
+  titleCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+  };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  worksheet.getRow(currentRow).height = 30;
+  currentRow += 2;
+
+  // ===== PERIOD INFORMATION =====
+  const formatDate = (date: Date) => {
+    return date.toISOString().split("T")[0];
+  };
+  worksheet.mergeCells(`A${currentRow}:L${currentRow}`);
+  const periodCell = worksheet.getCell(`A${currentRow}`);
+  periodCell.value = `${getTranslation("workerKPI.period", lang)}: ${formatDate(
+    dateRange.startDate
+  )} ${getTranslation("workerKPI.to", lang)} ${formatDate(dateRange.endDate)}`;
+  periodCell.font = { size: 12, bold: true };
+  periodCell.alignment = { horizontal: "center" };
+  currentRow += 2;
+
+  // ===== TABLE HEADERS =====
+  const headers = [
+    getTranslation("workerKPI.workerName", lang),
+    getTranslation("workerKPI.department", lang),
+    getTranslation("workerKPI.proficiencyLevel", lang),
+    getTranslation("workerKPI.proficiencyScore", lang),
+    getTranslation("workerKPI.totalWorkingHours", lang),
+    getTranslation("workerKPI.productionVolume", lang),
+    getTranslation("workerKPI.overtimeHours", lang),
+    getTranslation("workerKPI.jobProcessingDelays", lang),
+    getTranslation("workerKPI.jobProcessingLatency", lang),
+    getTranslation("workerKPI.partDefects", lang)
+  ];
+
+  headers.forEach((header, idx) => {
+    const cell = worksheet.getCell(currentRow, idx + 1);
+    cell.value = header;
+    cell.font = { bold: true, color: { argb: "FFFFFF" } };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+  worksheet.getRow(currentRow).height = 35;
+  currentRow++;
+
+  // ===== DATA ROW =====
+  const proficiencyLevelText =
+    kpiData.proficiency.level === "advanced"
+      ? getTranslation("workerKPI.advanced", lang)
+      : kpiData.proficiency.level === "intermediate"
+      ? getTranslation("workerKPI.intermediate", lang)
+      : getTranslation("workerKPI.initial", lang);
+
+  const row = [
+    kpiData.workerName,
+    kpiData.department,
+    proficiencyLevelText,
+    kpiData.proficiency.score.toFixed(1),
+    kpiData.totalWorkingHours.toFixed(2),
+    kpiData.productionVolume,
+    kpiData.overtimeHours.toFixed(2),
+    kpiData.jobProcessingDelays,
+    kpiData.jobProcessingLatency.toFixed(2),
+    kpiData.partDefects
+  ];
+
+  row.forEach((val, idx) => {
+    const cell = worksheet.getCell(currentRow, idx + 1);
+    cell.value = val;
+    cell.alignment = {
+      horizontal: idx <= 1 ? "left" : "center",
+      vertical: "middle"
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    // Conditional formatting for proficiency level
+    if (idx === 2) {
+      if (kpiData.proficiency.level === "advanced") {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.SUCCESS }
+        };
+        cell.font = { bold: true, color: { argb: "FFFFFF" } };
+      } else if (kpiData.proficiency.level === "intermediate") {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.WARNING }
+        };
+        cell.font = { bold: true, color: { argb: "000000" } };
+      } else {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.DANGER }
+        };
+        cell.font = { bold: true, color: { argb: "FFFFFF" } };
+      }
+    }
+
+    // Conditional formatting for proficiency score
+    if (idx === 3) {
+      const score = kpiData.proficiency.score;
+      if (score >= 75) {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.SUCCESS }
+        };
+        cell.font = { bold: true, color: { argb: "FFFFFF" } };
+      } else if (score >= 40) {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.WARNING }
+        };
+        cell.font = { bold: true, color: { argb: "000000" } };
+      } else {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.DANGER }
+        };
+        cell.font = { bold: true, color: { argb: "FFFFFF" } };
+      }
+    }
+
+    // Conditional formatting for overtime hours (red if > 0)
+    if (idx === 6 && kpiData.overtimeHours > 0) {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: ExcelFormatService.COLORS.DANGER }
+      };
+      cell.font = { bold: true, color: { argb: "FFFFFF" } };
+    }
+
+    // Conditional formatting for delays (red if > 0)
+    if (idx === 7 && kpiData.jobProcessingDelays > 0) {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: ExcelFormatService.COLORS.DANGER }
+      };
+      cell.font = { bold: true, color: { argb: "FFFFFF" } };
+    }
+
+    // Conditional formatting for latency (red if > 0)
+    if (idx === 8 && kpiData.jobProcessingLatency > 0) {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: ExcelFormatService.COLORS.DANGER }
+      };
+      cell.font = { bold: true, color: { argb: "FFFFFF" } };
+    }
+
+    // Conditional formatting for defects (red if > 0)
+    if (idx === 9 && kpiData.partDefects > 0) {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: ExcelFormatService.COLORS.DANGER }
+      };
+      cell.font = { bold: true, color: { argb: "FFFFFF" } };
+    }
+  });
+
+  currentRow += 2;
+
+  // ===== ADD APPROVAL FORM =====
+  ExcelFormatService.createApprovalForm(worksheet, 1, 14); // Start at row 1, column N (14)
+
+  // Column widths
+  worksheet.getColumn(1).width = 20; // Worker Name
+  worksheet.getColumn(2).width = 15; // Department
+  worksheet.getColumn(3).width = 18; // Proficiency Level
+  worksheet.getColumn(4).width = 18; // Proficiency Score
+  worksheet.getColumn(5).width = 18; // Total Working Hours
+  worksheet.getColumn(6).width = 18; // Production Volume
+  worksheet.getColumn(7).width = 18; // Overtime Hours
+  worksheet.getColumn(8).width = 20; // Job Processing Delays
+  worksheet.getColumn(9).width = 25; // Job Processing Latency
+  worksheet.getColumn(10).width = 15; // Part Defects
+
+  ExcelFormatService.freezePanes(worksheet);
+
+  console.log(`✓ Worker KPI Sheet generated for worker: ${kpiData.workerName}`);
 }

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { Report } from "../models/Report";
+import { User } from "../models/User";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import * as ReportGenerationService from "../services/reportGenerationService";
 
@@ -22,26 +23,79 @@ export const generateReport = async (
 
     const userId = req.user?._id || null;
 
-    if (!title || !type || !format) {
-      const response: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Title, type, and format are required"
-      };
-      res.status(400).json(response);
-      return;
-    }
+    // For WORKER_PERFORMANCE_KPI, title is auto-generated
+    let reportTitle = title;
+    let workerId: string | null = null;
 
-    // Validate date range
-    const { startDate, endDate } = parameters || {};
-    if (!startDate || !endDate) {
-      const response: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Start date and end date are required in parameters"
+    if (type === "WORKER_PERFORMANCE_KPI") {
+      // Validate workerId is provided
+      const { workerId: paramWorkerId, startDate, endDate } = parameters || {};
+      if (!paramWorkerId) {
+        const response: APIResponse = {
+          success: false,
+          error: "VALIDATION_ERROR",
+          message:
+            "workerId is required in parameters for WORKER_PERFORMANCE_KPI report"
+        };
+        res.status(400).json(response);
+        return;
+      }
+      workerId = paramWorkerId;
+
+      // Validate date range
+      if (!startDate || !endDate) {
+        const response: APIResponse = {
+          success: false,
+          error: "VALIDATION_ERROR",
+          message: "Start date and end date are required in parameters"
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      // Get worker info for title generation
+      const worker = await User.findById(workerId);
+      if (!worker) {
+        const response: APIResponse = {
+          success: false,
+          error: "VALIDATION_ERROR",
+          message: "Worker not found"
+        };
+        res.status(404).json(response);
+        return;
+      }
+
+      // Auto-generate title: WORKER_PERFORMANCE_KPI-20250101-20250131-John_Doe.xlsx
+      const formatDate = (date: string) => {
+        return new Date(date).toISOString().split("T")[0].replace(/-/g, "");
       };
-      res.status(400).json(response);
-      return;
+      const workerName = worker.name.replace(/\s+/g, "_");
+      const timePeriod = `${formatDate(startDate)}-${formatDate(endDate)}`;
+      const fileExtension = format === "EXCEL" ? "xlsx" : format.toLowerCase();
+      reportTitle = `WORKER_PERFORMANCE_KPI-${timePeriod}-${workerName}.${fileExtension}`;
+    } else {
+      // For other report types, title is required
+      if (!title || !type || !format) {
+        const response: APIResponse = {
+          success: false,
+          error: "VALIDATION_ERROR",
+          message: "Title, type, and format are required"
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      // Validate date range
+      const { startDate, endDate } = parameters || {};
+      if (!startDate || !endDate) {
+        const response: APIResponse = {
+          success: false,
+          error: "VALIDATION_ERROR",
+          message: "Start date and end date are required in parameters"
+        };
+        res.status(400).json(response);
+        return;
+      }
     }
 
     // Set expiration to 7 days from now
@@ -49,7 +103,7 @@ export const generateReport = async (
     expiresAt.setDate(expiresAt.getDate() + 7);
 
     const report = new Report({
-      title,
+      title: reportTitle,
       type,
       format,
       status: "PENDING",
@@ -62,6 +116,7 @@ export const generateReport = async (
     await report.populate("generatedBy", "name username");
 
     // Trigger async report generation
+    const { startDate, endDate } = parameters || {};
     const start = new Date(startDate);
     const end = new Date(endDate);
     const reportIdStr = String(report._id);
@@ -87,13 +142,51 @@ export const generateReport = async (
         );
         break;
       case "PRODUCTION_RATE":
+        // Extract period parameter (optional: "daily" | "weekly" | "monthly")
+        const period = parameters?.period;
+        if (
+          period &&
+          period !== "daily" &&
+          period !== "weekly" &&
+          period !== "monthly"
+        ) {
+          const response: APIResponse = {
+            success: false,
+            error: "VALIDATION_ERROR",
+            message:
+              "Period parameter must be 'daily', 'weekly', 'monthly', or omitted"
+          };
+          res.status(400).json(response);
+          return;
+        }
         result = await ReportGenerationService.generateProductionRateReport(
           start,
           end,
           userId ? userId.toString() : "",
           reportIdStr,
-          lang
+          lang,
+          period as "daily" | "weekly" | "monthly" | undefined
         );
+        break;
+      case "WORKER_PERFORMANCE_KPI":
+        if (!workerId) {
+          const response: APIResponse = {
+            success: false,
+            error: "VALIDATION_ERROR",
+            message: "workerId is required for WORKER_PERFORMANCE_KPI report"
+          };
+          res.status(400).json(response);
+          return;
+        }
+        result =
+          await ReportGenerationService.generateWorkerPerformanceKPIReport(
+            start,
+            end,
+            userId ? userId.toString() : "",
+            workerId,
+            reportIdStr,
+            lang
+          );
         break;
       default:
         const response: APIResponse = {
