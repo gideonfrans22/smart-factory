@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IAlert extends Document {
-  type: "INFO" | "WARNING" | "ERROR" | "EMERGENCY";
+  type: "INFO" | "WARNING" | "ERROR" | "EMERGENCY" | "DEFECT" | "MACHINE_ERROR";
   level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   title: string;
   message: string;
@@ -25,7 +25,7 @@ const AlertSchema: Schema = new Schema(
     type: {
       type: String,
       required: true,
-      enum: ["INFO", "WARNING", "ERROR", "EMERGENCY"]
+      enum: ["INFO", "WARNING", "ERROR", "EMERGENCY", "DEFECT", "MACHINE_ERROR"]
     },
     level: {
       type: String,
