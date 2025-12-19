@@ -22,6 +22,22 @@ const seedDefaultUsers = async (): Promise<void> => {
       );
     }
 
+    // Create monitor user
+    const monitorExists = await User.findOne({ username: "monitor" });
+    if (!monitorExists) {
+      const monitorPassword = await hashPassword("monitor123");
+      await User.create({
+        username: "monitor",
+        name: "Monitor Display",
+        email: "monitor@system.local",
+        password: monitorPassword,
+        role: "monitor"
+      });
+      console.log(
+        "✅ Monitor user created (username: monitor, password: monitor123)"
+      );
+    }
+
     // Create additional admin user
     const managerExists = await User.findOne({
       email: "manager@smartfactory.com"
