@@ -321,8 +321,9 @@ export const workerLogin = async (
     }
 
     // Find device
-    const device = await Device.findById(deviceId);
-
+    const device = await Device.findById(deviceId).setOptions({
+      includeDeleted: false
+    });
     if (!device) {
       const response: APIResponse = {
         success: false,

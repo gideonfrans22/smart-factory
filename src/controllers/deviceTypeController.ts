@@ -119,8 +119,9 @@ export const getDevicesByType = async (
       return;
     }
 
-    const devices = await Device.find({ deviceTypeId: id }).sort({ name: 1 });
-
+    const devices = await Device.find({ deviceTypeId: id })
+      .setOptions({ includeDeleted: false })
+      .sort({ name: 1 });
     const response: APIResponse = {
       success: true,
       message: "Devices retrieved successfully",
@@ -181,7 +182,9 @@ export const getAvailableDevicesByType = async (
     const availableDevices = await Device.find({
       deviceTypeId: id,
       status: "ONLINE"
-    }).sort({ name: 1 });
+    })
+      .setOptions({ includeDeleted: false })
+      .sort({ name: 1 });
 
     const response: APIResponse = {
       success: true,

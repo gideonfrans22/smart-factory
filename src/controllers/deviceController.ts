@@ -22,6 +22,7 @@ export const getDevices = async (
 
     const total = await Device.countDocuments(query);
     const devices = await Device.find(query)
+      .setOptions({ includeDeleted: false })
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -61,7 +62,9 @@ export const getDeviceById = async (
   try {
     const { id } = req.params;
 
-    const device = await Device.findById(id);
+    const device = await Device.findById(id).setOptions({
+      includeDeleted: false
+    });
 
     if (!device) {
       const response: APIResponse = {
@@ -120,7 +123,9 @@ export const registerDevice = async (
     }
 
     // Validate deviceTypeId exists
-    const deviceType = await DeviceType.findById(deviceTypeId);
+    const deviceType = await DeviceType.findById(deviceTypeId).setOptions({
+      includeDeleted: false
+    });
     if (!deviceType) {
       const response: APIResponse = {
         success: false,
@@ -132,7 +137,9 @@ export const registerDevice = async (
     }
 
     // Duplicate check: device name/number must be unique
-    const existingDevice = await Device.findOne({ name });
+    const existingDevice = await Device.findOne({ name }).setOptions({
+      includeDeleted: false
+    });
     if (existingDevice) {
       const response: APIResponse = {
         success: false,
@@ -190,7 +197,9 @@ export const updateDevice = async (
       statusChangeReason
     } = req.body;
 
-    const device = await Device.findById(id);
+    const device = await Device.findById(id).setOptions({
+      includeDeleted: false
+    });
 
     if (!device) {
       const response: APIResponse = {
@@ -204,7 +213,9 @@ export const updateDevice = async (
 
     // Validate deviceTypeId if provided
     if (deviceTypeId) {
-      const deviceType = await DeviceType.findById(deviceTypeId);
+      const deviceType = await DeviceType.findById(deviceTypeId).setOptions({
+        includeDeleted: false
+      });
       if (!deviceType) {
         const response: APIResponse = {
           success: false,
@@ -219,7 +230,9 @@ export const updateDevice = async (
 
     // Duplicate check: device name/number must be unique (if name is being updated)
     if (name && name !== device.name) {
-      const existingDevice = await Device.findOne({ name });
+      const existingDevice = await Device.findOne({ name }).setOptions({
+        includeDeleted: false
+      });
       if (
         existingDevice &&
         existingDevice._id.toString() !== device._id.toString()
@@ -393,7 +406,8 @@ export const getDeviceStatistics = async (
     // Fetch all devices
     const devices = await Device.find(deviceQuery)
       .limit(parseInt(limit as string))
-      .populate("deviceType", "name");
+      .populate("deviceType", "name")
+      .setOptions({ includeDeleted: false });
 
     // Aggregate statistics for each device
     const deviceStats = await Promise.all(
@@ -534,7 +548,8 @@ export const getDevicesByTask = async (
     // Fetch all devices
     const devices = await Device.find({})
       .limit(parseInt(limit as string))
-      .populate("deviceType", "name");
+      .populate("deviceType", "name")
+      .setOptions({ includeDeleted: false });
 
     // Group tasks by device and include device info
     const deviceWithTasks = await Promise.all(
@@ -752,8 +767,9 @@ export const workerLoginToDevice = async (
       return;
     }
 
-    const device = await Device.findById(id);
-
+    const device = await Device.findById(id).setOptions({
+      includeDeleted: false
+    });
     if (!device) {
       const response: APIResponse = {
         success: false,
@@ -800,8 +816,9 @@ export const workerLogoutFromDevice = async (
   try {
     const { id } = req.params;
 
-    const device = await Device.findById(id);
-
+    const device = await Device.findById(id).setOptions({
+      includeDeleted: false
+    });
     if (!device) {
       const response: APIResponse = {
         success: false,
