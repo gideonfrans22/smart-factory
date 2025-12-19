@@ -387,3 +387,101 @@ export const workerLogin = async (
     res.status(500).json(response);
   }
 };
+
+export const monitorLogin = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { username, password } = req.body;
+
+    // Validate input
+    if (!username || !password) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Username and password are required"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Only allow monitor user
+    if (username !== "monitor") {
+      const response: APIResponse = {
+        success: false,
+        error: "INVALID_CREDENTIALS",
+        message: "Invalid credentials"
+      };
+      res.status(401).json(response);
+      return;
+    }
+
+    // Find monitor user
+    const user = await User.findOne({
+      username: "monitor",
+      role: "monitor"
+    });
+
+    if (!user || !user.isActive) {
+      const response: APIResponse = {
+        success: false,
+        error: "INVALID_CREDENTIALS",
+        message: "Invalid credentials"
+      };
+      res.status(401).json(response);
+      return;
+    }
+
+    // Verify password
+    const isValidPassword = await comparePassword(password, user.password);
+    if (!isValidPassword) {
+      const response: APIResponse = {
+        success: false,
+        error: "INVALID_CREDENTIALS",
+        message: "Invalid credentials"
+      };
+      res.status(401).json(response);
+      return;
+    }
+
+    // Update last login
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    // Generate JWT token with 365 days expiration for monitor
+    const accessTokenPayload: JWTPayload = {
+      sub: (user._id as any).toString(),
+      role: user.role
+    };
+
+    const accessToken = generateToken(accessTokenPayload, "365d"); // 365 days
+
+    const response: APIResponse = {
+      success: true,
+      message: "Monitor authenticated successfully",
+      data: {
+        accessToken,
+        user: {
+          id: user._id,
+          username: user.username,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          createdAt: user.createdAt.toISOString(),
+          updatedAt: user.updatedAt.toISOString()
+        }
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Monitor login error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
