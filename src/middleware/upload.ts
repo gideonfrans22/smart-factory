@@ -15,13 +15,24 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (_req, file, cb) => {
-    // Generate unique filename: timestamp-randomhash-originalname
+    // 1. FIX ENCODING FIRST
+    // We take the "garbage" (latin1) and cast it back to a Buffer,
+    // then read that buffer correctly as UTF-8.
+    const originalNameUtf8 = Buffer.from(file.originalname, "latin1").toString(
+      "utf8"
+    );
+
+    // 2. SANITIZE WITH UNICODE SUPPORT
+    // \p{L} matches any letter from any language (including Hangeul)
+    // \p{N} matches any number
+    // 'u' flag is MANDATORY for Unicode property escapes
+    const sanitizedName = originalNameUtf8.replace(/[^\p{L}\p{N}.-]/gu, "_");
+
+    // 3. GENERATE FINAL FILENAME
     const uniqueSuffix = `${Date.now()}-${crypto
-      .randomBytes(6)
+      .randomBytes(3)
       .toString("hex")}`;
-    const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const filename = `${uniqueSuffix}-${sanitizedName}`;
-    cb(null, filename);
+    cb(null, `${uniqueSuffix}-${sanitizedName}`);
   }
 });
 

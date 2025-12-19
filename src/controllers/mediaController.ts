@@ -24,10 +24,15 @@ export const uploadMedia = async (
 
     const { type } = req.body;
 
+    const originalNameUtf8 = Buffer.from(
+      req.file.originalname,
+      "latin1"
+    ).toString("utf8");
+
     // Create media document
     const media = new Media({
       filename: req.file.filename,
-      originalName: req.file.originalname,
+      originalName: originalNameUtf8,
       mimeType: req.file.mimetype,
       fileSize: req.file.size,
       filePath: req.file.path,
@@ -77,15 +82,21 @@ export const uploadMultipleMedia = async (
     const { type } = req.body;
 
     // Create media documents for all files
-    const mediaDocuments = req.files.map((file) => ({
-      filename: file.filename,
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      fileSize: file.size,
-      filePath: file.path,
-      uploadedBy: req.user?._id,
-      type: type || undefined
-    }));
+    const mediaDocuments = req.files.map((file) => {
+      const originalNameUtf8 = Buffer.from(
+        file.originalname,
+        "latin1"
+      ).toString("utf8");
+      return {
+        filename: file.filename,
+        originalName: originalNameUtf8,
+        mimeType: file.mimetype,
+        fileSize: file.size,
+        filePath: file.path,
+        uploadedBy: req.user?._id,
+        type: type || undefined
+      };
+    });
 
     const savedMedia = await Media.insertMany(mediaDocuments);
 
@@ -156,10 +167,7 @@ export const getMediaById = async (
  * GET /api/media/:id/view
  * Can be used in img tags, iframes, etc.
  */
-export const viewMedia = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const viewMedia = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
 
@@ -180,7 +188,7 @@ export const viewMedia = async (
     // Set appropriate headers for inline display (not download)
     res.setHeader("Content-Type", media.mimeType);
     res.setHeader("Content-Length", media.fileSize.toString());
-    
+
     // Add cache headers for better performance
     res.setHeader("Cache-Control", "public, max-age=31536000"); // 1 year
     res.setHeader("ETag", `"${media._id}"`);
