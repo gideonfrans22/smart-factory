@@ -280,6 +280,12 @@ export const updateProduct = async (
         return;
       }
       product.designNumber = designNumber;
+
+      // Update all recipes with the new design number
+      await Recipe.updateMany(
+        { product: product._id },
+        { $set: { recipeNumber: designNumber } }
+      );
     }
 
     if (productName) product.productName = productName;

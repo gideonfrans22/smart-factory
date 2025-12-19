@@ -19,7 +19,7 @@ export interface IRawMaterialReference {
 }
 
 export interface IRecipe extends Document {
-  recipeNumber?: string; // Auto-generated format: "{Product.designNumber}-{count}" (only when product is linked)
+  recipeNumber?: string; // Auto-generated format: "{Product.designNumber}" (only when product is linked)
   version: number; // Auto-generated, defaults to 1 on creation, increments on each update
   name: string;
   description?: string;
