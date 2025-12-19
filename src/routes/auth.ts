@@ -4,7 +4,8 @@ import {
   login,
   logout,
   getProfile,
-  workerLogin
+  workerLogin,
+  monitorLogin
 } from "../controllers/authController";
 import { authenticateToken } from "../middleware/auth";
 
@@ -57,6 +58,19 @@ router.post("/login", login);
  * @note    Only works for users with role="worker"
  */
 router.post("/worker-login", workerLogin);
+
+/**
+ * @route   POST /api/auth/monitor-login
+ * @desc    Monitor display authentication with long-lived token
+ * @body    username - Must be "monitor" (required)
+ * @body    password - Must be "monitor123" (required)
+ * @response Returns user object and accessToken (365 days validity)
+ * @access  Public
+ * @note    Only accepts username="monitor" and password="monitor123"
+ * @note    Token valid for 365 days for permanent monitor displays
+ * @note    Only works for users with role="monitor"
+ */
+router.post("/monitor-login", monitorLogin);
 
 // ========================================
 // PROTECTED AUTH ENDPOINTS
