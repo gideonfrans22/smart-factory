@@ -121,7 +121,9 @@ DeviceSchema.virtual("id").get(function (this: IDevice) {
 // Pre-get hook to exclude soft-deleted devices
 DeviceSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
   const options = this.getOptions();
-  if (!(options as any).includeDeleted) {
+  const includeDeleted =
+    (options as any).includeDeleted === false ? false : true;
+  if (!includeDeleted) {
     this.where({
       isActive: {
         $ne: false
