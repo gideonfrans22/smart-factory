@@ -17,9 +17,9 @@ export const comparePassword = async (
   return await bcrypt.compare(password, hashedPassword);
 };
 
-export const generateToken = (payload: JWTPayload): string => {
+export const generateToken = (payload: JWTPayload, expiresIn?: string): string => {
   return jwt.sign(payload as object, JWT_SECRET, {
-    expiresIn: JWT_ACCESS_TOKEN_EXPIRES
+    expiresIn: expiresIn || JWT_ACCESS_TOKEN_EXPIRES
   } as jwt.SignOptions);
 };
 
