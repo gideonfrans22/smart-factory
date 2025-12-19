@@ -28,6 +28,29 @@ const TRANSLATIONS = {
     workerTimeTrackingQualityMetrics: {
       en: "WORKER TIME TRACKING & QUALITY METRICS",
       ko: "작업자 시간 추적 및 품질 지표"
+    },
+    kpi: {
+      en: "KPI",
+      ko: "KPI"
+    },
+    kpiValue: {
+      en: "Value",
+      ko: "값"
+    }
+  },
+
+  roles: {
+    manager: {
+      en: "Manager",
+      ko: "관리자"
+    },
+    ceo: {
+      en: "CEO",
+      ko: "대표"
+    },
+    worker: {
+      en: "Worker",
+      ko: "작업자"
     }
   },
 
@@ -2733,6 +2756,24 @@ export async function generateWorkerKPISheet(
   console.log("Generating Worker KPI Sheet...");
 
   const worksheet = workbook.addWorksheet("Worker KPI");
+
+  // Configure page for A4 portrait and fit-to-width (6 columns max)
+  worksheet.pageSetup = {
+    paperSize: 9, // A4
+    orientation: "portrait",
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: {
+      left: 0.7,
+      right: 0.7,
+      top: 0.75,
+      bottom: 0.75,
+      header: 0.3,
+      footer: 0.3
+    }
+  };
+
   let currentRow = 1;
 
   // Get KPI data
@@ -2741,218 +2782,335 @@ export async function generateWorkerKPISheet(
     throw new Error("Worker not found or no data available");
   }
 
-  // ===== TITLE =====
-  worksheet.mergeCells(`A${currentRow}:L${currentRow}`);
-  const titleCell = worksheet.getCell(`A${currentRow}`);
-  titleCell.value = getTranslation("workerKPI.title", lang);
-  titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
-  titleCell.fill = {
+  const formatDate = (date: Date) => date.toISOString().split("T")[0];
+
+  // ===== COMPACT 6-COLUMN HEADER + APPROVAL BLOCK =====
+  // Layout (6 columns A-F total):
+  // Row 1: [A-B] REPORT_TITLE | [C-D] 관리자 (MANAGER) | [E-F] 대표 (CEO)
+  // Row 2: [A-B] REPORT_PERIOD | [C-D] 작업자 (WORKER) | [E-F] blank
+
+  // ===== ROW 1: (Title + Period) + Manager + CEO =====
+  worksheet.mergeCells(currentRow, 1, currentRow, 3); // A-C
+  const titleCell = worksheet.getCell(currentRow, 1);
+  titleCell.value = `${getTranslation("workerKPI.title", lang)}`;
+  titleCell.font = { size: 14, bold: true };
+  titleCell.alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    wrapText: true
+  };
+  titleCell.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "thin" }
+  };
+
+  // Manager approval (D-E)
+  worksheet.mergeCells(currentRow, 4, currentRow, 5);
+  const managerCell = worksheet.getCell(currentRow, 4);
+  managerCell.value = `${getTranslation(
+    "roles.manager",
+    lang
+  )}\n____년  __월  __일`;
+  managerCell.font = { bold: true, size: 10 };
+  managerCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
+  };
+  managerCell.alignment = {
+    horizontal: "center",
+    vertical: "top",
+    wrapText: true
+  };
+  managerCell.border = {
+    top: { style: "medium" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "thin" }
+  };
+
+  // CEO approval (F-G)
+  worksheet.mergeCells(currentRow, 6, currentRow, 7);
+  const ceoCell = worksheet.getCell(currentRow, 6);
+  ceoCell.value = `${getTranslation("roles.ceo", lang)}\n____년  __월  __일`;
+  ceoCell.font = { bold: true, size: 10 };
+  ceoCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
+  };
+  ceoCell.alignment = {
+    horizontal: "center",
+    vertical: "top",
+    wrapText: true
+  };
+  ceoCell.border = {
+    top: { style: "medium" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
+
+  worksheet.getRow(currentRow).height = 100; // Tall for signature space
+  currentRow++;
+
+  // ===== ROW 2: Basic Information + Worker =====
+  worksheet.mergeCells(currentRow, 1, currentRow, 3); // A-C
+  const workerInfoCell = worksheet.getCell(currentRow, 1);
+  workerInfoCell.value = `${getTranslation(
+    "workerKPI.period",
+    lang
+  )}: ${formatDate(dateRange.startDate)} ~ ${formatDate(
+    dateRange.endDate
+  )}\n${getTranslation("workerKPI.workerName", lang)}: ${
+    kpiData.workerName || "N/A"
+  }\n${getTranslation("workerKPI.department", lang)}: ${
+    kpiData.department || "N/A"
+  }`;
+  workerInfoCell.font = { size: 10, bold: true };
+  workerInfoCell.alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    wrapText: true
+  };
+  workerInfoCell.border = {
+    top: { style: "thin" },
+    left: { style: "medium" },
+    bottom: { style: "medium" },
+    right: { style: "thin" }
+  };
+
+  // Worker approval (D-E)
+  worksheet.mergeCells(currentRow, 4, currentRow, 5);
+  const workerCell = worksheet.getCell(currentRow, 4);
+  workerCell.value = `${getTranslation(
+    "roles.worker",
+    lang
+  )}\n____년  __월  __일`;
+  workerCell.font = { bold: true, size: 10 };
+  workerCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
+  };
+  workerCell.alignment = {
+    horizontal: "center",
+    vertical: "top",
+    wrapText: true
+  };
+  workerCell.border = {
+    top: { style: "thin" },
+    left: { style: "thin" },
+    bottom: { style: "medium" },
+    right: { style: "thin" }
+  };
+
+  // Blank space (F-G)
+  worksheet.mergeCells(currentRow, 6, currentRow, 7);
+  const blankCell = worksheet.getCell(currentRow, 6);
+  blankCell.value = "";
+  blankCell.border = {
+    top: { style: "medium" },
+    left: { style: "thin" },
+    bottom: { style: "medium" },
+    right: { style: "thin" }
+  };
+
+  worksheet.getRow(currentRow).height = 100; // Tall for signature space
+  currentRow += 2;
+
+  // ===== KPI DATA SECTION - VERTICAL LABEL-VALUE FORMAT =====
+  // Format: 4 columns for label (A-D), 3 columns for value (E-G)
+  // KPI DATA HEADER
+  worksheet.mergeCells(currentRow, 1, currentRow, 4);
+  const kpiHeaderCell = worksheet.getCell(currentRow, 1);
+  kpiHeaderCell.value = getTranslation("titles.kpi", lang);
+  kpiHeaderCell.font = { bold: true, size: 10 };
+  kpiHeaderCell.alignment = { horizontal: "left", vertical: "top" };
+  kpiHeaderCell.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "medium" },
+    right: { style: "medium" }
+  };
+  // KPI DATA HEADER VALUES
+  worksheet.mergeCells(currentRow, 5, currentRow, 7);
+  const kpiHeaderValuesCell = worksheet.getCell(currentRow, 5);
+  kpiHeaderValuesCell.value = getTranslation("titles.kpiValue", lang);
+  kpiHeaderValuesCell.font = { bold: true, size: 10 };
+  kpiHeaderValuesCell.alignment = { horizontal: "center", vertical: "top" };
+  kpiHeaderValuesCell.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "medium" },
+    right: { style: "medium" }
+  };
+  worksheet.getRow(currentRow - 1).fill = {
     type: "pattern",
     pattern: "solid",
     fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
   };
-  titleCell.alignment = { horizontal: "center", vertical: "middle" };
-  worksheet.getRow(currentRow).height = 30;
-  currentRow += 2;
-
-  // ===== PERIOD INFORMATION =====
-  const formatDate = (date: Date) => {
-    return date.toISOString().split("T")[0];
-  };
-  worksheet.mergeCells(`A${currentRow}:L${currentRow}`);
-  const periodCell = worksheet.getCell(`A${currentRow}`);
-  periodCell.value = `${getTranslation("workerKPI.period", lang)}: ${formatDate(
-    dateRange.startDate
-  )} ${getTranslation("workerKPI.to", lang)} ${formatDate(dateRange.endDate)}`;
-  periodCell.font = { size: 12, bold: true };
-  periodCell.alignment = { horizontal: "center" };
-  currentRow += 2;
-
-  // ===== TABLE HEADERS =====
-  const headers = [
-    getTranslation("workerKPI.workerName", lang),
-    getTranslation("workerKPI.department", lang),
-    getTranslation("workerKPI.proficiencyLevel", lang),
-    getTranslation("workerKPI.proficiencyScore", lang),
-    getTranslation("workerKPI.totalWorkingHours", lang),
-    getTranslation("workerKPI.productionVolume", lang),
-    getTranslation("workerKPI.overtimeHours", lang),
-    getTranslation("workerKPI.jobProcessingDelays", lang),
-    getTranslation("workerKPI.jobProcessingLatency", lang),
-    getTranslation("workerKPI.partDefects", lang)
-  ];
-
-  headers.forEach((header, idx) => {
-    const cell = worksheet.getCell(currentRow, idx + 1);
-    cell.value = header;
-    cell.font = { bold: true, color: { argb: "FFFFFF" } };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-    };
-    cell.alignment = {
-      horizontal: "center",
-      vertical: "middle",
-      wrapText: true
-    };
-    cell.border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-  });
-  worksheet.getRow(currentRow).height = 35;
+  worksheet.getRow(currentRow).height = 25;
   currentRow++;
 
-  // ===== DATA ROW =====
-  const proficiencyLevelText =
-    kpiData.proficiency.level === "advanced"
-      ? getTranslation("workerKPI.advanced", lang)
-      : kpiData.proficiency.level === "intermediate"
-      ? getTranslation("workerKPI.intermediate", lang)
-      : getTranslation("workerKPI.initial", lang);
-
-  const row = [
-    kpiData.workerName,
-    kpiData.department,
-    proficiencyLevelText,
-    kpiData.proficiency.score.toFixed(1),
-    kpiData.totalWorkingHours.toFixed(2),
-    kpiData.productionVolume,
-    kpiData.overtimeHours.toFixed(2),
-    kpiData.jobProcessingDelays,
-    kpiData.jobProcessingLatency.toFixed(2),
-    kpiData.partDefects
+  // KPI DATA ROWS
+  const kpiRows = [
+    {
+      label: getTranslation("workerKPI.proficiencyLevel", lang),
+      value:
+        kpiData.proficiency.level === "advanced"
+          ? getTranslation("workerKPI.advanced", lang)
+          : kpiData.proficiency.level === "intermediate"
+          ? getTranslation("workerKPI.intermediate", lang)
+          : getTranslation("workerKPI.initial", lang),
+      type: "proficiencyLevel",
+      level: kpiData.proficiency.level
+    },
+    {
+      label: getTranslation("workerKPI.proficiencyScore", lang),
+      value: kpiData.proficiency.score.toFixed(1),
+      type: "proficiencyScore",
+      score: kpiData.proficiency.score
+    },
+    {
+      label: getTranslation("workerKPI.totalWorkingHours", lang),
+      value: kpiData.totalWorkingHours.toFixed(2),
+      type: "number"
+    },
+    {
+      label: getTranslation("workerKPI.productionVolume", lang),
+      value: kpiData.productionVolume,
+      type: "number"
+    },
+    {
+      label: getTranslation("workerKPI.overtimeHours", lang),
+      value: kpiData.overtimeHours.toFixed(2),
+      type: "flag",
+      flagValue: kpiData.overtimeHours
+    },
+    {
+      label: getTranslation("workerKPI.jobProcessingDelays", lang),
+      value: kpiData.jobProcessingDelays,
+      type: "flag",
+      flagValue: kpiData.jobProcessingDelays
+    },
+    {
+      label: getTranslation("workerKPI.jobProcessingLatency", lang),
+      value: kpiData.jobProcessingLatency.toFixed(2),
+      type: "flag",
+      flagValue: kpiData.jobProcessingLatency
+    },
+    {
+      label: getTranslation("workerKPI.partDefects", lang),
+      value: kpiData.partDefects,
+      type: "flag",
+      flagValue: kpiData.partDefects
+    }
   ];
 
-  row.forEach((val, idx) => {
-    const cell = worksheet.getCell(currentRow, idx + 1);
-    cell.value = val;
-    cell.alignment = {
-      horizontal: idx <= 1 ? "left" : "center",
-      vertical: "middle"
-    };
-    cell.border = {
+  kpiRows.forEach((kpiRow) => {
+    // Label cells (A-D)
+    worksheet.mergeCells(currentRow, 1, currentRow, 4);
+    const labelCell = worksheet.getCell(currentRow, 1);
+    labelCell.value = kpiRow.label;
+    labelCell.font = { bold: true, size: 11 };
+    labelCell.alignment = { horizontal: "left", vertical: "middle", indent: 1 };
+    labelCell.border = {
       top: { style: "thin" },
-      left: { style: "thin" },
+      left: { style: "medium" },
       bottom: { style: "thin" },
       right: { style: "thin" }
     };
 
-    // Conditional formatting for proficiency level
-    if (idx === 2) {
-      if (kpiData.proficiency.level === "advanced") {
-        cell.fill = {
+    // Value cells (E-G)
+    worksheet.mergeCells(currentRow, 5, currentRow, 7);
+    const valueCell = worksheet.getCell(currentRow, 5);
+    valueCell.value = kpiRow.value;
+    valueCell.font = { size: 11 };
+    valueCell.alignment = { horizontal: "center", vertical: "middle" };
+    valueCell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "medium" }
+    };
+
+    // Apply conditional formatting based on type
+    if (kpiRow.type === "proficiencyLevel") {
+      if (kpiRow.level === "advanced") {
+        valueCell.fill = {
           type: "pattern",
           pattern: "solid",
           fgColor: { argb: ExcelFormatService.COLORS.SUCCESS }
         };
-        cell.font = { bold: true, color: { argb: "FFFFFF" } };
-      } else if (kpiData.proficiency.level === "intermediate") {
-        cell.fill = {
+        valueCell.font = { bold: true, color: { argb: "FFFFFF" }, size: 11 };
+      } else if (kpiRow.level === "intermediate") {
+        valueCell.fill = {
           type: "pattern",
           pattern: "solid",
           fgColor: { argb: ExcelFormatService.COLORS.WARNING }
         };
-        cell.font = { bold: true, color: { argb: "000000" } };
+        valueCell.font = { bold: true, color: { argb: "000000" }, size: 11 };
       } else {
-        cell.fill = {
+        valueCell.fill = {
           type: "pattern",
           pattern: "solid",
           fgColor: { argb: ExcelFormatService.COLORS.DANGER }
         };
-        cell.font = { bold: true, color: { argb: "FFFFFF" } };
+        valueCell.font = { bold: true, color: { argb: "FFFFFF" }, size: 11 };
       }
-    }
-
-    // Conditional formatting for proficiency score
-    if (idx === 3) {
-      const score = kpiData.proficiency.score;
+    } else if (kpiRow.type === "proficiencyScore") {
+      const score = kpiRow.score || 0;
       if (score >= 75) {
-        cell.fill = {
+        valueCell.fill = {
           type: "pattern",
           pattern: "solid",
           fgColor: { argb: ExcelFormatService.COLORS.SUCCESS }
         };
-        cell.font = { bold: true, color: { argb: "FFFFFF" } };
+        valueCell.font = { bold: true, color: { argb: "FFFFFF" }, size: 11 };
       } else if (score >= 40) {
-        cell.fill = {
+        valueCell.fill = {
           type: "pattern",
           pattern: "solid",
           fgColor: { argb: ExcelFormatService.COLORS.WARNING }
         };
-        cell.font = { bold: true, color: { argb: "000000" } };
+        valueCell.font = { bold: true, color: { argb: "000000" }, size: 11 };
       } else {
-        cell.fill = {
+        valueCell.fill = {
           type: "pattern",
           pattern: "solid",
           fgColor: { argb: ExcelFormatService.COLORS.DANGER }
         };
-        cell.font = { bold: true, color: { argb: "FFFFFF" } };
+        valueCell.font = { bold: true, color: { argb: "FFFFFF" }, size: 11 };
       }
-    }
-
-    // Conditional formatting for overtime hours (red if > 0)
-    if (idx === 6 && kpiData.overtimeHours > 0) {
-      cell.fill = {
+    } else if (
+      kpiRow.type === "flag" &&
+      kpiRow.flagValue !== undefined &&
+      kpiRow.flagValue > 0
+    ) {
+      // Red flag for overtime, delays, latency, defects
+      valueCell.fill = {
         type: "pattern",
         pattern: "solid",
         fgColor: { argb: ExcelFormatService.COLORS.DANGER }
       };
-      cell.font = { bold: true, color: { argb: "FFFFFF" } };
+      valueCell.font = { bold: true, color: { argb: "FFFFFF" }, size: 11 };
     }
 
-    // Conditional formatting for delays (red if > 0)
-    if (idx === 7 && kpiData.jobProcessingDelays > 0) {
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: ExcelFormatService.COLORS.DANGER }
-      };
-      cell.font = { bold: true, color: { argb: "FFFFFF" } };
-    }
-
-    // Conditional formatting for latency (red if > 0)
-    if (idx === 8 && kpiData.jobProcessingLatency > 0) {
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: ExcelFormatService.COLORS.DANGER }
-      };
-      cell.font = { bold: true, color: { argb: "FFFFFF" } };
-    }
-
-    // Conditional formatting for defects (red if > 0)
-    if (idx === 9 && kpiData.partDefects > 0) {
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: ExcelFormatService.COLORS.DANGER }
-      };
-      cell.font = { bold: true, color: { argb: "FFFFFF" } };
-    }
+    worksheet.getRow(currentRow).height = 25;
+    currentRow++;
   });
 
-  currentRow += 2;
-
-  // ===== ADD APPROVAL FORM =====
-  ExcelFormatService.createApprovalForm(worksheet, 1, 14); // Start at row 1, column N (14)
-
-  // Column widths
-  worksheet.getColumn(1).width = 20; // Worker Name
-  worksheet.getColumn(2).width = 15; // Department
-  worksheet.getColumn(3).width = 18; // Proficiency Level
-  worksheet.getColumn(4).width = 18; // Proficiency Score
-  worksheet.getColumn(5).width = 18; // Total Working Hours
-  worksheet.getColumn(6).width = 18; // Production Volume
-  worksheet.getColumn(7).width = 18; // Overtime Hours
-  worksheet.getColumn(8).width = 20; // Job Processing Delays
-  worksheet.getColumn(9).width = 25; // Job Processing Latency
-  worksheet.getColumn(10).width = 15; // Part Defects
-
-  ExcelFormatService.freezePanes(worksheet);
+  // Column widths optimized for 6 columns on A4 portrait
+  worksheet.getColumn(1).width = 12; // Label start
+  worksheet.getColumn(2).width = 12; // Label middle
+  worksheet.getColumn(3).width = 12; // Label end
+  worksheet.getColumn(4).width = 12; // Value start
+  worksheet.getColumn(5).width = 12; // Value middle
+  worksheet.getColumn(6).width = 12; // Value end
+  worksheet.getColumn(7).width = 12; // Blank space
 
   console.log(`✓ Worker KPI Sheet generated for worker: ${kpiData.workerName}`);
 }
