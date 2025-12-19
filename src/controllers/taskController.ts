@@ -1459,6 +1459,11 @@ export const completeTask = async (
       project?.progress
     );
 
+    // Broadcast next task status change if it exists
+    if (nextTask) {
+      await realtimeService.broadcastTaskStatusChange(nextTask.toObject());
+    }
+
     const responseData: any = {
       completedTask: task,
       nextTask: nextTask || null,
