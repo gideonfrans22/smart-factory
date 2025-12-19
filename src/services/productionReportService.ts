@@ -10,6 +10,193 @@ import * as ExcelFormatService from "./excelFormatService";
  * Handles all data queries and calculations for production efficiency reports
  */
 
+// ==================== TRANSLATIONS ====================
+
+const TRANSLATIONS = {
+  // Production KPI Report
+  productionKPI: {
+    title: {
+      en: "PRODUCTION RATE KPI REPORT",
+      ko: "생산률 KPI 보고서"
+    },
+    period: {
+      en: "Period",
+      ko: "기간"
+    },
+    to: {
+      en: "to",
+      ko: "~"
+    },
+    overallKPIs: {
+      en: "Overall KPIs",
+      ko: "전체 KPI"
+    },
+    productionRateByProduct: {
+      en: "Production Rate by Product",
+      ko: "제품별 생산률"
+    },
+    priorityDistribution: {
+      en: "Priority Distribution",
+      ko: "우선순위 분포"
+    },
+    customerProduction: {
+      en: "Customer Production Percentage",
+      ko: "고객별 생산 비율"
+    },
+    partDefectRate: {
+      en: "Part Defect Rate",
+      ko: "부품 불량률"
+    },
+    workingHoursByProduct: {
+      en: "Working Hours by Product",
+      ko: "제품별 작업 시간"
+    },
+    leadTimeAnalysis: {
+      en: "Lead Time Analysis",
+      ko: "리드타임 분석"
+    },
+    machineTypeErrorRate: {
+      en: "Machine Type Error Rate",
+      ko: "장비 유형별 오류율"
+    },
+    deliveryDelayCount: {
+      en: "Delivery Delay Count",
+      ko: "납기 지연 건수"
+    },
+    overallProductionRate: {
+      en: "Overall Product Production Rate",
+      ko: "전체 제품 생산률"
+    },
+    defectRate: {
+      en: "Defect Rate",
+      ko: "불량률"
+    },
+    productName: {
+      en: "Product Name",
+      ko: "제품명"
+    },
+    targetQuantity: {
+      en: "Target Quantity",
+      ko: "목표 수량"
+    },
+    producedQuantity: {
+      en: "Produced Quantity",
+      ko: "생산 수량"
+    },
+    productionRate: {
+      en: "Production Rate (%)",
+      ko: "생산률 (%)"
+    },
+    priority: {
+      en: "Priority",
+      ko: "우선순위"
+    },
+    percentage: {
+      en: "Percentage (%)",
+      ko: "비율 (%)"
+    },
+    customerName: {
+      en: "Customer Name",
+      ko: "고객명"
+    },
+    productionVolume: {
+      en: "Production Volume",
+      ko: "생산량"
+    },
+    minimumHours: {
+      en: "Minimum Hours",
+      ko: "최소 시간"
+    },
+    maximumHours: {
+      en: "Maximum Hours",
+      ko: "최대 시간"
+    },
+    totalHours: {
+      en: "Total Hours",
+      ko: "총 시간"
+    },
+    projectName: {
+      en: "Project Name",
+      ko: "프로젝트명"
+    },
+    startDate: {
+      en: "Start Date",
+      ko: "시작일"
+    },
+    endDate: {
+      en: "End Date",
+      ko: "종료일"
+    },
+    leadTimeDays: {
+      en: "Lead Time (Days)",
+      ko: "리드타임 (일)"
+    },
+    machineType: {
+      en: "Machine Type",
+      ko: "장비 유형"
+    },
+    errorCount: {
+      en: "Error Count",
+      ko: "오류 횟수"
+    },
+    errorRate: {
+      en: "Error Rate (%)",
+      ko: "오류율 (%)"
+    }
+  },
+  titles: {
+    kpi: {
+      en: "KPI",
+      ko: "KPI"
+    },
+    kpiValue: {
+      en: "Value",
+      ko: "값"
+    }
+  },
+  roles: {
+    manager: {
+      en: "Manager",
+      ko: "관리자"
+    },
+    ceo: {
+      en: "CEO",
+      ko: "대표"
+    },
+    worker: {
+      en: "Worker",
+      ko: "작업자"
+    }
+  }
+};
+
+/**
+ * Get translation for a given path and language
+ * @param path - Dot-separated path to translation key (e.g., "productionKPI.title")
+ * @param lang - Language code ("en" or "ko"), defaults to "en"
+ * @returns Translated string value
+ */
+function getTranslation(path: string, lang: string = "en"): string {
+  const keys = path.split(".");
+  let value: any = TRANSLATIONS;
+
+  for (const key of keys) {
+    if (value && typeof value === "object" && key in value) {
+      value = value[key];
+    } else {
+      console.warn(`Translation not found for path: ${path}`);
+      return path;
+    }
+  }
+
+  if (typeof value === "object" && value !== null && lang in value) {
+    return value[lang];
+  }
+
+  console.warn(`Language "${lang}" not found for path: ${path}`);
+  return path;
+}
+
 // ==================== INTERFACES ====================
 
 export interface DateRangeFilter {
@@ -2568,12 +2755,13 @@ export async function generateRawProductionDataSheet(
 
 /**
  * Generate comprehensive Production Rate KPI Sheet
- * Single sheet containing all KPI calculations
+ * Single sheet containing all KPI calculations in A4 portrait format
  */
 export async function generateProductionRateKPISheet(
   workbook: ExcelJS.Workbook,
   dateRange: DateRangeFilter,
-  period?: "daily" | "weekly" | "monthly"
+  period?: "daily" | "weekly" | "monthly",
+  lang?: string
 ): Promise<void> {
   console.log("Generating Production Rate KPI Sheet...");
 
@@ -2585,31 +2773,166 @@ export async function generateProductionRateKPISheet(
   );
 
   const worksheet = workbook.addWorksheet("Production Rate KPIs");
+
+  // Configure page for A4 portrait and fit-to-width (7 columns max)
+  worksheet.pageSetup = {
+    paperSize: 9, // A4
+    orientation: "portrait",
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: {
+      left: 0.7,
+      right: 0.7,
+      top: 0.75,
+      bottom: 0.75,
+      header: 0.3,
+      footer: 0.3
+    }
+  };
+
   let currentRow = 1;
 
-  // ===== TITLE =====
-  worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
-  const titleCell = worksheet.getCell(`A${currentRow}`);
+  const formatDate = (date: Date) => date.toISOString().split("T")[0];
   const periodLabel = period
     ? period.charAt(0).toUpperCase() + period.slice(1)
     : "All Time";
-  titleCell.value = `PRODUCTION RATE KPI REPORT - ${periodLabel}`;
-  titleCell.font = { size: 16, bold: true, color: { argb: "FFFFFF" } };
-  titleCell.fill = {
+
+  // ===== COMPACT 7-COLUMN HEADER + APPROVAL BLOCK =====
+  // Layout (7 columns A-G total):
+  // Row 1: [A-C] REPORT_TITLE | [D-E] 관리자 (MANAGER) | [F-G] 대표 (CEO)
+  // Row 2: [A-C] REPORT_PERIOD | [D-E] 작업자 (WORKER) | [F-G] blank
+
+  // ===== ROW 1: Title + Manager + CEO =====
+  worksheet.mergeCells(currentRow, 1, currentRow, 3); // A-C
+  const titleCell = worksheet.getCell(currentRow, 1);
+  titleCell.value = `${getTranslation(
+    "productionKPI.title",
+    lang
+  )} - ${periodLabel}`;
+  titleCell.font = { size: 14, bold: true };
+  titleCell.alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    wrapText: true
+  };
+  titleCell.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "thin" }
+  };
+
+  // Manager approval (D-E)
+  worksheet.mergeCells(currentRow, 4, currentRow, 5);
+  const managerCell = worksheet.getCell(currentRow, 4);
+  managerCell.value = `${getTranslation(
+    "roles.manager",
+    lang
+  )}\n____년  __월  __일`;
+  managerCell.font = { bold: true, size: 10 };
+  managerCell.fill = {
     type: "pattern",
     pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
   };
-  titleCell.alignment = { horizontal: "center", vertical: "middle" };
-  worksheet.getRow(currentRow).height = 30;
-  currentRow += 2;
+  managerCell.alignment = {
+    horizontal: "center",
+    vertical: "top",
+    wrapText: true
+  };
+  managerCell.border = {
+    top: { style: "medium" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "thin" }
+  };
 
-  // Date range info
-  worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
-  const dateRangeCell = worksheet.getCell(`A${currentRow}`);
-  dateRangeCell.value = `Date Range: ${adjustedDateRange.startDate.toLocaleDateString()} - ${adjustedDateRange.endDate.toLocaleDateString()}`;
-  dateRangeCell.font = { size: 11 };
-  dateRangeCell.alignment = { horizontal: "center" };
+  // CEO approval (F-G)
+  worksheet.mergeCells(currentRow, 6, currentRow, 7);
+  const ceoCell = worksheet.getCell(currentRow, 6);
+  ceoCell.value = `${getTranslation("roles.ceo", lang)}\n____년  __월  __일`;
+  ceoCell.font = { bold: true, size: 10 };
+  ceoCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
+  };
+  ceoCell.alignment = {
+    horizontal: "center",
+    vertical: "top",
+    wrapText: true
+  };
+  ceoCell.border = {
+    top: { style: "medium" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
+
+  worksheet.getRow(currentRow).height = 100; // Tall for signature space
+  currentRow++;
+
+  // ===== ROW 2: Period + Worker =====
+  worksheet.mergeCells(currentRow, 1, currentRow, 3); // A-C
+  const periodCell = worksheet.getCell(currentRow, 1);
+  periodCell.value = `${getTranslation(
+    "productionKPI.period",
+    lang
+  )}: ${formatDate(adjustedDateRange.startDate)} ${getTranslation(
+    "productionKPI.to",
+    lang
+  )} ${formatDate(adjustedDateRange.endDate)}`;
+  periodCell.font = { size: 10, bold: true };
+  periodCell.alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    wrapText: true
+  };
+  periodCell.border = {
+    top: { style: "thin" },
+    left: { style: "medium" },
+    bottom: { style: "medium" },
+    right: { style: "thin" }
+  };
+
+  // Worker approval (D-E)
+  worksheet.mergeCells(currentRow, 4, currentRow, 5);
+  const workerCell = worksheet.getCell(currentRow, 4);
+  workerCell.value = `${getTranslation(
+    "roles.worker",
+    lang
+  )}\n____년  __월  __일`;
+  workerCell.font = { bold: true, size: 10 };
+  workerCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
+  };
+  workerCell.alignment = {
+    horizontal: "center",
+    vertical: "top",
+    wrapText: true
+  };
+  workerCell.border = {
+    top: { style: "thin" },
+    left: { style: "thin" },
+    bottom: { style: "medium" },
+    right: { style: "thin" }
+  };
+
+  // Blank space (F-G)
+  worksheet.mergeCells(currentRow, 6, currentRow, 7);
+  const blankCell = worksheet.getCell(currentRow, 6);
+  blankCell.value = "";
+  blankCell.border = {
+    top: { style: "thin" },
+    left: { style: "thin" },
+    bottom: { style: "medium" },
+    right: { style: "medium" }
+  };
+
+  worksheet.getRow(currentRow).height = 100; // Tall for signature space
   currentRow += 2;
 
   // Calculate all KPIs in parallel
@@ -2635,313 +2958,867 @@ export async function generateProductionRateKPISheet(
     calculateMachineTypeErrorRate(adjustedDateRange)
   ]);
 
-  // ===== SECTION 1: Overall KPIs =====
-  worksheet.mergeCells(`A${currentRow}:J${currentRow}`);
-  const section1Header = worksheet.getCell(`A${currentRow}`);
-  section1Header.value = "Overall KPIs";
-  section1Header.font = { size: 14, bold: true };
-  section1Header.fill = {
+  // ===== SECTION 1: Overall KPIs - VERTICAL LABEL-VALUE FORMAT =====
+  // Format: 4 columns for label (A-D), 3 columns for value (E-G)
+  // KPI DATA HEADER
+  worksheet.mergeCells(currentRow, 1, currentRow, 4);
+  const kpiHeaderCell = worksheet.getCell(currentRow, 1);
+  kpiHeaderCell.value = getTranslation("productionKPI.overallKPIs", lang);
+  kpiHeaderCell.font = { bold: true, size: 12 };
+  kpiHeaderCell.alignment = { horizontal: "left", vertical: "top" };
+  kpiHeaderCell.fill = {
     type: "pattern",
     pattern: "solid",
     fgColor: { argb: "E0E0E0" }
   };
+  kpiHeaderCell.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "medium" },
+    right: { style: "medium" }
+  };
+  // KPI DATA HEADER VALUES
+  worksheet.mergeCells(currentRow, 5, currentRow, 7);
+  const kpiHeaderValuesCell = worksheet.getCell(currentRow, 5);
+  kpiHeaderValuesCell.value = getTranslation("titles.kpiValue", lang);
+  kpiHeaderValuesCell.font = { bold: true, size: 12 };
+  kpiHeaderValuesCell.alignment = { horizontal: "center", vertical: "top" };
+  kpiHeaderValuesCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "E0E0E0" }
+  };
+  kpiHeaderValuesCell.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "medium" },
+    right: { style: "medium" }
+  };
+  worksheet.getRow(currentRow).height = 25;
   currentRow++;
 
   // Delivery Delay Count
-  worksheet.getCell(`A${currentRow}`).value = "Delivery Delay Count:";
-  worksheet.getCell(`B${currentRow}`).value = deliveryDelayCount;
-  worksheet.getCell(`B${currentRow}`).font = { bold: true };
+  worksheet.mergeCells(currentRow, 1, currentRow, 4);
+  const delayLabelCell = worksheet.getCell(currentRow, 1);
+  delayLabelCell.value = getTranslation(
+    "productionKPI.deliveryDelayCount",
+    lang
+  );
+  delayLabelCell.font = { bold: true, size: 11 };
+  delayLabelCell.alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    indent: 1
+  };
+  delayLabelCell.border = {
+    top: { style: "thin" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "thin" }
+  };
+
+  worksheet.mergeCells(currentRow, 5, currentRow, 7);
+  const delayValueCell = worksheet.getCell(currentRow, 5);
+  delayValueCell.value = deliveryDelayCount;
+  delayValueCell.font = { size: 11 };
+  delayValueCell.alignment = { horizontal: "center", vertical: "middle" };
+  delayValueCell.border = {
+    top: { style: "thin" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
+  worksheet.getRow(currentRow).height = 25;
   currentRow++;
 
   // Overall Production Rate
-  worksheet.getCell(`A${currentRow}`).value =
-    "Overall Product Production Rate:";
-  worksheet.getCell(`B${currentRow}`).value = `${overallProductionRate.toFixed(
-    2
-  )}%`;
-  worksheet.getCell(`B${currentRow}`).font = { bold: true };
-  worksheet.getCell(`B${currentRow}`).numFmt = "0.00";
+  worksheet.mergeCells(currentRow, 1, currentRow, 4);
+  const rateLabelCell = worksheet.getCell(currentRow, 1);
+  rateLabelCell.value = getTranslation(
+    "productionKPI.overallProductionRate",
+    lang
+  );
+  rateLabelCell.font = { bold: true, size: 11 };
+  rateLabelCell.alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    indent: 1
+  };
+  rateLabelCell.border = {
+    top: { style: "thin" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "thin" }
+  };
+
+  worksheet.mergeCells(currentRow, 5, currentRow, 7);
+  const rateValueCell = worksheet.getCell(currentRow, 5);
+  rateValueCell.value = `${overallProductionRate.toFixed(2)}%`;
+  rateValueCell.font = { size: 11 };
+  rateValueCell.numFmt = "0.00";
+  rateValueCell.alignment = { horizontal: "center", vertical: "middle" };
+  rateValueCell.border = {
+    top: { style: "thin" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
+  worksheet.getRow(currentRow).height = 25;
   currentRow += 2;
 
   // ===== SECTION 2: Production Rate by Product =====
-  worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
-  const section2Header = worksheet.getCell(`A${currentRow}`);
-  section2Header.value = "Production Rate by Product";
-  section2Header.font = { size: 14, bold: true };
+  worksheet.mergeCells(currentRow, 1, currentRow, 7);
+  const section2Header = worksheet.getCell(currentRow, 1);
+  section2Header.value = getTranslation(
+    "productionKPI.productionRateByProduct",
+    lang
+  );
+  section2Header.font = { size: 12, bold: true };
   section2Header.fill = {
     type: "pattern",
     pattern: "solid",
     fgColor: { argb: "E0E0E0" }
   };
+  section2Header.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
   currentRow++;
 
-  // Headers
+  // Headers - Compact 4-column format
   const productHeaders = [
-    "Product Name",
-    "Target Quantity",
-    "Produced Quantity",
-    "Production Rate (%)"
+    getTranslation("productionKPI.productName", lang),
+    getTranslation("productionKPI.targetQuantity", lang),
+    getTranslation("productionKPI.producedQuantity", lang),
+    getTranslation("productionKPI.productionRate", lang)
   ];
   productHeaders.forEach((header, idx) => {
-    const cell = worksheet.getCell(currentRow, idx + 1);
+    const cell = worksheet.getCell(currentRow, idx === 0 ? 1 : idx + 4);
+    if (idx === 0) worksheet.mergeCells(currentRow, 1, currentRow, 4);
     cell.value = header;
-    cell.font = { bold: true };
+    cell.font = {
+      bold: true,
+      size: 10,
+      color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
+    };
     cell.fill = {
       type: "pattern",
       pattern: "solid",
       fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
     };
-    cell.alignment = { horizontal: "center" };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: idx === 0 ? "medium" : "thin" },
+      bottom: { style: "thin" },
+      right: { style: idx === 3 ? "medium" : "thin" }
+    };
   });
+  worksheet.getRow(currentRow).height = 30;
   currentRow++;
 
   // Data rows
   productionRateByProduct.forEach((product) => {
-    worksheet.getCell(`A${currentRow}`).value = product.productName;
-    worksheet.getCell(`B${currentRow}`).value = product.targetQuantity;
-    worksheet.getCell(`B${currentRow}`).numFmt = "#,##0";
-    worksheet.getCell(`C${currentRow}`).value = product.producedQuantity;
-    worksheet.getCell(`C${currentRow}`).numFmt = "#,##0";
-    worksheet.getCell(`D${currentRow}`).value = product.productionRate;
-    worksheet.getCell(`D${currentRow}`).numFmt = "0.00";
+    worksheet.mergeCells(currentRow, 1, currentRow, 4);
+    worksheet.getCell(currentRow, 1).value = product.productName;
+    worksheet.getCell(currentRow, 1).alignment = {
+      horizontal: "left",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 1).border = {
+      top: { style: "thin" },
+      left: { style: "medium" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getCell(currentRow, 5).value = product.targetQuantity;
+    worksheet.getCell(currentRow, 5).numFmt = "#,##0";
+    worksheet.getCell(currentRow, 5).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 5).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getCell(currentRow, 6).value = product.producedQuantity;
+    worksheet.getCell(currentRow, 6).numFmt = "#,##0";
+    worksheet.getCell(currentRow, 6).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 6).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getCell(currentRow, 7).value = product.productionRate;
+    worksheet.getCell(currentRow, 7).numFmt = "0.00";
+    worksheet.getCell(currentRow, 7).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 7).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "medium" }
+    };
+
+    worksheet.getRow(currentRow).height = 20;
     currentRow++;
   });
   currentRow += 2;
 
   // ===== SECTION 3: Priority Distribution =====
-  worksheet.mergeCells(`A${currentRow}:C${currentRow}`);
-  const section3Header = worksheet.getCell(`A${currentRow}`);
-  section3Header.value = "Priority Distribution";
-  section3Header.font = { size: 14, bold: true };
+  worksheet.mergeCells(currentRow, 1, currentRow, 7);
+  const section3Header = worksheet.getCell(currentRow, 1);
+  section3Header.value = getTranslation(
+    "productionKPI.priorityDistribution",
+    lang
+  );
+  section3Header.font = { size: 12, bold: true };
   section3Header.fill = {
     type: "pattern",
     pattern: "solid",
     fgColor: { argb: "E0E0E0" }
   };
+  section3Header.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
   currentRow++;
 
-  // Headers
-  worksheet.getCell(`A${currentRow}`).value = "Priority";
-  worksheet.getCell(`B${currentRow}`).value = "Percentage (%)";
-  [
-    worksheet.getCell(`A${currentRow}`),
-    worksheet.getCell(`B${currentRow}`)
-  ].forEach((cell) => {
-    cell.font = { bold: true };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-    };
-    cell.alignment = { horizontal: "center" };
-  });
+  // Headers - 2-column format
+  worksheet.mergeCells(currentRow, 1, currentRow, 4);
+  worksheet.getCell(currentRow, 1).value = getTranslation(
+    "productionKPI.priority",
+    lang
+  );
+  worksheet.getCell(currentRow, 1).font = {
+    bold: true,
+    size: 10,
+    color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
+  };
+  worksheet.getCell(currentRow, 1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+  };
+  worksheet.getCell(currentRow, 1).alignment = {
+    horizontal: "center",
+    vertical: "middle"
+  };
+  worksheet.getCell(currentRow, 1).border = {
+    top: { style: "thin" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "thin" }
+  };
+
+  worksheet.mergeCells(currentRow, 5, currentRow, 7);
+  worksheet.getCell(currentRow, 5).value = getTranslation(
+    "productionKPI.percentage",
+    lang
+  );
+  worksheet.getCell(currentRow, 5).font = {
+    bold: true,
+    size: 10,
+    color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
+  };
+  worksheet.getCell(currentRow, 5).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+  };
+  worksheet.getCell(currentRow, 5).alignment = {
+    horizontal: "center",
+    vertical: "middle"
+  };
+  worksheet.getCell(currentRow, 5).border = {
+    top: { style: "thin" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
+
+  worksheet.getRow(currentRow).height = 25;
   currentRow++;
 
   // Data rows
   Object.entries(priorityRatio).forEach(([priority, percentage]) => {
-    worksheet.getCell(`A${currentRow}`).value = priority;
-    worksheet.getCell(`B${currentRow}`).value = percentage;
-    worksheet.getCell(`B${currentRow}`).numFmt = "0.00";
+    worksheet.mergeCells(currentRow, 1, currentRow, 4);
+    worksheet.getCell(currentRow, 1).value = priority;
+    worksheet.getCell(currentRow, 1).alignment = {
+      horizontal: "left",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 1).border = {
+      top: { style: "thin" },
+      left: { style: "medium" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.mergeCells(currentRow, 5, currentRow, 7);
+    worksheet.getCell(currentRow, 5).value = percentage;
+    worksheet.getCell(currentRow, 5).numFmt = "0.00";
+    worksheet.getCell(currentRow, 5).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 5).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "medium" }
+    };
+
+    worksheet.getRow(currentRow).height = 20;
     currentRow++;
   });
   currentRow += 2;
 
   // ===== SECTION 4: Customer Production Percentage =====
-  worksheet.mergeCells(`A${currentRow}:C${currentRow}`);
-  const section4Header = worksheet.getCell(`A${currentRow}`);
-  section4Header.value = "Customer Production Percentage";
-  section4Header.font = { size: 14, bold: true };
+  worksheet.mergeCells(currentRow, 1, currentRow, 7);
+  const section4Header = worksheet.getCell(currentRow, 1);
+  section4Header.value = getTranslation(
+    "productionKPI.customerProduction",
+    lang
+  );
+  section4Header.font = { size: 12, bold: true };
   section4Header.fill = {
     type: "pattern",
     pattern: "solid",
     fgColor: { argb: "E0E0E0" }
   };
+  section4Header.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
   currentRow++;
 
-  // Headers
-  worksheet.getCell(`A${currentRow}`).value = "Customer Name";
-  worksheet.getCell(`B${currentRow}`).value = "Production Volume";
-  worksheet.getCell(`C${currentRow}`).value = "Percentage (%)";
-  [
-    worksheet.getCell(`A${currentRow}`),
-    worksheet.getCell(`B${currentRow}`),
-    worksheet.getCell(`C${currentRow}`)
-  ].forEach((cell) => {
-    cell.font = { bold: true };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-    };
-    cell.alignment = { horizontal: "center" };
-  });
+  // Headers - 3-column format
+  worksheet.mergeCells(currentRow, 1, currentRow, 5);
+  worksheet.getCell(currentRow, 1).value = getTranslation(
+    "productionKPI.customerName",
+    lang
+  );
+  worksheet.getCell(currentRow, 1).font = {
+    bold: true,
+    size: 10,
+    color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
+  };
+  worksheet.getCell(currentRow, 1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+  };
+  worksheet.getCell(currentRow, 1).alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true
+  };
+  worksheet.getCell(currentRow, 1).border = {
+    top: { style: "thin" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "thin" }
+  };
+
+  worksheet.getCell(currentRow, 6).value = getTranslation(
+    "productionKPI.productionVolume",
+    lang
+  );
+  worksheet.getCell(currentRow, 6).font = {
+    bold: true,
+    size: 10,
+    color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
+  };
+  worksheet.getCell(currentRow, 6).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+  };
+  worksheet.getCell(currentRow, 6).alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true
+  };
+  worksheet.getCell(currentRow, 6).border = {
+    top: { style: "thin" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "thin" }
+  };
+
+  worksheet.getCell(currentRow, 7).value = getTranslation(
+    "productionKPI.percentage",
+    lang
+  );
+  worksheet.getCell(currentRow, 7).font = {
+    bold: true,
+    size: 10,
+    color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
+  };
+  worksheet.getCell(currentRow, 7).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+  };
+  worksheet.getCell(currentRow, 7).alignment = {
+    horizontal: "center",
+    vertical: "middle",
+    wrapText: true
+  };
+  worksheet.getCell(currentRow, 7).border = {
+    top: { style: "thin" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
+
+  worksheet.getRow(currentRow).height = 30;
   currentRow++;
 
   // Data rows
   customerProduction.forEach((customer) => {
-    worksheet.getCell(`A${currentRow}`).value = customer.customerName;
-    worksheet.getCell(`B${currentRow}`).value = customer.productionVolume;
-    worksheet.getCell(`B${currentRow}`).numFmt = "#,##0";
-    worksheet.getCell(`C${currentRow}`).value = customer.percentage;
-    worksheet.getCell(`C${currentRow}`).numFmt = "0.00";
+    worksheet.mergeCells(currentRow, 1, currentRow, 5);
+    worksheet.getCell(currentRow, 1).value = customer.customerName;
+    worksheet.getCell(currentRow, 1).alignment = {
+      horizontal: "left",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 1).border = {
+      top: { style: "thin" },
+      left: { style: "medium" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getCell(currentRow, 6).value = customer.productionVolume;
+    worksheet.getCell(currentRow, 6).numFmt = "#,##0";
+    worksheet.getCell(currentRow, 6).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 6).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getCell(currentRow, 7).value = customer.percentage;
+    worksheet.getCell(currentRow, 7).numFmt = "0.00";
+    worksheet.getCell(currentRow, 7).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 7).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "medium" }
+    };
+
+    worksheet.getRow(currentRow).height = 20;
     currentRow++;
   });
   currentRow += 2;
 
   // ===== SECTION 5: Part Defect Rate =====
-  worksheet.mergeCells(`A${currentRow}:B${currentRow}`);
-  const section5Header = worksheet.getCell(`A${currentRow}`);
-  section5Header.value = "Part Defect Rate";
-  section5Header.font = { size: 14, bold: true };
-  section5Header.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "E0E0E0" }
+  worksheet.mergeCells(currentRow, 1, currentRow, 4);
+  const section5LabelCell = worksheet.getCell(currentRow, 1);
+  section5LabelCell.value = getTranslation(
+    "productionKPI.partDefectRate",
+    lang
+  );
+  section5LabelCell.font = { bold: true, size: 11 };
+  section5LabelCell.alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    indent: 1
   };
-  currentRow++;
+  section5LabelCell.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "thin" }
+  };
 
-  worksheet.getCell(`A${currentRow}`).value = "Defect Rate:";
-  worksheet.getCell(`B${currentRow}`).value = `${partDefectRate.toFixed(2)}%`;
-  worksheet.getCell(`B${currentRow}`).font = { bold: true };
-  worksheet.getCell(`B${currentRow}`).numFmt = "0.00";
+  worksheet.mergeCells(currentRow, 5, currentRow, 7);
+  const section5ValueCell = worksheet.getCell(currentRow, 5);
+  section5ValueCell.value = `${partDefectRate.toFixed(2)}%`;
+  section5ValueCell.font = { size: 11 };
+  section5ValueCell.numFmt = "0.00";
+  section5ValueCell.alignment = { horizontal: "center", vertical: "middle" };
+  section5ValueCell.border = {
+    top: { style: "medium" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
+  worksheet.getRow(currentRow).height = 25;
   currentRow += 2;
 
   // ===== SECTION 6: Working Hours by Product =====
-  worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
-  const section6Header = worksheet.getCell(`A${currentRow}`);
-  section6Header.value = "Working Hours by Product";
-  section6Header.font = { size: 14, bold: true };
+  worksheet.mergeCells(currentRow, 1, currentRow, 7);
+  const section6Header = worksheet.getCell(currentRow, 1);
+  section6Header.value = getTranslation(
+    "productionKPI.workingHoursByProduct",
+    lang
+  );
+  section6Header.font = { size: 12, bold: true };
   section6Header.fill = {
     type: "pattern",
     pattern: "solid",
     fgColor: { argb: "E0E0E0" }
   };
+  section6Header.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
   currentRow++;
 
-  // Headers
+  // Headers - Compact 4-column format
   const hoursHeaders = [
-    "Product Name",
-    "Minimum Hours",
-    "Maximum Hours",
-    "Total Hours"
+    getTranslation("productionKPI.productName", lang),
+    getTranslation("productionKPI.minimumHours", lang),
+    getTranslation("productionKPI.maximumHours", lang),
+    getTranslation("productionKPI.totalHours", lang)
   ];
   hoursHeaders.forEach((header, idx) => {
-    const cell = worksheet.getCell(currentRow, idx + 1);
+    const cell = worksheet.getCell(currentRow, idx === 0 ? 1 : idx + 4);
+    if (idx === 0) worksheet.mergeCells(currentRow, 1, currentRow, 4);
     cell.value = header;
-    cell.font = { bold: true };
+    cell.font = {
+      bold: true,
+      size: 10,
+      color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
+    };
     cell.fill = {
       type: "pattern",
       pattern: "solid",
       fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
     };
-    cell.alignment = { horizontal: "center" };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: idx === 0 ? "medium" : "thin" },
+      bottom: { style: "thin" },
+      right: { style: idx === 3 ? "medium" : "thin" }
+    };
   });
+
+  worksheet.getRow(currentRow).height = 30;
   currentRow++;
 
   // Data rows
   workingHoursByProduct.forEach((product) => {
-    worksheet.getCell(`A${currentRow}`).value = product.productName;
-    worksheet.getCell(`B${currentRow}`).value = product.minHours;
-    worksheet.getCell(`B${currentRow}`).numFmt = "0.00";
-    worksheet.getCell(`C${currentRow}`).value = product.maxHours;
-    worksheet.getCell(`C${currentRow}`).numFmt = "0.00";
-    worksheet.getCell(`D${currentRow}`).value = product.totalHours;
-    worksheet.getCell(`D${currentRow}`).numFmt = "0.00";
+    worksheet.mergeCells(currentRow, 1, currentRow, 4);
+    worksheet.getCell(currentRow, 1).value = product.productName;
+    worksheet.getCell(currentRow, 1).alignment = {
+      horizontal: "left",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 1).border = {
+      top: { style: "thin" },
+      left: { style: "medium" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getCell(currentRow, 5).value = product.minHours;
+    worksheet.getCell(currentRow, 5).numFmt = "0.00";
+    worksheet.getCell(currentRow, 5).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 5).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getCell(currentRow, 6).value = product.maxHours;
+    worksheet.getCell(currentRow, 6).numFmt = "0.00";
+    worksheet.getCell(currentRow, 6).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 6).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getCell(currentRow, 7).value = product.totalHours;
+    worksheet.getCell(currentRow, 7).numFmt = "0.00";
+    worksheet.getCell(currentRow, 7).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 7).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "medium" }
+    };
+
+    worksheet.getRow(currentRow).height = 20;
     currentRow++;
   });
   currentRow += 2;
 
   // ===== SECTION 7: Lead Time Analysis =====
-  worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
-  const section7Header = worksheet.getCell(`A${currentRow}`);
-  section7Header.value = "Lead Time Analysis";
-  section7Header.font = { size: 14, bold: true };
+  worksheet.mergeCells(currentRow, 1, currentRow, 7);
+  const section7Header = worksheet.getCell(currentRow, 1);
+  section7Header.value = getTranslation("productionKPI.leadTimeAnalysis", lang);
+  section7Header.font = { size: 12, bold: true };
   section7Header.fill = {
     type: "pattern",
     pattern: "solid",
     fgColor: { argb: "E0E0E0" }
   };
+  section7Header.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
   currentRow++;
 
-  // Headers
+  // Headers - Compact 4-column format
   const leadTimeHeaders = [
-    "Project Name",
-    "Start Date",
-    "End Date",
-    "Lead Time (Days)"
+    getTranslation("productionKPI.projectName", lang),
+    getTranslation("productionKPI.startDate", lang),
+    getTranslation("productionKPI.endDate", lang),
+    getTranslation("productionKPI.leadTimeDays", lang)
   ];
   leadTimeHeaders.forEach((header, idx) => {
-    const cell = worksheet.getCell(currentRow, idx + 1);
+    const cell = worksheet.getCell(currentRow, idx === 0 ? 1 : idx + 4);
+    if (idx === 0) worksheet.mergeCells(currentRow, 1, currentRow, 4);
     cell.value = header;
-    cell.font = { bold: true };
+    cell.font = {
+      bold: true,
+      size: 10,
+      color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
+    };
     cell.fill = {
       type: "pattern",
       pattern: "solid",
       fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
     };
-    cell.alignment = { horizontal: "center" };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: idx === 0 ? "medium" : "thin" },
+      bottom: { style: "thin" },
+      right: { style: idx === 3 ? "medium" : "thin" }
+    };
   });
+  worksheet.getRow(currentRow).height = 30;
   currentRow++;
 
   // Data rows
   leadTimeData.forEach((project) => {
-    worksheet.getCell(`A${currentRow}`).value = project.projectName;
-    worksheet.getCell(`B${currentRow}`).value = project.startDate;
-    worksheet.getCell(`B${currentRow}`).numFmt = "yyyy-mm-dd";
-    worksheet.getCell(`C${currentRow}`).value = project.endDate;
-    worksheet.getCell(`C${currentRow}`).numFmt = "yyyy-mm-dd";
-    worksheet.getCell(`D${currentRow}`).value = project.leadTimeDays;
-    worksheet.getCell(`D${currentRow}`).numFmt = "#,##0";
+    worksheet.mergeCells(currentRow, 1, currentRow, 4);
+    worksheet.getCell(currentRow, 1).value = project.projectName;
+    worksheet.getCell(currentRow, 1).alignment = {
+      horizontal: "left",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 1).border = {
+      top: { style: "thin" },
+      left: { style: "medium" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getCell(currentRow, 5).value = project.startDate;
+    worksheet.getCell(currentRow, 5).numFmt = "yyyy-mm-dd";
+    worksheet.getCell(currentRow, 5).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 5).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getCell(currentRow, 6).value = project.endDate;
+    worksheet.getCell(currentRow, 6).numFmt = "yyyy-mm-dd";
+    worksheet.getCell(currentRow, 6).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 6).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getCell(currentRow, 7).value = project.leadTimeDays;
+    worksheet.getCell(currentRow, 7).numFmt = "#,##0";
+    worksheet.getCell(currentRow, 7).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 7).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "medium" }
+    };
+
+    worksheet.getRow(currentRow).height = 20;
     currentRow++;
   });
   currentRow += 2;
 
   // ===== SECTION 8: Machine Type Error Rate =====
-  worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
-  const section8Header = worksheet.getCell(`A${currentRow}`);
-  section8Header.value = "Machine Type Error Rate";
-  section8Header.font = { size: 14, bold: true };
+  worksheet.mergeCells(currentRow, 1, currentRow, 7);
+  const section8Header = worksheet.getCell(currentRow, 1);
+  section8Header.value = getTranslation(
+    "productionKPI.machineTypeErrorRate",
+    lang
+  );
+  section8Header.font = { size: 12, bold: true };
   section8Header.fill = {
     type: "pattern",
     pattern: "solid",
     fgColor: { argb: "E0E0E0" }
   };
+  section8Header.border = {
+    top: { style: "medium" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
   currentRow++;
 
-  // Headers
-  const errorHeaders = ["Machine Type", "Error Count", "Error Rate (%)"];
+  // Headers - 3-column format
+  const errorHeaders = [
+    getTranslation("productionKPI.machineType", lang),
+    getTranslation("productionKPI.errorCount", lang),
+    getTranslation("productionKPI.errorRate", lang)
+  ];
   errorHeaders.forEach((header, idx) => {
-    const cell = worksheet.getCell(currentRow, idx + 1);
+    const cell = worksheet.getCell(currentRow, idx === 0 ? 1 : idx + 5);
+    if (idx === 0) {
+      worksheet.mergeCells(currentRow, 1, currentRow, 5);
+    }
     cell.value = header;
-    cell.font = { bold: true };
+    cell.font = {
+      bold: true,
+      size: 10,
+      color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
+    };
     cell.fill = {
       type: "pattern",
       pattern: "solid",
       fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
     };
-    cell.alignment = { horizontal: "center" };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: idx === 0 ? "medium" : "thin" },
+      bottom: { style: "thin" },
+      right: { style: idx === 2 ? "medium" : "thin" }
+    };
   });
+  worksheet.getRow(currentRow).height = 30;
   currentRow++;
 
   // Data rows
   machineTypeErrorRate.forEach((machineType) => {
-    worksheet.getCell(`A${currentRow}`).value = machineType.deviceTypeName;
-    worksheet.getCell(`B${currentRow}`).value = machineType.errorCount;
-    worksheet.getCell(`B${currentRow}`).numFmt = "#,##0";
-    worksheet.getCell(`C${currentRow}`).value = machineType.errorRate;
-    worksheet.getCell(`C${currentRow}`).numFmt = "0.00";
+    worksheet.mergeCells(currentRow, 1, currentRow, 5);
+    worksheet.getCell(currentRow, 1).value = machineType.deviceTypeName;
+    worksheet.getCell(currentRow, 1).alignment = {
+      horizontal: "left",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 1).border = {
+      top: { style: "thin" },
+      left: { style: "medium" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getCell(currentRow, 6).value = machineType.errorCount;
+    worksheet.getCell(currentRow, 6).numFmt = "#,##0";
+    worksheet.getCell(currentRow, 6).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 6).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "medium" }
+    };
+
+    worksheet.getCell(currentRow, 7).value = machineType.errorRate;
+    worksheet.getCell(currentRow, 7).numFmt = "0.00";
+    worksheet.getCell(currentRow, 7).alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    worksheet.getCell(currentRow, 7).border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "medium" }
+    };
+
+    worksheet.getRow(currentRow).height = 20;
     currentRow++;
   });
 
-  // Set column widths
-  worksheet.getColumn(1).width = 30;
-  worksheet.getColumn(2).width = 18;
-  worksheet.getColumn(3).width = 18;
-  worksheet.getColumn(4).width = 18;
-  worksheet.getColumn(5).width = 18;
-
-  // Freeze header rows
-  worksheet.views = [{ state: "frozen", ySplit: 1 }];
+  // Set column widths optimized for A4 portrait (7 columns max)
+  worksheet.getColumn(1).width = 15; // Labels/data
+  worksheet.getColumn(2).width = 12; // Values/data
+  worksheet.getColumn(3).width = 12; // Values/data
+  worksheet.getColumn(4).width = 12; // Values/data
+  worksheet.getColumn(5).width = 12; // Approval blocks
+  worksheet.getColumn(6).width = 12; // Approval blocks
+  worksheet.getColumn(7).width = 12; // Approval blocks
 
   console.log("✓ Production Rate KPI Sheet generated successfully");
 }
