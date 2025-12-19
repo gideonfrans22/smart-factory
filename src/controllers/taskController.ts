@@ -105,7 +105,10 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
 
     const total = await Task.countDocuments(query);
     const tasks = await Task.find(query)
-      .populate("projectId", "name status priority deadline progress targetQuantity producedQuantity")
+      .populate(
+        "projectId",
+        "name status priority deadline progress targetQuantity producedQuantity"
+      )
       .populate("workerId", "name username")
       .populate("deviceId", "name deviceName")
       .populate({
@@ -116,7 +119,10 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
           select: "quantityRequired name rawMaterialNumber specification"
         }
       })
-      .populate("productSnapshotId", "name version customerName personInCharge department")
+      .populate(
+        "productSnapshotId",
+        "name version customerName personInCharge department"
+      )
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -157,7 +163,10 @@ export const getTaskById = async (
     const { id } = req.params;
 
     const task = await Task.findById(id)
-      .populate("projectId", "name status priority deadline progress targetQuantity producedQuantity")
+      .populate(
+        "projectId",
+        "name status priority deadline progress targetQuantity producedQuantity"
+      )
       .populate("workerId", "name username")
       .populate({
         path: "recipeSnapshotId",
@@ -167,7 +176,10 @@ export const getTaskById = async (
           select: "quantityRequired name rawMaterialNumber specification"
         }
       })
-      .populate("productSnapshotId", "name version customerName personInCharge department")
+      .populate(
+        "productSnapshotId",
+        "name version customerName personInCharge department"
+      )
       .populate("dependentTask", "title status");
 
     if (!task) {
@@ -949,7 +961,11 @@ export const resumeTask = async (
     }
 
     // Validate task can be resumed (PAUSED, PAUSED_EMERGENCY, or COMPLETED with progress < 100 or FAILED)
-    if (!["PAUSED", "PAUSED_EMERGENCY", "COMPLETED", "FAILED"].includes(task.status)) {
+    if (
+      !["PAUSED", "PAUSED_EMERGENCY", "COMPLETED", "FAILED"].includes(
+        task.status
+      )
+    ) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
@@ -982,10 +998,11 @@ export const resumeTask = async (
       if (!lastPause.resumedAt) {
         lastPause.resumedAt = new Date();
         lastPause.resolvedBy = resolvedBy || req.user?.name || "Admin";
-        
+
         // Calculate paused duration
         const pauseDuration = Math.floor(
-          (lastPause.resumedAt.getTime() - lastPause.pausedAt.getTime()) / (1000 * 60)
+          (lastPause.resumedAt.getTime() - lastPause.pausedAt.getTime()) /
+            (1000 * 60)
         );
         task.pausedDuration = (task.pausedDuration || 0) + pauseDuration;
       }
@@ -1065,10 +1082,11 @@ export const pauseTask = async (
     if (!task.pauseHistory) {
       task.pauseHistory = [];
     }
-    
+
     // Use reason or notes (both optional), with fallback to default messages
-    const pauseReason = reason || notes || (isEmergency ? "Emergency pause" : "Manual pause");
-    
+    const pauseReason =
+      reason || notes || (isEmergency ? "Emergency pause" : "Manual pause");
+
     task.pauseHistory.push({
       pausedAt: new Date(),
       reason: pauseReason,
@@ -1521,6 +1539,7 @@ export const getTaskStatistics = async (
       avgCompletionTime,
       tasksByDeviceType,
       tasksByProject,
+      tasksByStepName,
       executionProgress
     ] = await Promise.all([
       // Task count per status
@@ -1618,6 +1637,76 @@ export const getTaskStatistics = async (
         },
         { $sort: { count: -1 } },
         { $limit: 10 } // Top 10 projects
+      ]),
+
+      // Task by recipe step name
+      Task.aggregate([
+        { $match: baseQuery },
+        {
+          $group: {
+            _id: {
+              recipeSnapshotId: "$recipeSnapshotId",
+              stepOrder: "$stepOrder",
+              status: "$status"
+            },
+            recipeTaskCount: {
+              $count: {}
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: "recipesnapshots",
+            localField: "_id.recipeSnapshotId",
+            foreignField: "_id",
+            as: "recipeSnapshot"
+          }
+        },
+        {
+          $unwind: "$recipeSnapshot"
+        },
+        {
+          $addFields: {
+            stepName: {
+              $arrayElemAt: [
+                "$recipeSnapshot.steps.name",
+                { $subtract: ["$_id.stepOrder", 1] }
+              ]
+            },
+            status: "$_id.status"
+          }
+        },
+        {
+          $group: {
+            _id: {
+              stepName: "$stepName"
+            },
+            totalTaskCount: { $sum: "$recipeTaskCount" },
+            completedTaskCount: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$status", "COMPLETED"] },
+                  "$recipeTaskCount",
+                  0
+                ]
+              }
+            }
+          }
+        },
+        {
+          $project: {
+            stepName: "$_id.stepName",
+            total: "$totalTaskCount",
+            completed: "$completedTaskCount",
+            completionRate: {
+              $cond: [
+                { $gt: ["$totalTaskCount", 0] },
+                { $divide: ["$completedTaskCount", "$totalTaskCount"] },
+                0
+              ]
+            }
+          }
+        }
       ]),
 
       // Recipe execution progress
@@ -1756,6 +1845,7 @@ export const getTaskStatistics = async (
               ? parseFloat(((item.completed / item.count) * 100).toFixed(2))
               : 0
         })),
+        byStepName: tasksByStepName,
         executionProgress: {
           totalExecutions: executionStats.totalExecutions,
           completedExecutions: executionStats.completedExecutions,
@@ -1910,7 +2000,10 @@ export const getGroupedTasks = async (
           path: "recipeSnapshotId",
           populate: { path: "rawMaterials" }
         })
-        .populate("productSnapshotId", "name version customerName personInCharge department")
+        .populate(
+          "productSnapshotId",
+          "name version customerName personInCharge department"
+        )
         .sort({ createdAt: 1 });
 
       // Initialize project structure
@@ -2274,7 +2367,10 @@ export const getDeviceTasks = async (
         .select(
           "title description projectId recipeId recipeSnapshotId productSnapshotId workerId deviceId deviceTypeId status priority progress notes createdAt updatedAt startedAt completedAt dependentTask mediaFiles recipeExecutionNumber stepOrder"
         )
-        .populate("projectId", "name status priority deadline progress targetQuantity producedQuantity")
+        .populate(
+          "projectId",
+          "name status priority deadline progress targetQuantity producedQuantity"
+        )
         .populate("recipeId", "name recipeNumber version")
         .populate("workerId", "name username email")
         .populate("recipeSnapshotId", "name version steps")
@@ -2376,7 +2472,10 @@ export const getWorkerTasks = async (
     const total = await Task.countDocuments(query);
 
     const tasks = await Task.find(query)
-      .populate("projectId", "name status priority deadline progress targetQuantity producedQuantity")
+      .populate(
+        "projectId",
+        "name status priority deadline progress targetQuantity producedQuantity"
+      )
       .populate("recipeId", "name recipeNumber version")
       .populate("deviceId", "name deviceName")
       .populate("recipeSnapshotId", "name version steps")
