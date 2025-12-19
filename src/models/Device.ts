@@ -18,9 +18,7 @@ export interface IDevice extends Document {
     reason?: string;
     changedBy?: string;
   }>;
-  // Grid display properties (defaults for when device is not in a layout)
-  defaultRowSpan: number;
-  defaultColSpan: number;
+  isActive?: boolean;
   modifiedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -90,17 +88,10 @@ const DeviceSchema: Schema = new Schema(
       default: [],
       comment: "History of device status changes"
     },
-    defaultRowSpan: {
-      type: Number,
-      default: 1,
-      min: 1,
-      comment: "Default row span when device is added to a grid layout"
-    },
-    defaultColSpan: {
-      type: Number,
-      default: 1,
-      min: 1,
-      comment: "Default column span when device is added to a grid layout"
+    isActive: {
+      type: Boolean,
+      default: true,
+      comment: "Whether the device is active"
     },
     modifiedBy: {
       type: Schema.Types.ObjectId,
@@ -120,6 +111,7 @@ DeviceSchema.index({ currentUser: 1 });
 DeviceSchema.index({ currentTask: 1 });
 DeviceSchema.index({ deviceTypeId: 1 });
 DeviceSchema.index({ lastHeartbeat: 1 });
+DeviceSchema.index({ isActive: 1 });
 
 // translate _id to id
 DeviceSchema.virtual("id").get(function (this: IDevice) {
