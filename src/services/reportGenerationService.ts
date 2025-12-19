@@ -526,7 +526,8 @@ export async function generateEquipmentPerformanceReport(
     await EquipmentReportService.generateEquipmentPerformanceKPISheet(
       workbook,
       dateRange,
-      period
+      period,
+      lang
     );
     sheetsGenerated.push("Equipment Performance KPIs");
 
