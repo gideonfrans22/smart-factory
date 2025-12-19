@@ -241,11 +241,7 @@ RecipeSchema.index({ name: 1 });
 RecipeSchema.index({ recipeNumber: 1 });
 RecipeSchema.index({ deletedAt: 1 }); // For soft delete queries
 RecipeSchema.index({ Product: 1 }); // For querying recipes by product
-// Unique compound index on recipeNumber and version (sparse to allow null recipeNumbers)
-RecipeSchema.index(
-  { recipeNumber: 1, version: 1 },
-  { unique: true, partialFilterExpression: { deletedAt: null } }
-);
+RecipeSchema.index({ version: 1 });
 
 // Helper function to validate step dependencies
 function validateStepDependencies(steps: IRecipeStep[]): {
