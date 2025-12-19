@@ -15,12 +15,12 @@ export interface RegisterData {
   name: string;
   email?: string;
   password?: string;
-  role: "admin" | "worker";
+  role: "admin" | "worker" | "monitor";
 }
 
 export interface JWTPayload {
   sub: string; // User ID (was userId)
-  role: "admin" | "worker";
+  role: "admin" | "worker" | "monitor";
   username?: string; // Employee number for workers only
   iat?: number; // Issued at timestamp
   exp?: number; // Expiration timestamp
