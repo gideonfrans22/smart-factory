@@ -168,6 +168,34 @@ export const generateReport = async (
           period as "daily" | "weekly" | "monthly" | undefined
         );
         break;
+      case "EQUIPMENT_PERFORMANCE":
+        // Extract period parameter (optional: "daily" | "weekly" | "monthly")
+        const equipmentPeriod = parameters?.period;
+        if (
+          equipmentPeriod &&
+          equipmentPeriod !== "daily" &&
+          equipmentPeriod !== "weekly" &&
+          equipmentPeriod !== "monthly"
+        ) {
+          const response: APIResponse = {
+            success: false,
+            error: "VALIDATION_ERROR",
+            message:
+              "Period parameter must be 'daily', 'weekly', 'monthly', or omitted"
+          };
+          res.status(400).json(response);
+          return;
+        }
+        result =
+          await ReportGenerationService.generateEquipmentPerformanceReport(
+            start,
+            end,
+            userId ? userId.toString() : "",
+            reportIdStr,
+            lang,
+            equipmentPeriod as "daily" | "weekly" | "monthly" | undefined
+          );
+        break;
       case "WORKER_PERFORMANCE_KPI":
         if (!workerId) {
           const response: APIResponse = {

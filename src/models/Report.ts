@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export interface IReport extends Document {
   title: string;
-  type: "TASK_COMPLETION" | "WORKER_PERFORMANCE" | "PRODUCTION_RATE" | "WORKER_PERFORMANCE_KPI";
+  type: "TASK_COMPLETION" | "WORKER_PERFORMANCE" | "PRODUCTION_RATE" | "WORKER_PERFORMANCE_KPI" | "EQUIPMENT_PERFORMANCE";
   format: "PDF" | "EXCEL" | "CSV" | "JSON";
   parameters: Record<string, any>;
   filePath?: string;
@@ -32,7 +32,8 @@ const ReportSchema: Schema = new Schema(
         "TASK_COMPLETION",
         "WORKER_PERFORMANCE",
         "PRODUCTION_RATE",
-        "WORKER_PERFORMANCE_KPI"
+        "WORKER_PERFORMANCE_KPI",
+        "EQUIPMENT_PERFORMANCE"
       ]
     },
     format: {
