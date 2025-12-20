@@ -10,6 +10,10 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
       type,
       status,
       level,
+      deviceId,
+      taskId,
+      projectId,
+      reportedBy,
       page = 1,
       limit = 10,
       sortBy = "createdAt",
@@ -20,6 +24,10 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
     if (type) query.type = type;
     if (status) query.status = status;
     if (level) query.level = level;
+    if (deviceId) query.device = deviceId;
+    if (taskId) query.task = taskId;
+    if (projectId) query.project = projectId;
+    if (reportedBy) query.reportedBy = reportedBy;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
