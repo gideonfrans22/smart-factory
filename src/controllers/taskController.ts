@@ -2374,7 +2374,7 @@ export const getDeviceTasks = async (
         )
         .populate(
           "projectId",
-          "name status priority deadline progress targetQuantity producedQuantity"
+          "name status priority deadline startDate progress targetQuantity producedQuantity"
         )
         .populate("recipeId", "name recipeNumber version")
         .populate("workerId", "name username email")
