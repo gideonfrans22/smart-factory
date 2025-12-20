@@ -61,7 +61,10 @@ DeviceTypeSchema.virtual("id").get(function (this: IDeviceType) {
 DeviceTypeSchema.virtual("devices", {
   ref: "Device",
   localField: "_id",
-  foreignField: "deviceTypeId"
+  foreignField: "deviceTypeId",
+  options: {
+    includeDeleted: false
+  }
 });
 
 // Pre-remove hook to check for dependent devices, recipe steps, and tasks
