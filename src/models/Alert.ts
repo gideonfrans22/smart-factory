@@ -12,6 +12,7 @@ export interface IAlert extends Document {
   task?: mongoose.Types.ObjectId; // Reference to Task
   project?: mongoose.Types.ObjectId; // Reference to Project
   status: "UNREAD" | "READ" | "ACKNOWLEDGED" | "RESOLVED" | "PENDING";
+  reportedBy?: mongoose.Types.ObjectId; // Reference to User
   acknowledgedBy?: mongoose.Types.ObjectId;
   acknowledgedAt?: Date;
   resolvedAt?: Date;
@@ -76,6 +77,10 @@ const AlertSchema: Schema = new Schema(
       required: true,
       enum: ["UNREAD", "READ", "ACKNOWLEDGED", "RESOLVED", "PENDING"],
       default: "UNREAD"
+    },
+    reportedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     },
     acknowledgedBy: {
       type: Schema.Types.ObjectId,
