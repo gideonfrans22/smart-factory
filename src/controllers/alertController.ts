@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import { Alert } from "../models";
+import { Alert, Device } from "../models";
 import { realtimeService } from "../services/realtimeService";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
@@ -392,6 +392,24 @@ export const resolveAlert = async (
     await alert.save();
     await alert.populate("acknowledgedBy", "name username email");
 
+    if (alert.type === "MACHINE_ERROR") {
+      const device = await Device.findById(alert.device);
+      if (device) {
+        device.status = "ONLINE";
+        if (!device.statusHistory) {
+          device.statusHistory = [];
+        }
+        device.statusHistory.push({
+          status: "ONLINE",
+          changedAt: new Date(),
+          reason: `Machine error resolved: ${alert.message}`,
+          changedBy: alert.reportedBy?.toString() || "System"
+        });
+        await device.save();
+        realtimeService.broadcastDeviceUpdate(device.toObject());
+      }
+    }
+
     const response: APIResponse = {
       success: true,
       message: "Alert resolved successfully",
@@ -542,6 +560,14 @@ export const bulkResolveAlerts = async (
       return;
     }
 
+    const unresolvedEquipmentErrors = await Alert.find({
+      _id: { $in: alertIds },
+      type: "MACHINE_ERROR",
+      status: {
+        $ne: "RESOLVED"
+      }
+    });
+
     const result = await Alert.updateMany(
       { _id: { $in: alertIds } },
       {
@@ -551,6 +577,24 @@ export const bulkResolveAlerts = async (
         }
       }
     );
+
+    for (const unresolvedEquipmentError of unresolvedEquipmentErrors) {
+      const device = await Device.findById(unresolvedEquipmentError.device);
+      if (device) {
+        device.status = "ONLINE";
+        if (!device.statusHistory) {
+          device.statusHistory = [];
+        }
+        device.statusHistory.push({
+          status: "ONLINE",
+          changedAt: new Date(),
+          reason: `Machine error resolved: ${unresolvedEquipmentError.message}`,
+          changedBy: unresolvedEquipmentError.reportedBy?.toString() || "System"
+        });
+        await device.save();
+        realtimeService.broadcastDeviceUpdate(device.toObject());
+      }
+    }
 
     const response: APIResponse = {
       success: true,
