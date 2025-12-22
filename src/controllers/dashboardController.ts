@@ -24,8 +24,10 @@ export const getMonitorOverview = async (
     const [
       totalTasks,
       completedTasks,
+      pendingTasks,
       onTimeTasks,
       totalDeliveredTasks,
+      urgentTasks,
       dailyCompletedTasks,
       weeklyCompletedTasks,
       monthlyCompletedTasks,
@@ -44,6 +46,7 @@ export const getMonitorOverview = async (
       // Task Progress
       Task.countDocuments({}),
       Task.countDocuments({ status: "COMPLETED" }),
+      Task.countDocuments({ status: "PENDING" }),
       
       // Deadline Compliance (completed tasks where completedAt <= deadline)
       Task.countDocuments({
@@ -53,6 +56,12 @@ export const getMonitorOverview = async (
         $expr: { $lte: ["$completedAt", "$deadline"] }
       }),
       Task.countDocuments({ status: "COMPLETED" }),
+      
+      // Urgent tasks (status !== COMPLETED AND deadline approaching/past - within 24 hours or overdue)
+      Task.countDocuments({
+        status: { $ne: "COMPLETED" },
+        deadline: { $exists: true, $lt: new Date(Date.now() + 24 * 60 * 60 * 1000) }
+      }),
       
       // Productivity by period
       Task.countDocuments({
@@ -211,12 +220,14 @@ export const getMonitorOverview = async (
         taskProgress: {
           percentage: taskProgressPercentage,
           completed: completedTasks,
-          total: totalTasks
+          total: totalTasks,
+          pending: pendingTasks
         },
         deadlineCompliance: {
           percentage: deadlineCompliancePercentage,
           onTime: onTimeTasks,
-          total: totalDeliveredTasks
+          total: totalDeliveredTasks,
+          urgent: urgentTasks
         },
         productivity: {
           daily: {
