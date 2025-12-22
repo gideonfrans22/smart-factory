@@ -1459,6 +1459,11 @@ export const completeTask = async (
       project?.progress
     );
 
+    // Broadcast next task status change if it exists
+    if (nextTask) {
+      await realtimeService.broadcastTaskStatusChange(nextTask.toObject());
+    }
+
     const responseData: any = {
       completedTask: task,
       nextTask: nextTask || null,
@@ -2369,7 +2374,7 @@ export const getDeviceTasks = async (
         )
         .populate(
           "projectId",
-          "name status priority deadline progress targetQuantity producedQuantity"
+          "name status priority deadline startDate progress targetQuantity producedQuantity"
         )
         .populate("recipeId", "name recipeNumber version")
         .populate("workerId", "name username email")

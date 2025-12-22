@@ -186,7 +186,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         : {})
     };
 
-    const accessToken = generateToken(accessTokenPayload); // 24 hours
+    const accessToken = generateToken(
+      accessTokenPayload,
+      user.username === "monitor" ? "365d" : "24h"
+    ); // 24 hours
 
     const response: APIResponse = {
       success: true,

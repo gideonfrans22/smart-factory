@@ -421,7 +421,8 @@ export async function generateProductionRateReport(
     await ProductionReportService.generateProductionRateKPISheet(
       workbook,
       dateRange,
-      period
+      period,
+      lang
     );
     sheetsGenerated.push("Production Rate KPIs");
 

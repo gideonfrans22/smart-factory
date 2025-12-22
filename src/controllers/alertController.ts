@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import { Alert } from "../models";
+import { Alert, Device } from "../models";
 import { realtimeService } from "../services/realtimeService";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
@@ -10,6 +10,10 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
       type,
       status,
       level,
+      deviceId,
+      taskId,
+      projectId,
+      reportedBy,
       page = 1,
       limit = 10,
       sortBy = "createdAt",
@@ -20,6 +24,10 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
     if (type) query.type = type;
     if (status) query.status = status;
     if (level) query.level = level;
+    if (deviceId) query.device = deviceId;
+    if (taskId) query.task = taskId;
+    if (projectId) query.project = projectId;
+    if (reportedBy) query.reportedBy = reportedBy;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -125,6 +133,7 @@ export const createAlert = async (
       deviceId,
       taskId,
       projectId,
+      reportedBy,
       metadata
     } = req.body;
 
@@ -169,7 +178,7 @@ export const createAlert = async (
           });
           await task.save();
           emergencyActions.taskPaused = taskId;
-          
+
           // Broadcast task update
           realtimeService.broadcastTaskStatusChange(task.toObject());
         }
@@ -182,7 +191,7 @@ export const createAlert = async (
           const previousStatus = device.status;
           device.status = "MAINTENANCE";
           device.errorReason = title;
-          
+
           // Add to status history
           if (!device.statusHistory) {
             device.statusHistory = [];
@@ -193,11 +202,11 @@ export const createAlert = async (
             reason: `Emergency: ${title}`,
             changedBy: metadata?.workerName || metadata?.reportedBy || "System"
           });
-          
+
           await device.save();
           emergencyActions.deviceSetToMaintenance = deviceId;
           emergencyActions.previousDeviceStatus = previousStatus;
-          
+
           // Broadcast device update
           realtimeService.broadcastDeviceUpdate(device.toObject());
         }
@@ -215,9 +224,13 @@ export const createAlert = async (
       device: deviceId,
       task: taskId,
       project: projectId,
+      reportedBy,
       metadata: {
         ...metadata,
-        emergencyActions: Object.keys(emergencyActions).length > 0 ? emergencyActions : undefined
+        emergencyActions:
+          Object.keys(emergencyActions).length > 0
+            ? emergencyActions
+            : undefined
       },
       status: "UNREAD",
       ...additionalData
@@ -230,12 +243,16 @@ export const createAlert = async (
 
     const response: APIResponse = {
       success: true,
-      message: type === "EMERGENCY" 
-        ? "Emergency alert created with automatic actions" 
-        : "Alert created successfully",
+      message:
+        type === "EMERGENCY"
+          ? "Emergency alert created with automatic actions"
+          : "Alert created successfully",
       data: {
         alert,
-        emergencyActions: Object.keys(emergencyActions).length > 0 ? emergencyActions : undefined
+        emergencyActions:
+          Object.keys(emergencyActions).length > 0
+            ? emergencyActions
+            : undefined
       }
     };
 
@@ -374,6 +391,24 @@ export const resolveAlert = async (
 
     await alert.save();
     await alert.populate("acknowledgedBy", "name username email");
+
+    if (alert.type === "MACHINE_ERROR") {
+      const device = await Device.findById(alert.device);
+      if (device) {
+        device.status = "ONLINE";
+        if (!device.statusHistory) {
+          device.statusHistory = [];
+        }
+        device.statusHistory.push({
+          status: "ONLINE",
+          changedAt: new Date(),
+          reason: `Machine error resolved: ${alert.message}`,
+          changedBy: alert.reportedBy?.toString() || "System"
+        });
+        await device.save();
+        realtimeService.broadcastDeviceUpdate(device.toObject());
+      }
+    }
 
     const response: APIResponse = {
       success: true,
@@ -525,6 +560,14 @@ export const bulkResolveAlerts = async (
       return;
     }
 
+    const unresolvedEquipmentErrors = await Alert.find({
+      _id: { $in: alertIds },
+      type: "MACHINE_ERROR",
+      status: {
+        $ne: "RESOLVED"
+      }
+    });
+
     const result = await Alert.updateMany(
       { _id: { $in: alertIds } },
       {
@@ -534,6 +577,24 @@ export const bulkResolveAlerts = async (
         }
       }
     );
+
+    for (const unresolvedEquipmentError of unresolvedEquipmentErrors) {
+      const device = await Device.findById(unresolvedEquipmentError.device);
+      if (device) {
+        device.status = "ONLINE";
+        if (!device.statusHistory) {
+          device.statusHistory = [];
+        }
+        device.statusHistory.push({
+          status: "ONLINE",
+          changedAt: new Date(),
+          reason: `Machine error resolved: ${unresolvedEquipmentError.message}`,
+          changedBy: unresolvedEquipmentError.reportedBy?.toString() || "System"
+        });
+        await device.save();
+        realtimeService.broadcastDeviceUpdate(device.toObject());
+      }
+    }
 
     const response: APIResponse = {
       success: true,
@@ -649,15 +710,19 @@ export const resolveEmergencyAlert = async (
 
     // Auto-restore device to ONLINE if it was set to MAINTENANCE
     if (alert.device) {
-      const deviceId = typeof alert.device === 'object' ? (alert.device as any)._id : alert.device;
+      const deviceId =
+        typeof alert.device === "object"
+          ? (alert.device as any)._id
+          : alert.device;
       const device = await Device.findById(deviceId);
-      
+
       if (device && device.status === "MAINTENANCE") {
         // Get previous status from emergency actions metadata
-        const previousStatus = alert.metadata?.emergencyActions?.previousDeviceStatus || "ONLINE";
+        const previousStatus =
+          alert.metadata?.emergencyActions?.previousDeviceStatus || "ONLINE";
         device.status = previousStatus;
         device.errorReason = undefined;
-        
+
         // Add to status history
         if (!device.statusHistory) {
           device.statusHistory = [];
@@ -665,13 +730,13 @@ export const resolveEmergencyAlert = async (
         device.statusHistory.push({
           status: previousStatus,
           changedAt: new Date(),
-          reason: `Emergency resolved: ${resolutionNotes || 'Issue fixed'}`,
+          reason: `Emergency resolved: ${resolutionNotes || "Issue fixed"}`,
           changedBy: resolvedBy || req.user?.name || "Admin"
         });
-        
+
         await device.save();
         actionsPerformed.equipmentRestored = device.name || deviceId.toString();
-        
+
         // Broadcast device update
         realtimeService.broadcastDeviceUpdate(device.toObject());
       }
@@ -679,30 +744,32 @@ export const resolveEmergencyAlert = async (
 
     // Auto-resume paused task if it was paused by this emergency
     if (alert.task) {
-      const taskId = typeof alert.task === 'object' ? (alert.task as any)._id : alert.task;
+      const taskId =
+        typeof alert.task === "object" ? (alert.task as any)._id : alert.task;
       const task = await Task.findById(taskId);
-      
+
       if (task && task.status === "PAUSED_EMERGENCY") {
         task.status = "ONGOING";
-        
+
         // Update the last pause entry with resolution info
         if (task.pauseHistory && task.pauseHistory.length > 0) {
           const lastPause = task.pauseHistory[task.pauseHistory.length - 1];
           if (!lastPause.resumedAt) {
             lastPause.resumedAt = new Date();
             lastPause.resolvedBy = resolvedBy || req.user?.name || "Admin";
-            
+
             // Calculate paused duration
             const pauseDuration = Math.floor(
-              (lastPause.resumedAt.getTime() - lastPause.pausedAt.getTime()) / (1000 * 60)
+              (lastPause.resumedAt.getTime() - lastPause.pausedAt.getTime()) /
+                (1000 * 60)
             );
             task.pausedDuration = (task.pausedDuration || 0) + pauseDuration;
           }
         }
-        
+
         await task.save();
         actionsPerformed.taskResumed = task.title || taskId.toString();
-        
+
         // Broadcast task update
         realtimeService.broadcastTaskStatusChange(task.toObject());
       }

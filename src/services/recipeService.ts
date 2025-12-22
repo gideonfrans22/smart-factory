@@ -29,15 +29,8 @@ export class RecipeService {
         return null;
       }
 
-      // Count existing recipes for this product (excluding soft-deleted ones)
-      const recipeCount = await Recipe.countDocuments({
-        product: productId,
-        deletedAt: null
-      });
-
-      // Generate format: {designNumber}-{count+1}
-      // count+1 because we're generating for the next recipe
-      const recipeNumber = `${product.designNumber}-${recipeCount + 1}`;
+      // Generate format: {designNumber}
+      const recipeNumber = `${product.designNumber}`;
       return recipeNumber;
     } catch (error) {
       console.error("Error generating recipe number:", error);
