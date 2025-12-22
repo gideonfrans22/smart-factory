@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Alert, Device } from "../models";
 import { realtimeService } from "../services/realtimeService";
+import { getIO } from "../config/websocket";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 export const getAlerts = async (req: Request, res: Response): Promise<void> => {
@@ -299,6 +300,17 @@ export const acknowledgeAlert = async (
     await alert.save();
     await alert.populate("acknowledgedBy", "name username email");
 
+    // Emit WebSocket event for real-time Monitor TV update
+    const io = getIO();
+    const acknowledgedPayload = {
+      alertId: (alert._id as any)?.toString() || alert.id,
+      acknowledgedBy: userId?.toString() || "system",
+      acknowledgedAt: alert.acknowledgedAt.toISOString(),
+      timestamp: Date.now()
+    };
+    io.to("alerts").emit("alert:acknowledged", acknowledgedPayload);
+    io.to("global").emit("alert:acknowledged", acknowledgedPayload);
+
     const response: APIResponse = {
       success: true,
       message: "Alert acknowledged successfully",
@@ -409,6 +421,17 @@ export const resolveAlert = async (
         realtimeService.broadcastDeviceUpdate(device.toObject());
       }
     }
+
+    // Emit WebSocket event for real-time Monitor TV update
+    const io = getIO();
+    const resolvedPayload = {
+      alertId: (alert._id as any)?.toString() || alert.id,
+      resolvedBy: req.user?.id || "system",
+      resolvedAt: alert.resolvedAt.toISOString(),
+      timestamp: Date.now()
+    };
+    io.to("alerts").emit("alert:resolved", resolvedPayload);
+    io.to("global").emit("alert:resolved", resolvedPayload);
 
     const response: APIResponse = {
       success: true,
@@ -595,6 +618,18 @@ export const bulkResolveAlerts = async (
         realtimeService.broadcastDeviceUpdate(device.toObject());
       }
     }
+
+    // Emit WebSocket events for bulk resolution
+    const io = getIO();
+    const bulkResolvedPayload = {
+      alertIds: alertIds,
+      resolvedBy: req.user?.id || "system",
+      resolvedAt: new Date().toISOString(),
+      count: result.modifiedCount,
+      timestamp: Date.now()
+    };
+    io.to("alerts").emit("alert:bulk-resolved", bulkResolvedPayload);
+    io.to("global").emit("alert:bulk-resolved", bulkResolvedPayload);
 
     const response: APIResponse = {
       success: true,

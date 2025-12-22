@@ -23,6 +23,9 @@ export const getDevices = async (
     const total = await Device.countDocuments(query);
     const devices = await Device.find(query)
       .setOptions({ includeDeleted: false })
+      .populate("deviceType", "_id name")
+      .populate("currentUser", "_id name username")
+      .populate("currentTask", "_id title status progress")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });

@@ -599,6 +599,34 @@ class RealtimeService {
       console.error("❌ Error broadcasting task generation:", error);
     }
   }
+
+  /**
+   * Emit layout monitor display toggle event
+   * Notifies monitor TV when admin toggles isMonitorDisplay
+   */
+  public emitLayoutMonitorDisplayToggled(data: {
+    layoutId: string;
+    layoutName: string;
+    isMonitorDisplay: boolean;
+    previousValue: boolean;
+    timestamp: number;
+  }): void {
+    try {
+      const io = getIO();
+      
+      // Broadcast to monitor displays
+      io.to("monitors").emit("layout:monitorDisplayToggled", data);
+      
+      // Also broadcast to global for admin dashboards
+      io.to("global").emit("layout:monitorDisplayToggled", data);
+      
+      console.log(
+        `📤 Layout monitor display toggled: ${data.layoutName} → ${data.isMonitorDisplay ? 'SHOW' : 'HIDE'}`
+      );
+    } catch (error) {
+      console.error("❌ Error emitting layout monitor display toggle:", error);
+    }
+  }
 }
 
 // Export singleton instance

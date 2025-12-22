@@ -176,8 +176,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     user.lastLoginAt = new Date();
     await user.save();
 
-    // Generate JWT token
-    // Access Token: { sub, role, username (workers only), iat, exp }
+    // Generate JWT token with username-based expiration
+    // Monitor user (username="monitor"): 365 days
+    // Admin/Worker: 24 hours
     const accessTokenPayload: JWTPayload = {
       sub: (user._id as any).toString(),
       role: user.role,
@@ -186,10 +187,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         : {})
     };
 
-    const accessToken = generateToken(
-      accessTokenPayload,
-      user.username === "monitor" ? "365d" : "24h"
-    ); // 24 hours
+    // Set token expiration: monitor gets 365 days, others get 24 hours
+    const tokenExpiration = user.username === "monitor" ? "365d" : "24h";
+    const accessToken = generateToken(accessTokenPayload, tokenExpiration);
 
     const response: APIResponse = {
       success: true,

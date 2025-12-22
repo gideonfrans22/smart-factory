@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { GridLayout } from "../models/GridLayout";
 import { Device } from "../models/Device";
+import { realtimeService } from "../services/realtimeService";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 /**
@@ -12,16 +13,30 @@ export const getGridLayouts = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, isMonitorDisplay } = req.query;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
-    const total = await GridLayout.countDocuments();
-    const layouts = await GridLayout.find()
+    // Build query filter
+    const query: any = {};
+    if (isMonitorDisplay === 'true') {
+      query.isMonitorDisplay = true;
+    }
+
+    const total = await GridLayout.countDocuments(query);
+    const layouts = await GridLayout.find(query)
       .populate("createdBy", "name email username")
-      .populate("devices.deviceId", "name status deviceTypeId location")
+      .populate({
+        path: "devices.deviceId",
+        select: "name status deviceTypeId location currentUser currentTask",
+        populate: [
+          { path: "deviceType", select: "_id name" },
+          { path: "currentUser", select: "_id name username" },
+          { path: "currentTask", select: "_id title status progress" }
+        ]
+      })
       .skip(skip)
       .limit(limitNum)
       .sort({ isDefault: -1, createdAt: -1 });
@@ -305,6 +320,12 @@ export const updateGridLayout = async (
     if (rows !== undefined) layout.rows = rows;
     if (devices !== undefined) layout.devices = devices;
     if (isDefault !== undefined) layout.isDefault = isDefault;
+    
+    // Track if isMonitorDisplay changed for WebSocket notification
+    const isMonitorDisplayChanged = isMonitorDisplay !== undefined && 
+      layout.isMonitorDisplay !== isMonitorDisplay;
+    const oldIsMonitorDisplay = layout.isMonitorDisplay;
+    
     if (isMonitorDisplay !== undefined)
       layout.isMonitorDisplay = isMonitorDisplay;
 
@@ -313,6 +334,17 @@ export const updateGridLayout = async (
       { path: "createdBy", select: "name email username" },
       { path: "devices.deviceId", select: "name status deviceTypeId location" }
     ]);
+
+    // Emit WebSocket event if isMonitorDisplay toggled
+    if (isMonitorDisplayChanged) {
+      realtimeService.emitLayoutMonitorDisplayToggled({
+        layoutId: layout._id.toString(),
+        layoutName: layout.name,
+        isMonitorDisplay: layout.isMonitorDisplay,
+        previousValue: oldIsMonitorDisplay,
+        timestamp: Date.now()
+      });
+    }
 
     const response: APIResponse = {
       success: true,
