@@ -15,20 +15,12 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
       taskId,
       projectId,
       reportedBy,
+      search,
       page = 1,
       limit = 10,
       sortBy = "createdAt",
       sortOrder = "desc"
     } = req.query;
-
-    const query: any = {};
-    if (type) query.type = type;
-    if (status) query.status = status;
-    if (level) query.level = level;
-    if (deviceId) query.device = deviceId;
-    if (taskId) query.task = taskId;
-    if (projectId) query.project = projectId;
-    if (reportedBy) query.reportedBy = reportedBy;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -39,15 +31,144 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
     const sortDirection = sortOrder === "asc" ? 1 : -1;
     const sortObject: any = { [sortField]: sortDirection };
 
-    const total = await Alert.countDocuments(query);
-    let alerts: any = await Alert.find(query)
-      .populate("acknowledgedBy", "name username email")
-      .populate("device")
-      .populate("task")
-      .populate("project")
-      .skip(skip)
-      .limit(limitNum)
-      .sort(sortObject);
+    let total: number;
+    let alerts: any;
+
+    if (search) {
+      // Use aggregation pipeline to search through all metadata fields
+      const searchRegex = new RegExp(search as string, "i");
+
+      // Build base filters
+      const baseFilters: any = {};
+      if (type) baseFilters.type = type;
+      if (status) baseFilters.status = status;
+      if (level) baseFilters.level = level;
+      if (deviceId) {
+        try {
+          baseFilters.device = new mongoose.Types.ObjectId(deviceId as string);
+        } catch {
+          baseFilters.device = deviceId;
+        }
+      }
+      if (taskId) {
+        try {
+          baseFilters.task = new mongoose.Types.ObjectId(taskId as string);
+        } catch {
+          baseFilters.task = taskId;
+        }
+      }
+      if (projectId) {
+        try {
+          baseFilters.project = new mongoose.Types.ObjectId(
+            projectId as string
+          );
+        } catch {
+          baseFilters.project = projectId;
+        }
+      }
+      if (reportedBy) {
+        try {
+          baseFilters.reportedBy = new mongoose.Types.ObjectId(
+            reportedBy as string
+          );
+        } catch {
+          baseFilters.reportedBy = reportedBy;
+        }
+      }
+
+      // Build search conditions
+      const searchConditions = {
+        $or: [
+          { title: searchRegex },
+          { message: searchRegex },
+          // Search through all metadata fields by converting object to array of values
+          {
+            $expr: {
+              $gt: [
+                {
+                  $size: {
+                    $filter: {
+                      input: { $objectToArray: "$metadata" },
+                      as: "field",
+                      cond: {
+                        $regexMatch: {
+                          input: { $toString: "$$field.v" },
+                          regex: search as string,
+                          options: "i"
+                        }
+                      }
+                    }
+                  }
+                },
+                0
+              ]
+            }
+          }
+        ]
+      };
+
+      // Build match stage - combine base filters with search conditions
+      const matchStage: any = {};
+      if (Object.keys(baseFilters).length > 0) {
+        matchStage.$and = [baseFilters, searchConditions];
+      } else {
+        Object.assign(matchStage, searchConditions);
+      }
+
+      const aggregationPipeline: any[] = [
+        {
+          $match: matchStage
+        }
+      ];
+
+      // Add pagination and sorting
+      aggregationPipeline.push(
+        { $sort: sortObject },
+        { $skip: skip },
+        { $limit: limitNum }
+      );
+
+      // Get total count with same filters
+      const countPipeline = [
+        ...aggregationPipeline.slice(0, -2) // Remove skip and limit
+      ];
+      const countResult = await Alert.aggregate([
+        ...countPipeline,
+        { $count: "total" }
+      ]);
+      total = countResult.length > 0 ? countResult[0].total : 0;
+
+      // Execute aggregation with pagination
+      alerts = await Alert.aggregate(aggregationPipeline);
+
+      // Populate references manually since aggregation doesn't support populate
+      alerts = await Alert.populate(alerts, [
+        { path: "acknowledgedBy", select: "name username email" },
+        { path: "device" },
+        { path: "task" },
+        { path: "project" }
+      ]);
+    } else {
+      // No search term - use regular find query
+      const query: any = {};
+      if (type) query.type = type;
+      if (status) query.status = status;
+      if (level) query.level = level;
+      if (deviceId) query.device = deviceId;
+      if (taskId) query.task = taskId;
+      if (projectId) query.project = projectId;
+      if (reportedBy) query.reportedBy = reportedBy;
+
+      total = await Alert.countDocuments(query);
+      alerts = await Alert.find(query)
+        .populate("acknowledgedBy", "name username email")
+        .populate("device")
+        .populate("task")
+        .populate("project")
+        .skip(skip)
+        .limit(limitNum)
+        .sort(sortObject);
+    }
 
     const response: APIResponse = {
       success: true,
