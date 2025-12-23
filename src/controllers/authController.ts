@@ -313,11 +313,11 @@ export const workerLogin = async (
     // Find worker
     const worker = await User.findById(workerId);
 
-    if (!worker || worker.role !== "worker" || !worker.isActive) {
+    if (!worker || worker.role !== "worker") {
       const response: APIResponse = {
         success: false,
         error: "INVALID_CREDENTIALS",
-        message: "Invalid worker ID or worker is inactive"
+        message: "Invalid worker ID"
       };
       res.status(401).json(response);
       return;
@@ -345,6 +345,7 @@ export const workerLogin = async (
 
     // Update worker's last login
     worker.lastLoginAt = new Date();
+    worker.isActive = true;
     await worker.save();
 
     // Generate JWT token

@@ -12,6 +12,7 @@ export interface IUser extends Document {
   failedLoginAttempts: number;
   lockedUntil?: Date;
   modifiedBy?: mongoose.Types.ObjectId;
+  deletedAt?: Date; // for soft delete
   createdAt: Date;
   updatedAt: Date;
 }
@@ -72,6 +73,9 @@ const UserSchema: Schema = new Schema(
     modifiedBy: {
       type: Schema.Types.ObjectId,
       ref: "User"
+    },
+    deletedAt: {
+      type: Date
     }
   },
   {
@@ -84,6 +88,15 @@ const UserSchema: Schema = new Schema(
 // translate _id to id
 UserSchema.virtual("id").get(function (this: IUser) {
   return this._id;
+});
+
+// Query middleware to exclude soft-deleted documents by default
+UserSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
+  const options = this.getOptions();
+  if (!(options as any).includeDeleted) {
+    this.where({ deletedAt: null });
+  }
+  next();
 });
 
 // WARNING NEVER AUTO POPULATE MODIFIEDBY

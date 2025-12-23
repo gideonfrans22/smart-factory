@@ -101,6 +101,7 @@ export const getUserById = async (
         role: user.role,
         department: user.department,
         isActive: user.isActive,
+        deletedAt: user.deletedAt ?? null,
         lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString()
@@ -321,7 +322,13 @@ export const updateUser = async (
     // If worker updated, emit WebSocket event to all devices using this worker
     if (user.role === "worker") {
       const devices = await Device.find({ currentUser: user._id });
-
+      // update device.currentUser to null if user is not active
+      if (!user.isActive) {
+        await Device.updateMany(
+          { currentUser: user._id },
+          { $set: { currentUser: null } }
+        );
+      }
       // Emit device status update for each device to refresh currentUser info
       for (const device of devices) {
         await realtimeService.broadcastDeviceUpdate(device);
@@ -383,15 +390,19 @@ export const deleteUser = async (
 
     // Check if user is admin
     if (user.role === "admin") {
-      // Count remaining admins
-      const adminCount = await User.countDocuments({ role: "admin" });
+      // Count remaining non-deleted admins
+      const adminCount = await User.countDocuments({
+        role: "admin",
+        deletedAt: null
+      });
 
       // Ensure at least 1 admin remains
       if (adminCount <= 1) {
         const response: APIResponse = {
           success: false,
           error: "FORBIDDEN",
-          message: "Cannot delete last admin. At least one admin must remain in the system."
+          message:
+            "Cannot delete last admin. At least one admin must remain in the system."
         };
         res.status(403).json(response);
         return;
@@ -427,11 +438,16 @@ export const deleteUser = async (
       return;
     }
 
-    // Delete the user
-    await User.findByIdAndDelete(id);
+    // Soft delete the user
+    user.isActive = false;
+    (user as any).deletedAt = new Date();
+    await user.save();
 
-    // Count remaining admins after deletion
-    const remainingAdmins = await User.countDocuments({ role: "admin" });
+    // Count remaining non-deleted admins after deletion
+    const remainingAdmins = await User.countDocuments({
+      role: "admin",
+      deletedAt: null
+    });
 
     const response: APIResponse = {
       success: true,
