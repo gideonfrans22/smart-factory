@@ -946,7 +946,7 @@ export const resumeTask = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { resolvedBy } = req.body;
+    const { resolvedBy = "System" } = req.body || {};
 
     // Find task
     const task = await Task.findById(id);
