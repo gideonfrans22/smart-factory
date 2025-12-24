@@ -250,7 +250,6 @@ class RealtimeService {
         updatedAt: task.updatedAt
       };
 
-      console.log("🔔 Task status change:", payload);
       // Publish to MQTT
       mqttService.publish(`task/${task._id}/status`, payload);
       if (task.deviceId) {
@@ -274,6 +273,7 @@ class RealtimeService {
       if (task.deviceTypeId) {
         const deviceTypeId =
           task.deviceTypeId._id || (task.deviceTypeId as any)?.toString();
+        console.log("🔔 Task status change:", payload, deviceTypeId);
         io.to(`devicetype:${deviceTypeId}`).emit(
           "devicetype:task:status",
           payload
