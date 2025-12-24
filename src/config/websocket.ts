@@ -2,6 +2,13 @@ import { Server as HTTPServer } from "http";
 import { Server as SocketIOServer, Socket } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { createClient } from "redis";
+import {
+  initializeDeviceOccupationService,
+  isDeviceOccupied,
+  setDeviceOccupied,
+  releaseDevice,
+  releaseDeviceBySocketId
+} from "../services/deviceOccupationService";
 // import jwt from "jsonwebtoken";
 
 let io: SocketIOServer;
@@ -40,6 +47,14 @@ export const initializeWebSocket = async (
     console.warn(
       "⚠️ Running Socket.IO without Redis adapter (single worker mode recommended)"
     );
+  }
+
+  // Initialize device occupation service
+  try {
+    await initializeDeviceOccupationService();
+  } catch (error) {
+    console.error("❌ Failed to initialize device occupation service:", error);
+    console.warn("⚠️ Device occupation checks will be disabled");
   }
 
   // Authentication middleware (currently disabled to match REST API auth state)
@@ -93,19 +108,63 @@ export const initializeWebSocket = async (
       console.log(`📂 Socket ${socket.id} left project room: ${projectId}`);
     });
 
-    // Join device-specific room
-    socket.on("join:device", (deviceId: string) => {
-      if (!deviceId) return;
-      socket.join(`device:${deviceId}`);
-      console.log(`🤖 Socket ${socket.id} joined device room: ${deviceId}`);
-      socket.emit("joined", { room: "device", id: deviceId });
+    // Join device-specific room (with occupation check)
+    socket.on("join:device", async (deviceId: string) => {
+      if (!deviceId) {
+        socket.emit("device:join:error", { message: "Device ID is required" });
+        return;
+      }
+
+      try {
+        // Check if device is already occupied
+        const occupation = await isDeviceOccupied(deviceId);
+        if (occupation.isOccupied && occupation.socketId !== socket.id) {
+          // Device is occupied by another tablet
+          console.log(
+            `⚠️ Device ${deviceId} is already occupied by socket ${occupation.socketId}, rejecting socket ${socket.id}`
+          );
+          socket.emit("device:join:error", {
+            message: "Device is already in use by another tablet",
+            deviceId,
+            occupiedBy: occupation.socketId
+          });
+          return;
+        }
+
+        // Mark device as occupied by this socket
+        await setDeviceOccupied(deviceId, socket.id);
+        socket.data.deviceId = deviceId; // Store deviceId in socket data for cleanup
+
+        // Join the device room
+        socket.join(`device:${deviceId}`);
+        console.log(`🤖 Socket ${socket.id} joined device room: ${deviceId}`);
+        socket.emit("joined", { room: "device", id: deviceId });
+        socket.emit("device:join:success", { deviceId });
+      } catch (error) {
+        console.error(`❌ Error joining device room ${deviceId}:`, error);
+        socket.emit("device:join:error", {
+          message: "Failed to join device room",
+          deviceId
+        });
+      }
     });
 
-    // Leave device room
-    socket.on("leave:device", (deviceId: string) => {
+    // Leave device room (and release occupation)
+    socket.on("leave:device", async (deviceId: string) => {
       if (!deviceId) return;
-      socket.leave(`device:${deviceId}`);
-      console.log(`🤖 Socket ${socket.id} left device room: ${deviceId}`);
+
+      try {
+        // Release device occupation
+        await releaseDevice(deviceId);
+        socket.leave(`device:${deviceId}`);
+        delete socket.data.deviceId;
+        console.log(`🤖 Socket ${socket.id} left device room: ${deviceId}`);
+      } catch (error) {
+        console.error(`❌ Error leaving device room ${deviceId}:`, error);
+        // Still leave the room even if release fails
+        socket.leave(`device:${deviceId}`);
+        delete socket.data.deviceId;
+      }
     });
 
     // Join task-specific room
@@ -181,11 +240,33 @@ export const initializeWebSocket = async (
       socket.emit("pong");
     });
 
-    // Disconnect handler
-    socket.on("disconnect", (reason) => {
+    // Disconnect handler (release device occupation)
+    socket.on("disconnect", async (reason) => {
       console.log(
         `❌ WebSocket client disconnected: ${socket.id} - Reason: ${reason}`
       );
+
+      // Release device occupation if socket was connected to a device
+      if (socket.data.deviceId) {
+        try {
+          await releaseDevice(socket.data.deviceId);
+          console.log(
+            `✅ Released device ${socket.data.deviceId} on disconnect`
+          );
+        } catch (error) {
+          console.error(
+            `❌ Error releasing device ${socket.data.deviceId} on disconnect:`,
+            error
+          );
+        }
+      } else {
+        // Fallback: try to release by socket ID (in case deviceId wasn't stored)
+        try {
+          await releaseDeviceBySocketId(socket.id);
+        } catch (error) {
+          // Ignore errors - this is best effort cleanup
+        }
+      }
     });
 
     // Error handler
