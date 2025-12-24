@@ -250,6 +250,7 @@ class RealtimeService {
         updatedAt: task.updatedAt
       };
 
+      console.log("🔔 Task status change:", payload);
       // Publish to MQTT
       mqttService.publish(`task/${task._id}/status`, payload);
       if (task.deviceId) {
@@ -613,15 +614,17 @@ class RealtimeService {
   }): void {
     try {
       const io = getIO();
-      
+
       // Broadcast to monitor displays
       io.to("monitors").emit("layout:monitorDisplayToggled", data);
-      
+
       // Also broadcast to global for admin dashboards
       io.to("global").emit("layout:monitorDisplayToggled", data);
-      
+
       console.log(
-        `📤 Layout monitor display toggled: ${data.layoutName} → ${data.isMonitorDisplay ? 'SHOW' : 'HIDE'}`
+        `📤 Layout monitor display toggled: ${data.layoutName} → ${
+          data.isMonitorDisplay ? "SHOW" : "HIDE"
+        }`
       );
     } catch (error) {
       console.error("❌ Error emitting layout monitor display toggle:", error);
