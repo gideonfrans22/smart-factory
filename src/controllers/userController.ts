@@ -323,7 +323,7 @@ export const updateUser = async (
     if (user.role === "worker") {
       const devices = await Device.find({ currentUser: user._id });
       // update device.currentUser to null if user is not active
-      if (!user.isActive) {
+      if (!user.isActive && devices.length > 0) {
         await Device.updateMany(
           { currentUser: user._id },
           { $set: { currentUser: null } }
