@@ -1,5 +1,7 @@
 import { Server as HTTPServer } from "http";
 import { Server as SocketIOServer, Socket } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { createClient } from "redis";
 // import jwt from "jsonwebtoken";
 
 let io: SocketIOServer;
@@ -8,7 +10,9 @@ let io: SocketIOServer;
  * Initialize Socket.IO server for real-time communication
  * Provides WebSocket connections for frontend dashboards
  */
-export const initializeWebSocket = (httpServer: HTTPServer): SocketIOServer => {
+export const initializeWebSocket = async (
+  httpServer: HTTPServer
+): Promise<SocketIOServer> => {
   io = new SocketIOServer(httpServer, {
     path: "/ws",
     cors: {
@@ -18,6 +22,25 @@ export const initializeWebSocket = (httpServer: HTTPServer): SocketIOServer => {
     pingTimeout: 60000,
     pingInterval: 25000
   });
+
+  // Add Redis adapter for multi-worker support
+  const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+
+  try {
+    const pubClient = createClient({ url: redisUrl });
+    const subClient = pubClient.duplicate();
+
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+
+    io.adapter(createAdapter(pubClient, subClient));
+
+    console.log("✅ Socket.IO Redis adapter connected");
+  } catch (error) {
+    console.error("❌ Redis adapter connection failed:", error);
+    console.warn(
+      "⚠️ Running Socket.IO without Redis adapter (single worker mode recommended)"
+    );
+  }
 
   // Authentication middleware (currently disabled to match REST API auth state)
   io.use((socket: Socket, next) => {
