@@ -121,7 +121,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
       })
       .populate(
         "productSnapshotId",
-        "name version customerName personInCharge department"
+        "name version productNumber customerName personInCharge department"
       )
       .skip(skip)
       .limit(limitNum)
@@ -178,7 +178,7 @@ export const getTaskById = async (
       })
       .populate(
         "productSnapshotId",
-        "name version customerName personInCharge department"
+        "name version productNumber customerName personInCharge department"
       )
       .populate("dependentTask", "title status");
 
