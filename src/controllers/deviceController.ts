@@ -4,6 +4,7 @@ import { Device } from "../models/Device";
 import { DeviceType } from "../models/DeviceType";
 import { Task } from "../models/Task";
 import { realtimeService } from "../services/realtimeService";
+import { isDeviceOccupied } from "../services/deviceOccupationService";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 export const getDevices = async (
@@ -849,6 +850,70 @@ export const workerLogoutFromDevice = async (
     res.json(response);
   } catch (error) {
     console.error("Worker logout from device error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Check if a device is available for tablet setup
+ * @route GET /api/devices/:id/availability
+ */
+export const checkDeviceAvailability = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Device ID is required"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Check if device exists
+    const device = await Device.findById(id).setOptions({
+      includeDeleted: false
+    });
+
+    if (!device) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Device not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Check if device is occupied in Redis
+    const occupation = await isDeviceOccupied(id);
+
+    const response: APIResponse = {
+      success: true,
+      message: occupation.isOccupied
+        ? "Device is currently occupied"
+        : "Device is available",
+      data: {
+        deviceId: id,
+        available: !occupation.isOccupied,
+        occupied: occupation.isOccupied,
+        occupiedBy: occupation.socketId || null
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Check device availability error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",

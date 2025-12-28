@@ -136,7 +136,7 @@ const startServer = async (): Promise<void> => {
     const httpServer = http.createServer(app);
 
     // Initialize WebSocket server
-    initializeWebSocket(httpServer);
+    await initializeWebSocket(httpServer);
     console.log("🔌 WebSocket server ready");
 
     // Initialize MQTT message handlers (bridges MQTT → WebSocket)
@@ -186,13 +186,15 @@ const startServer = async (): Promise<void> => {
 
 // Handle graceful shutdown for worker processes
 const gracefulShutdown = async (signal: string) => {
-  console.log(`\n📤 ${signal} received on worker ${process.pid}, shutting down gracefully...`);
-  
+  console.log(
+    `\n📤 ${signal} received on worker ${process.pid}, shutting down gracefully...`
+  );
+
   try {
     // Disconnect MQTT
     mqttService.disconnect();
     console.log("✅ MQTT disconnected");
-    
+
     // Give time for ongoing requests to complete
     setTimeout(() => {
       console.log("✅ Worker shutdown complete");
@@ -215,7 +217,12 @@ process.on("uncaughtException", (error) => {
 
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (reason, promise) => {
-  console.error("❌ Worker unhandled rejection at:", promise, "reason:", reason);
+  console.error(
+    "❌ Worker unhandled rejection at:",
+    promise,
+    "reason:",
+    reason
+  );
   gracefulShutdown("unhandledRejection");
 });
 

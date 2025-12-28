@@ -15,7 +15,11 @@ export const getMonitorOverview = async (
 ): Promise<void> => {
   try {
     const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfDay = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -47,7 +51,7 @@ export const getMonitorOverview = async (
       Task.countDocuments({}),
       Task.countDocuments({ status: "COMPLETED" }),
       Task.countDocuments({ status: "PENDING" }),
-      
+
       // Deadline Compliance (completed tasks where completedAt <= deadline)
       Task.countDocuments({
         status: "COMPLETED",
@@ -56,13 +60,16 @@ export const getMonitorOverview = async (
         $expr: { $lte: ["$completedAt", "$deadline"] }
       }),
       Task.countDocuments({ status: "COMPLETED" }),
-      
+
       // Urgent tasks (status !== COMPLETED AND deadline approaching/past - within 24 hours or overdue)
       Task.countDocuments({
         status: { $ne: "COMPLETED" },
-        deadline: { $exists: true, $lt: new Date(Date.now() + 24 * 60 * 60 * 1000) }
+        deadline: {
+          $exists: true,
+          $lt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+        }
       }),
-      
+
       // Productivity by period
       Task.countDocuments({
         status: "COMPLETED",
@@ -76,7 +83,7 @@ export const getMonitorOverview = async (
         status: "COMPLETED",
         completedAt: { $gte: startOfMonth }
       }),
-      
+
       // Alerts grouped by type
       Alert.aggregate([
         { $match: { status: "PENDING" } },
@@ -87,28 +94,33 @@ export const getMonitorOverview = async (
           }
         }
       ]),
-      
+
       // Equipment Utilization
       Device.countDocuments({}),
       Device.countDocuments({ status: "ONLINE" }),
       Device.countDocuments({ status: "OFFLINE" }),
       Device.countDocuments({ status: "MAINTENANCE" }),
       Device.countDocuments({ status: "ERROR" }),
-      
-      // Workers
-      User.countDocuments({ role: "WORKER", isActive: true }),
-      Device.countDocuments({ status: "ONLINE", currentUser: { $exists: true, $ne: null } }),
-      
+
+      // Workers - count non-deleted, active workers
+      User.countDocuments({ role: "worker", isActive: true, deletedAt: null }),
+      Device.countDocuments({
+        status: "ONLINE",
+        currentUser: { $exists: true, $ne: null }
+      }),
+
       // Alert Summary
       Alert.countDocuments({}),
       Alert.countDocuments({ status: "RESOLVED" }),
-      
+
       // Device errors by type
       Alert.aggregate([
         {
           $match: {
             deviceId: { $exists: true },
-            type: { $in: ["EQUIPMENT_FAILURE", "DEVICE_ERROR", "MAINTENANCE_REQUIRED"] }
+            type: {
+              $in: ["EQUIPMENT_FAILURE", "DEVICE_ERROR", "MAINTENANCE_REQUIRED"]
+            }
           }
         },
         {
@@ -140,60 +152,79 @@ export const getMonitorOverview = async (
     ]);
 
     // Calculate percentages and metrics
-    const taskProgressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-    const deadlineCompliancePercentage = totalDeliveredTasks > 0 
-      ? Math.round((onTimeTasks / totalDeliveredTasks) * 100) 
-      : 0;
-    
+    const taskProgressPercentage =
+      totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const deadlineCompliancePercentage =
+      totalDeliveredTasks > 0
+        ? Math.round((onTimeTasks / totalDeliveredTasks) * 100)
+        : 0;
+
     // Productivity targets (can be configured or stored in DB)
     const dailyTarget = 50;
     const weeklyTarget = 100;
     const monthlyTarget = 150;
-    
-    const dailyPercentage = dailyTarget > 0 ? Math.round((dailyCompletedTasks / dailyTarget) * 100) : 0;
-    const weeklyPercentage = weeklyTarget > 0 ? Math.round((weeklyCompletedTasks / weeklyTarget) * 100) : 0;
-    const monthlyPercentage = monthlyTarget > 0 ? Math.round((monthlyCompletedTasks / monthlyTarget) * 100) : 0;
-    
+
+    const dailyPercentage =
+      dailyTarget > 0
+        ? Math.round((dailyCompletedTasks / dailyTarget) * 100)
+        : 0;
+    const weeklyPercentage =
+      weeklyTarget > 0
+        ? Math.round((weeklyCompletedTasks / weeklyTarget) * 100)
+        : 0;
+    const monthlyPercentage =
+      monthlyTarget > 0
+        ? Math.round((monthlyCompletedTasks / monthlyTarget) * 100)
+        : 0;
+
     // Equipment utilization
-    const equipmentUtilizationPercentage = totalDevices > 0 
-      ? Math.round((onlineDevices / totalDevices) * 100) 
-      : 0;
-    
+    const equipmentUtilizationPercentage =
+      totalDevices > 0 ? Math.round((onlineDevices / totalDevices) * 100) : 0;
+
     // Worker capacity (can be configured or stored in DB)
     const workerCapacity = 10;
-    const workerPercentage = workerCapacity > 0 
-      ? Math.round((totalWorkers / workerCapacity) * 100) 
-      : 0;
+    const workerPercentage =
+      workerCapacity > 0
+        ? Math.round((totalWorkers / workerCapacity) * 100)
+        : 0;
     const idleWorkers = totalWorkers - activeWorkers;
-    
+
     // Alert summary calculations
     const pendingAlerts = await Alert.countDocuments({ status: "PENDING" });
-    const inProgressAlerts = await Alert.countDocuments({ status: "ACKNOWLEDGED" });
+    const inProgressAlerts = await Alert.countDocuments({
+      status: "ACKNOWLEDGED"
+    });
     const avgResponseTimeMinutes = 12; // TODO: Calculate from actual alert response times
-    const resolutionRate = allAlerts > 0 
-      ? Math.round((resolvedAlerts / allAlerts) * 100) 
-      : 0;
-    
+    const resolutionRate =
+      allAlerts > 0 ? Math.round((resolvedAlerts / allAlerts) * 100) : 0;
+
     // Process error categories with Korean labels
     const errorTypeMap: Record<string, string> = {
-      "EQUIPMENT_FAILURE": "장비결함",
-      "MATERIAL_DEFECT": "소재불량",
-      "CONTROL_ERROR": "통제인지",
-      "QUALITY_ISSUE": "품질이슈",
-      "MAINTENANCE_REQUIRED": "정비필요"
+      EQUIPMENT_FAILURE: "장비결함",
+      MATERIAL_DEFECT: "소재불량",
+      CONTROL_ERROR: "통제인지",
+      QUALITY_ISSUE: "품질이슈",
+      MAINTENANCE_REQUIRED: "정비필요"
     };
-    
-    const totalAlertCount = alertsByType.reduce((sum: number, item: any) => sum + item.count, 0);
+
+    const totalAlertCount = alertsByType.reduce(
+      (sum: number, item: any) => sum + item.count,
+      0
+    );
     const errorCategories = alertsByType.map((item: any) => ({
       name: errorTypeMap[item._id] || item._id,
       count: item.count,
-      percentage: totalAlertCount > 0 
-        ? Math.round((item.count / totalAlertCount) * 100) 
-        : 0
+      percentage:
+        totalAlertCount > 0
+          ? Math.round((item.count / totalAlertCount) * 100)
+          : 0
     }));
-    
+
     // Add "기타" (Others) if there are other alert types
-    const categorizedCount = errorCategories.reduce((sum, cat) => sum + cat.count, 0);
+    const categorizedCount = errorCategories.reduce(
+      (sum, cat) => sum + cat.count,
+      0
+    );
     const otherCount = totalAlertCount - categorizedCount;
     if (otherCount > 0) {
       errorCategories.push({
@@ -202,15 +233,19 @@ export const getMonitorOverview = async (
         percentage: Math.round((otherCount / totalAlertCount) * 100)
       });
     }
-    
+
     // Process device error frequency
-    const totalDeviceErrors = deviceErrorsByType.reduce((sum: any, item: any) => sum + item.count, 0);
+    const totalDeviceErrors = deviceErrorsByType.reduce(
+      (sum: any, item: any) => sum + item.count,
+      0
+    );
     const deviceErrorFrequency = deviceErrorsByType.map((item: any) => ({
       deviceTypeName: item._id,
       errorCount: item.count,
-      percentage: totalDeviceErrors > 0 
-        ? Math.round((item.count / totalDeviceErrors) * 100) 
-        : 0
+      percentage:
+        totalDeviceErrors > 0
+          ? Math.round((item.count / totalDeviceErrors) * 100)
+          : 0
     }));
 
     const response: APIResponse = {
@@ -309,7 +344,7 @@ export const getTaskStatusDistribution = async (
     ]);
 
     const total = distribution.reduce((sum, item) => sum + item.count, 0);
-    
+
     const formattedDistribution = distribution.map((item) => ({
       status: item._id,
       count: item.count,

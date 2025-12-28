@@ -32,11 +32,11 @@ export const authenticateToken = async (
 
     const user = await User.findById(decoded.sub).select("-password");
 
-    if (!user || !user.isActive) {
+    if (!user) {
       const response: APIResponse = {
         success: false,
         error: "UNAUTHORIZED",
-        message: "Invalid or inactive user"
+        message: "Invalid user"
       };
       res.status(401).json(response);
       return;

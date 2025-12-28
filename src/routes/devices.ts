@@ -9,7 +9,8 @@ import {
   getDevicesByTask,
   getDevicesMonitorData,
   workerLoginToDevice,
-  workerLogoutFromDevice
+  workerLogoutFromDevice,
+  checkDeviceAvailability
 } from "../controllers/deviceController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -83,5 +84,12 @@ router.post("/:id/worker-login", authenticateToken, workerLoginToDevice);
  * @access Authenticated workers
  */
 router.post("/:id/worker-logout", authenticateToken, workerLogoutFromDevice);
+
+/**
+ * @route GET /api/devices/:id/availability
+ * @desc Check if device is available for tablet setup
+ * @access Public (for tablet setup)
+ */
+router.get("/:id/availability", checkDeviceAvailability);
 
 export default router;

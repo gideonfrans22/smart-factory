@@ -273,6 +273,7 @@ class RealtimeService {
       if (task.deviceTypeId) {
         const deviceTypeId =
           task.deviceTypeId._id || (task.deviceTypeId as any)?.toString();
+        console.log("🔔 Task status change:", payload, deviceTypeId);
         io.to(`devicetype:${deviceTypeId}`).emit(
           "devicetype:task:status",
           payload
@@ -613,15 +614,17 @@ class RealtimeService {
   }): void {
     try {
       const io = getIO();
-      
+
       // Broadcast to monitor displays
       io.to("monitors").emit("layout:monitorDisplayToggled", data);
-      
+
       // Also broadcast to global for admin dashboards
       io.to("global").emit("layout:monitorDisplayToggled", data);
-      
+
       console.log(
-        `📤 Layout monitor display toggled: ${data.layoutName} → ${data.isMonitorDisplay ? 'SHOW' : 'HIDE'}`
+        `📤 Layout monitor display toggled: ${data.layoutName} → ${
+          data.isMonitorDisplay ? "SHOW" : "HIDE"
+        }`
       );
     } catch (error) {
       console.error("❌ Error emitting layout monitor display toggle:", error);
