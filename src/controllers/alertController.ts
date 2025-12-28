@@ -144,6 +144,7 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
       // Populate references manually since aggregation doesn't support populate
       alerts = await Alert.populate(alerts, [
         { path: "acknowledgedBy", select: "name username email" },
+        { path: "reportedBy", select: "name username email" },
         { path: "device" },
         { path: "task" },
         { path: "project" }
@@ -162,6 +163,7 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
       total = await Alert.countDocuments(query);
       alerts = await Alert.find(query)
         .populate("acknowledgedBy", "name username email")
+        .populate("reportedBy", "name username email")
         .populate("device")
         .populate("task")
         .populate("project")
