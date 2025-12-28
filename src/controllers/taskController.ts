@@ -427,7 +427,7 @@ export const createTask = async (
     await task.save();
     await task.populate([
       { path: "workerId", select: "name username email" },
-      { path: "productSnapshotId", select: "name version" },
+      { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" },
       { path: "recipeSnapshotId", select: "name version" }
     ]);
 
@@ -634,7 +634,7 @@ export const updateTask = async (
       { path: "workerId", select: "name username email" },
       { path: "deviceId", select: "name deviceName" },
       { path: "recipeSnapshotId", select: "name version" },
-      { path: "productSnapshotId", select: "name version" }
+      { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" }
     ]);
 
     // 🆕 Broadcast task status change in real-time
@@ -908,7 +908,7 @@ export const startTask = async (
       { path: "workerId", select: "name username email" },
       { path: "deviceId", select: "name deviceName ipAddress status" },
       { path: "recipeSnapshotId", select: "name version steps" },
-      { path: "productSnapshotId", select: "name version" }
+      { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" }
     ]);
 
     const response: APIResponse = {
@@ -1014,7 +1014,7 @@ export const resumeTask = async (
       { path: "workerId", select: "name username email" },
       { path: "deviceId", select: "name deviceName ipAddress status" },
       { path: "recipeSnapshotId", select: "name version steps" },
-      { path: "productSnapshotId", select: "name version" }
+      { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" }
     ]);
 
     const response: APIResponse = {
@@ -1099,7 +1099,7 @@ export const pauseTask = async (
       { path: "workerId", select: "name username email" },
       { path: "deviceId", select: "name deviceName ipAddress status" },
       { path: "recipeSnapshotId", select: "name version steps" },
-      { path: "productSnapshotId", select: "name version" }
+      { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" }
     ]);
 
     const response: APIResponse = {
@@ -1164,7 +1164,7 @@ export const failTask = async (
       { path: "workerId", select: "name username email" },
       { path: "deviceId", select: "name deviceName ipAddress status" },
       { path: "recipeSnapshotId", select: "name version steps" },
-      { path: "productSnapshotId", select: "name version" }
+      { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" }
     ]);
 
     // Cascade failure to all dependent tasks in the chain
@@ -2381,7 +2381,7 @@ export const getDeviceTasks = async (
         .populate("recipeSnapshotId", "name version steps")
         .populate(
           "productSnapshotId",
-          "name productNumber customerName personInCharge version"
+          "name productNumber customerName personInCharge department version"
         )
         .populate("mediaFiles", "url type filename")
         .populate("dependentTask", "title status")
@@ -2486,7 +2486,7 @@ export const getWorkerTasks = async (
       .populate("recipeSnapshotId", "name version steps")
       .populate(
         "productSnapshotId",
-        "name productNumber customerName personInCharge version"
+        "name productNumber customerName personInCharge department version"
       )
       .skip(skip)
       .limit(limitNum)
@@ -2672,7 +2672,7 @@ export const batchUpdateTasks = async (
         { path: "workerId", select: "name username email" },
         { path: "deviceId", select: "name deviceName" },
         { path: "recipeSnapshotId", select: "name version" },
-        { path: "productSnapshotId", select: "name version" }
+        { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" }
       ])
       .sort({ createdAt: -1 });
 
