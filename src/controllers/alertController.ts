@@ -145,7 +145,7 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
       alerts = await Alert.populate(alerts, [
         { path: "acknowledgedBy", select: "name username email" },
         { path: "reportedBy", select: "name username email" },
-        { path: "device" },
+        { path: "device", populate: { path: "deviceTypeId", select: "name" } },
         { path: "task" },
         { path: "project" }
       ]);
@@ -164,7 +164,10 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
       alerts = await Alert.find(query)
         .populate("acknowledgedBy", "name username email")
         .populate("reportedBy", "name username email")
-        .populate("device")
+        .populate({
+          path: "device",
+          populate: { path: "deviceTypeId", select: "name" }
+        })
         .populate("task")
         .populate("project")
         .skip(skip)
