@@ -8,6 +8,8 @@ import { APIResponse } from "../types";
 /**
  * GET /api/dashboard/monitor-overview
  * Get aggregated metrics for Monitor TV display
+ * 
+ * All task-related metrics are based on the LAST 24 HOURS for real-time monitoring
  */
 export const getMonitorOverview = async (
   _req: Request,
@@ -15,53 +17,95 @@ export const getMonitorOverview = async (
 ): Promise<void> => {
   try {
     const now = new Date();
-    const startOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
+    
+    // Time boundaries
+    const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    // Get days in current month for proper percentage calculation
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const dayOfMonth = now.getDate();
+    const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); // Sunday = 7
 
     // Run all queries in parallel
     const [
-      totalTasks,
-      completedTasks,
-      pendingTasks,
-      onTimeTasks,
-      totalDeliveredTasks,
+      // 전체 작업 진행률 (24-hour based)
+      totalTasksLast24h,
+      completedTasksLast24h,
+      pendingTasksLast24h,
+      
+      // 납기준수율 (24-hour based)
+      onTimeTasksLast24h,
+      tasksDueLast24h,
       urgentTasks,
+      
+      // 생산성 현황 - Daily (tasks created/due today)
       dailyCompletedTasks,
+      dailyTotalTasks,
+      
+      // 생산성 현황 - Weekly
       weeklyCompletedTasks,
+      weeklyTotalTasks,
+      
+      // 생산성 현황 - Monthly
       monthlyCompletedTasks,
-      alertsByType,
+      monthlyTotalTasks,
+
+      // Equipment Utilization (real-time)
       totalDevices,
       onlineDevices,
       offlineDevices,
       maintenanceDevices,
       errorDevices,
+
+      // Workers (real-time)
       totalWorkers,
       activeWorkers,
+
+      // Alert Summary
       allAlerts,
       resolvedAlerts,
-      deviceErrorsByType
+      
+      // Top 5 Devices with Most Alerts (에러 현황)
+      topDevicesWithAlerts
     ] = await Promise.all([
-      // Task Progress
-      Task.countDocuments({}),
-      Task.countDocuments({ status: "COMPLETED" }),
-      Task.countDocuments({ status: "PENDING" }),
-
-      // Deadline Compliance (completed tasks where completedAt <= deadline)
+      // 전체 작업 진행률 - 24-hour based
+      Task.countDocuments({
+        $or: [
+          { createdAt: { $gte: last24Hours } },
+          { updatedAt: { $gte: last24Hours } }
+        ]
+      }),
       Task.countDocuments({
         status: "COMPLETED",
-        completedAt: { $exists: true },
+        completedAt: { $gte: last24Hours }
+      }),
+      Task.countDocuments({
+        status: "PENDING",
+        $or: [
+          { createdAt: { $gte: last24Hours } },
+          { updatedAt: { $gte: last24Hours } }
+        ]
+      }),
+
+      // 납기준수율 - Tasks that were due in last 24h and completed on time
+      Task.countDocuments({
+        status: "COMPLETED",
+        completedAt: { $gte: last24Hours },
         deadline: { $exists: true },
         $expr: { $lte: ["$completedAt", "$deadline"] }
       }),
-      Task.countDocuments({ status: "COMPLETED" }),
+      // Tasks that had deadline in last 24h or were completed in last 24h
+      Task.countDocuments({
+        status: "COMPLETED",
+        completedAt: { $gte: last24Hours }
+      }),
 
-      // Urgent tasks (status !== COMPLETED AND deadline approaching/past - within 24 hours or overdue)
+      // Urgent tasks (not completed AND deadline within next 24 hours or past)
       Task.countDocuments({
         status: { $ne: "COMPLETED" },
         deadline: {
@@ -70,32 +114,43 @@ export const getMonitorOverview = async (
         }
       }),
 
-      // Productivity by period
+      // 생산성 일간 - Today
       Task.countDocuments({
         status: "COMPLETED",
         completedAt: { $gte: startOfDay }
       }),
       Task.countDocuments({
+        $or: [
+          { createdAt: { $gte: startOfDay } },
+          { deadline: { $gte: startOfDay, $lt: new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000) } }
+        ]
+      }),
+
+      // 생산성 주간 - This week
+      Task.countDocuments({
         status: "COMPLETED",
         completedAt: { $gte: startOfWeek }
       }),
       Task.countDocuments({
+        $or: [
+          { createdAt: { $gte: startOfWeek } },
+          { deadline: { $gte: startOfWeek, $lt: new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000) } }
+        ]
+      }),
+
+      // 생산성 월간 - This month
+      Task.countDocuments({
         status: "COMPLETED",
         completedAt: { $gte: startOfMonth }
       }),
+      Task.countDocuments({
+        $or: [
+          { createdAt: { $gte: startOfMonth } },
+          { deadline: { $gte: startOfMonth, $lt: new Date(now.getFullYear(), now.getMonth() + 1, 1) } }
+        ]
+      }),
 
-      // Alerts grouped by type
-      Alert.aggregate([
-        { $match: { status: "PENDING" } },
-        {
-          $group: {
-            _id: "$type",
-            count: { $sum: 1 }
-          }
-        }
-      ]),
-
-      // Equipment Utilization
+      // Equipment Utilization (real-time)
       Device.countDocuments({}),
       Device.countDocuments({ status: "ONLINE" }),
       Device.countDocuments({ status: "OFFLINE" }),
@@ -113,14 +168,11 @@ export const getMonitorOverview = async (
       Alert.countDocuments({}),
       Alert.countDocuments({ status: "RESOLVED" }),
 
-      // Device errors by type
+      // Top 5 Devices with Most Alerts (for 에러 현황 bar graph)
       Alert.aggregate([
         {
           $match: {
-            deviceId: { $exists: true },
-            type: {
-              $in: ["EQUIPMENT_FAILURE", "DEVICE_ERROR", "MAINTENANCE_REQUIRED"]
-            }
+            deviceId: { $exists: true, $ne: null }
           }
         },
         {
@@ -140,42 +192,35 @@ export const getMonitorOverview = async (
             as: "deviceType"
           }
         },
-        { $unwind: "$deviceType" },
+        { $unwind: { path: "$deviceType", preserveNullAndEmptyArrays: true } },
         {
           $group: {
-            _id: "$deviceType.name",
-            count: { $sum: 1 }
+            _id: "$device._id",
+            deviceName: { $first: "$device.name" },
+            deviceTypeName: { $first: "$deviceType.name" },
+            alertCount: { $sum: 1 }
           }
         },
-        { $sort: { count: -1 } }
+        { $sort: { alertCount: -1 } },
+        { $limit: 5 }
       ])
     ]);
 
-    // Calculate percentages and metrics
+    // Calculate percentages
     const taskProgressPercentage =
-      totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+      totalTasksLast24h > 0 ? Math.round((completedTasksLast24h / totalTasksLast24h) * 100) : 0;
+    
     const deadlineCompliancePercentage =
-      totalDeliveredTasks > 0
-        ? Math.round((onTimeTasks / totalDeliveredTasks) * 100)
-        : 0;
+      tasksDueLast24h > 0 ? Math.round((onTimeTasksLast24h / tasksDueLast24h) * 100) : 0;
 
-    // Productivity targets (can be configured or stored in DB)
-    const dailyTarget = 50;
-    const weeklyTarget = 100;
-    const monthlyTarget = 150;
-
-    const dailyPercentage =
-      dailyTarget > 0
-        ? Math.round((dailyCompletedTasks / dailyTarget) * 100)
-        : 0;
-    const weeklyPercentage =
-      weeklyTarget > 0
-        ? Math.round((weeklyCompletedTasks / weeklyTarget) * 100)
-        : 0;
-    const monthlyPercentage =
-      monthlyTarget > 0
-        ? Math.round((monthlyCompletedTasks / monthlyTarget) * 100)
-        : 0;
+    // Productivity percentages (based on total tasks, not fixed targets)
+    const dailyTotal = Math.max(1, dailyTotalTasks);
+    const weeklyTotal = Math.max(1, weeklyTotalTasks);
+    const monthlyTotal = Math.max(1, monthlyTotalTasks);
+    
+    const dailyPercentage = Math.round((dailyCompletedTasks / dailyTotal) * 100);
+    const weeklyPercentage = Math.round((weeklyCompletedTasks / weeklyTotal) * 100);
+    const monthlyPercentage = Math.round((monthlyCompletedTasks / monthlyTotal) * 100);
 
     // Equipment utilization
     const equipmentUtilizationPercentage =
@@ -184,69 +229,32 @@ export const getMonitorOverview = async (
     // Worker capacity (can be configured or stored in DB)
     const workerCapacity = 10;
     const workerPercentage =
-      workerCapacity > 0
-        ? Math.round((totalWorkers / workerCapacity) * 100)
-        : 0;
+      workerCapacity > 0 ? Math.round((totalWorkers / workerCapacity) * 100) : 0;
     const idleWorkers = totalWorkers - activeWorkers;
 
     // Alert summary calculations
     const pendingAlerts = await Alert.countDocuments({ status: "PENDING" });
-    const inProgressAlerts = await Alert.countDocuments({
-      status: "ACKNOWLEDGED"
-    });
+    const inProgressAlerts = await Alert.countDocuments({ status: "ACKNOWLEDGED" });
     const avgResponseTimeMinutes = 12; // TODO: Calculate from actual alert response times
     const resolutionRate =
       allAlerts > 0 ? Math.round((resolvedAlerts / allAlerts) * 100) : 0;
 
-    // Process error categories with Korean labels
-    const errorTypeMap: Record<string, string> = {
-      EQUIPMENT_FAILURE: "장비결함",
-      MATERIAL_DEFECT: "소재불량",
-      CONTROL_ERROR: "통제인지",
-      QUALITY_ISSUE: "품질이슈",
-      MAINTENANCE_REQUIRED: "정비필요"
-    };
-
-    const totalAlertCount = alertsByType.reduce(
-      (sum: number, item: any) => sum + item.count,
-      0
-    );
-    const errorCategories = alertsByType.map((item: any) => ({
-      name: errorTypeMap[item._id] || item._id,
-      count: item.count,
-      percentage:
-        totalAlertCount > 0
-          ? Math.round((item.count / totalAlertCount) * 100)
-          : 0
-    }));
-
-    // Add "기타" (Others) if there are other alert types
-    const categorizedCount = errorCategories.reduce(
-      (sum, cat) => sum + cat.count,
-      0
-    );
-    const otherCount = totalAlertCount - categorizedCount;
-    if (otherCount > 0) {
-      errorCategories.push({
-        name: "기타",
-        count: otherCount,
-        percentage: Math.round((otherCount / totalAlertCount) * 100)
-      });
-    }
-
-    // Process device error frequency
-    const totalDeviceErrors = deviceErrorsByType.reduce(
-      (sum: any, item: any) => sum + item.count,
-      0
-    );
-    const deviceErrorFrequency = deviceErrorsByType.map((item: any) => ({
-      deviceTypeName: item._id,
-      errorCount: item.count,
-      percentage:
-        totalDeviceErrors > 0
-          ? Math.round((item.count / totalDeviceErrors) * 100)
-          : 0
-    }));
+    // Process top 5 devices with alerts for bar graph
+    const maxAlertCount = topDevicesWithAlerts.length > 0 
+      ? Math.max(...topDevicesWithAlerts.map((d: any) => d.alertCount))
+      : 0;
+    
+    const topDeviceErrors = topDevicesWithAlerts.map((item: any) => {
+      const deviceName = item.deviceName || "Unknown Device";
+      const deviceTypeName = item.deviceTypeName || "Unknown Type";
+      // Format: "장비명(장비타입)"
+      const displayName = `${deviceName}(${deviceTypeName})`;
+      return {
+        deviceName: displayName,
+        alertCount: item.alertCount,
+        percentage: maxAlertCount > 0 ? Math.round((item.alertCount / maxAlertCount) * 100) : 0
+      };
+    });
 
     const response: APIResponse = {
       success: true,
@@ -254,36 +262,38 @@ export const getMonitorOverview = async (
       data: {
         taskProgress: {
           percentage: taskProgressPercentage,
-          completed: completedTasks,
-          total: totalTasks,
-          pending: pendingTasks
+          completed: completedTasksLast24h,
+          total: totalTasksLast24h,
+          pending: pendingTasksLast24h
         },
         deadlineCompliance: {
           percentage: deadlineCompliancePercentage,
-          onTime: onTimeTasks,
-          total: totalDeliveredTasks,
+          onTime: onTimeTasksLast24h,
+          total: tasksDueLast24h,
           urgent: urgentTasks
         },
         productivity: {
           daily: {
             current: dailyCompletedTasks,
-            target: dailyTarget,
+            target: dailyTotal, // Now using actual total tasks, not fixed target
             percentage: dailyPercentage
           },
           weekly: {
             current: weeklyCompletedTasks,
-            target: weeklyTarget,
+            target: weeklyTotal, // Now using actual total tasks, not fixed target
             percentage: weeklyPercentage
           },
           monthly: {
             current: monthlyCompletedTasks,
-            target: monthlyTarget,
+            target: monthlyTotal, // Now using actual total tasks, not fixed target
             percentage: monthlyPercentage
           }
         },
+        // Top 5 devices with most alerts (for bar graph)
+        topDeviceErrors: topDeviceErrors,
         errors: {
-          categories: errorCategories,
-          total: totalAlertCount
+          categories: [], // Kept for backward compatibility
+          total: allAlerts
         },
         equipmentUtilization: {
           percentage: equipmentUtilizationPercentage,
@@ -308,7 +318,12 @@ export const getMonitorOverview = async (
           avgResponseTime: avgResponseTimeMinutes,
           resolutionRate: resolutionRate
         },
-        deviceErrorFrequency: deviceErrorFrequency,
+        // Additional context info
+        periodInfo: {
+          daysInMonth: daysInMonth,
+          dayOfMonth: dayOfMonth,
+          dayOfWeek: dayOfWeek
+        },
         timestamp: new Date().toISOString()
       }
     };
