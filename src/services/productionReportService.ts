@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 import { Alert } from "../models/Alert";
 import { Project } from "../models/Project";
+import { Recipe } from "../models/Recipe";
 import { Task } from "../models/Task";
 import * as ExcelFormatService from "./excelFormatService";
 
@@ -13,7 +14,145 @@ import * as ExcelFormatService from "./excelFormatService";
 // ==================== TRANSLATIONS ====================
 
 const TRANSLATIONS = {
-  // Production KPI Report
+  // Production Report (Productivity Report)
+  productionReport: {
+    title: {
+      en: "Productivity Report",
+      ko: "생산성 보고서"
+    },
+    referenceDateTime: {
+      en: "Period",
+      ko: "기준일시"
+    },
+    prepared: {
+      en: "Prepared",
+      ko: "작성"
+    },
+    reviewed: {
+      en: "Reviewed",
+      ko: "검토"
+    },
+    approved: {
+      en: "Approved",
+      ko: "승인"
+    },
+    overallKPIs: {
+      en: "Overall KPIs",
+      ko: "전체 KPI"
+    },
+    totalProductProduction: {
+      en: "Total Product Production",
+      ko: "전체 제품 생산량"
+    },
+    totalPartProduction: {
+      en: "Total Part Production",
+      ko: "전체 부품 생산량"
+    },
+    overallDeliveryComplianceRate: {
+      en: "Overall Delivery Compliance Rate",
+      ko: "전체 납기 준수율"
+    },
+    totalWorkers: {
+      en: "Total Number of Workers",
+      ko: "총 작업자 수(명)"
+    },
+    productStatus: {
+      en: "Product Status",
+      ko: "제품별 현황"
+    },
+    no: {
+      en: "No.",
+      ko: "순번"
+    },
+    productInfo: {
+      en: "Product (SET) Info",
+      ko: "제품(SET) 정보"
+    },
+    instructionNo: {
+      en: "Instruction No.",
+      ko: "지시번호"
+    },
+    designNo: {
+      en: "Design No.",
+      ko: "설계번호"
+    },
+    customer: {
+      en: "Customer",
+      ko: "고객사"
+    },
+    department: {
+      en: "Department",
+      ko: "부서"
+    },
+    personInCharge: {
+      en: "Person in Charge",
+      ko: "담당자"
+    },
+    orderDate: {
+      en: "Order Date",
+      ko: "발주일"
+    },
+    deliveryDate: {
+      en: "Delivery Date",
+      ko: "납기일"
+    },
+    quantity: {
+      en: "Quantity",
+      ko: "수량"
+    },
+    productionQuantity: {
+      en: "Production Quantity",
+      ko: "생산량"
+    },
+    remainingQuantity: {
+      en: "Remaining Quantity",
+      ko: "잔여수량"
+    },
+    completionRate: {
+      en: "Completion Rate",
+      ko: "완료율"
+    },
+    workTime: {
+      en: "Work Time",
+      ko: "작업시간"
+    },
+    deliveryDelays: {
+      en: "Number of Delivery Delays",
+      ko: "납기지연수"
+    },
+    deliveryComplianceRate: {
+      en: "Delivery Compliance Rate",
+      ko: "납기준수율"
+    },
+    partDetails: {
+      en: "Part Details",
+      ko: "부품 상세"
+    },
+    drawingNo: {
+      en: "Dwg no",
+      ko: "Dwg no"
+    },
+    partName: {
+      en: "Part Name (PART)",
+      ko: "부품명(PART)"
+    },
+    totalWorkTime: {
+      en: "Total Work Time",
+      ko: "총 작업시간"
+    },
+    workDetails: {
+      en: "Work Details",
+      ko: "작업내용"
+    },
+    worker: {
+      en: "Worker",
+      ko: "작업자"
+    },
+    workQuantity: {
+      en: "Work Quantity",
+      ko: "작업수량"
+    }
+  },
   productionKPI: {
     title: {
       en: "PRODUCTION RATE KPI REPORT",
@@ -2753,9 +2892,478 @@ export async function generateRawProductionDataSheet(
   );
 }
 
+// ==================== NEW AGGREGATION FUNCTIONS FOR PRODUCTIVITY REPORT ====================
+
 /**
- * Generate comprehensive Production Rate KPI Sheet
- * Single sheet containing all KPI calculations in A4 portrait format
+ * Interface for Overall KPIs
+ */
+export interface OverallKPIs {
+  totalProductProduction: number; // Count of unique products with projects
+  totalPartProduction: number; // Count of completed recipe executions (parts)
+  overallDeliveryComplianceRate: number; // Percentage
+  totalWorkers: number; // Count of unique workers
+}
+
+/**
+ * Aggregate Overall KPIs for the productivity report
+ */
+export async function aggregateOverallKPIs(
+  dateRange: DateRangeFilter
+): Promise<OverallKPIs> {
+  const { startDate, endDate } = dateRange;
+
+  // Get unique products with projects in date range
+  const uniqueProducts = await Project.distinct("product", {
+    product: { $exists: true, $ne: null },
+    $or: [
+      { createdAt: { $gte: startDate, $lte: endDate } },
+      { startDate: { $gte: startDate, $lte: endDate } },
+      { endDate: { $gte: startDate, $lte: endDate } }
+    ]
+  });
+
+  // Count completed recipe executions (parts) - tasks that are last step in recipe and completed
+  const completedParts = await Task.countDocuments({
+    status: "COMPLETED",
+    isLastStepInRecipe: true,
+    completedAt: { $gte: startDate, $lte: endDate }
+  });
+
+  // Calculate delivery compliance rate
+  const totalProjects = await Project.countDocuments({
+    $or: [
+      { createdAt: { $gte: startDate, $lte: endDate } },
+      { startDate: { $gte: startDate, $lte: endDate } },
+      { endDate: { $gte: startDate, $lte: endDate } }
+    ]
+  });
+
+  const onTimeProjects = await Project.countDocuments({
+    $and: [
+      {
+        $or: [
+          { createdAt: { $gte: startDate, $lte: endDate } },
+          { startDate: { $gte: startDate, $lte: endDate } },
+          { endDate: { $gte: startDate, $lte: endDate } }
+        ]
+      },
+      {
+        $or: [
+          // Completed on time
+          {
+            status: "COMPLETED",
+            deadline: { $exists: true, $ne: null },
+            endDate: { $exists: true, $ne: null },
+            $expr: { $lte: ["$endDate", "$deadline"] }
+          },
+          // Active and not past deadline
+          {
+            status: { $in: ["ACTIVE", "ON_HOLD", "PLANNING"] },
+            $or: [
+              { deadline: { $exists: false } },
+              { deadline: null },
+              { deadline: { $gte: endDate } }
+            ]
+          }
+        ]
+      }
+    ]
+  });
+
+  const deliveryComplianceRate =
+    totalProjects > 0 ? (onTimeProjects / totalProjects) * 100 : 0;
+
+  // Count unique workers who completed tasks
+  const uniqueWorkers = await Task.distinct("workerId", {
+    status: "COMPLETED",
+    workerId: { $exists: true, $ne: null },
+    completedAt: { $gte: startDate, $lte: endDate }
+  });
+
+  return {
+    totalProductProduction: uniqueProducts.length,
+    totalPartProduction: completedParts,
+    overallDeliveryComplianceRate:
+      Math.round(deliveryComplianceRate * 100) / 100,
+    totalWorkers: uniqueWorkers.length
+  };
+}
+
+/**
+ * Interface for Product Status Data
+ */
+export interface ProductStatusData {
+  product: any; // IProduct
+  projects: Array<{
+    project: any; // IProject
+    instructionNo: string;
+    orderDate: Date | null;
+    deliveryDate: Date | null;
+    quantity: number;
+    productionQuantity: number;
+    remainingQuantity: number;
+    completionRate: number;
+    workTime: number; // in minutes
+    deliveryDelays: number;
+    deliveryComplianceRate: number;
+  }>;
+  parts: Array<{
+    recipe: any; // IRecipe
+    dwgNo: string;
+    partName: string;
+    quantity: number;
+    productionQuantity: number;
+    remainingQuantity: number;
+    completionRate: number;
+    totalWorkTime: number; // in minutes
+    workDetails: Array<{
+      worker: any; // IUser
+      workQuantity: number;
+      workTime: number; // in minutes
+    }>;
+  }>;
+}
+
+/**
+ * Aggregate Product Status Data grouped by product
+ */
+export async function aggregateProductStatusData(
+  dateRange: DateRangeFilter
+): Promise<ProductStatusData[]> {
+  const { startDate, endDate } = dateRange;
+
+  // Get all projects with products in date range
+  const projects = await Project.find({
+    product: { $exists: true, $ne: null },
+    $or: [
+      { createdAt: { $gte: startDate, $lte: endDate } },
+      { startDate: { $gte: startDate, $lte: endDate } },
+      { endDate: { $gte: startDate, $lte: endDate } }
+    ]
+  })
+    .populate("product")
+    .lean();
+
+  // Get all tasks for these projects
+  const projectIds = projects.map((p) => p._id);
+  const tasks = await Task.find({
+    projectId: { $in: projectIds },
+    status: "COMPLETED"
+  })
+    .populate("workerId")
+    .populate("recipeSnapshotId")
+    .lean();
+
+  // Group projects by product
+  const productMap = new Map<string, ProductStatusData>();
+
+  for (const project of projects) {
+    const productId = (project.product as any)?._id?.toString();
+    if (!productId) continue;
+
+    const product = project.product as any;
+
+    if (!productMap.has(productId)) {
+      productMap.set(productId, {
+        product: product,
+        projects: [],
+        parts: []
+      });
+    }
+
+    const productData = productMap.get(productId)!;
+
+    // Calculate work time for this project (sum of task durations)
+    const projectTasks = tasks.filter(
+      (t) => t.projectId?.toString() === project._id.toString()
+    );
+    const workTime = projectTasks.reduce(
+      (sum, t) => sum + (t.actualDuration || 0),
+      0
+    );
+
+    // Check if project is delayed
+    let deliveryDelays = 0;
+    if (project.deadline && project.endDate) {
+      if (new Date(project.endDate) > new Date(project.deadline)) {
+        deliveryDelays = 1;
+      }
+    } else if (project.deadline && new Date(project.deadline) < endDate) {
+      if (project.status !== "COMPLETED") {
+        deliveryDelays = 1;
+      }
+    }
+
+    // Calculate delivery compliance rate for this project
+    const deliveryComplianceRate =
+      deliveryDelays === 0 && project.deadline
+        ? 100
+        : deliveryDelays > 0
+        ? 0
+        : 100;
+
+    const remainingQuantity = project.targetQuantity - project.producedQuantity;
+    const completionRate =
+      project.targetQuantity > 0
+        ? (project.producedQuantity / project.targetQuantity) * 100
+        : 0;
+
+    productData.projects.push({
+      project: project,
+      instructionNo: project.projectNumber || "",
+      orderDate: project.startDate || project.createdAt || null,
+      deliveryDate: project.deadline || null,
+      quantity: project.targetQuantity,
+      productionQuantity: project.producedQuantity,
+      remainingQuantity: remainingQuantity,
+      completionRate: Math.round(completionRate * 100) / 100,
+      workTime: workTime,
+      deliveryDelays: deliveryDelays,
+      deliveryComplianceRate: deliveryComplianceRate
+    });
+  }
+
+  // For each product, get recipes and aggregate part details
+  for (const [productId, productData] of productMap.entries()) {
+    console.log("productId", productId);
+    const product = productData.product;
+    if (!product.recipes || product.recipes.length === 0) continue;
+
+    // Get all recipes for this product
+    const recipeIds = product.recipes.map((r: any) => r.recipeId);
+    const recipes = await Recipe.find({ _id: { $in: recipeIds } }).lean();
+
+    // Get all projects for this product to calculate part quantities
+    const productProjects = productData.projects;
+
+    for (const recipeRef of product.recipes) {
+      const recipe = recipes.find(
+        (r) => r._id.toString() === recipeRef.recipeId.toString()
+      );
+      if (!recipe) continue;
+
+      // Calculate total quantity for this part across all projects
+      const totalQuantity = productProjects.reduce(
+        (sum, p) => sum + p.quantity * (recipeRef.quantity || 1),
+        0
+      );
+
+      // Get tasks for this recipe across all projects
+      const recipeTasks = tasks.filter((t) => {
+        const recipeSnapshot = t.recipeSnapshotId as any;
+        if (!recipeSnapshot) return false;
+        return recipeSnapshot.recipeId?.toString() === recipe._id.toString();
+      });
+
+      // Calculate production quantity (completed recipe executions)
+      const productionQuantity = recipeTasks.filter(
+        (t) => t.isLastStepInRecipe
+      ).length;
+
+      const remainingQuantity = totalQuantity - productionQuantity;
+      const completionRate =
+        totalQuantity > 0 ? (productionQuantity / totalQuantity) * 100 : 0;
+
+      // Calculate total work time
+      const totalWorkTime = recipeTasks.reduce(
+        (sum, t) => sum + (t.actualDuration || 0),
+        0
+      );
+
+      // Group work details by worker
+      const workerMap = new Map<
+        string,
+        { worker: any; workQuantity: number; workTime: number }
+      >();
+
+      for (const task of recipeTasks) {
+        const workerId = task.workerId?.toString();
+        if (!workerId) continue;
+
+        if (!workerMap.has(workerId)) {
+          workerMap.set(workerId, {
+            worker: task.workerId,
+            workQuantity: 0,
+            workTime: 0
+          });
+        }
+
+        const workerData = workerMap.get(workerId)!;
+        workerData.workQuantity += 1;
+        workerData.workTime += task.actualDuration || 0;
+      }
+
+      productData.parts.push({
+        recipe: recipe,
+        dwgNo: recipe.dwgNo || "",
+        partName: recipe.name || "",
+        quantity: totalQuantity,
+        productionQuantity: productionQuantity,
+        remainingQuantity: remainingQuantity,
+        completionRate: Math.round(completionRate * 100) / 100,
+        totalWorkTime: totalWorkTime,
+        workDetails: Array.from(workerMap.values())
+      });
+    }
+  }
+
+  return Array.from(productMap.values());
+}
+
+/**
+ * Format time duration in minutes to Korean format (X시간 Y분)
+ */
+// function formatTimeDuration(minutes: number, lang?: string): string {
+//   if (lang === "ko") {
+//     const hours = Math.floor(minutes / 60);
+//     const mins = Math.round(minutes % 60);
+//     if (hours > 0 && mins > 0) {
+//       return `${hours}시간${mins}분`;
+//     } else if (hours > 0) {
+//       return `${hours}시간`;
+//     } else if (mins > 0) {
+//       return `${mins}분`;
+//     }
+//     return "0분";
+//   } else {
+//     const hours = Math.floor(minutes / 60);
+//     const mins = Math.round(minutes % 60);
+//     if (hours > 0 && mins > 0) {
+//       return `${hours}h ${mins}m`;
+//     } else if (hours > 0) {
+//       return `${hours}h`;
+//     } else if (mins > 0) {
+//       return `${mins}m`;
+//     }
+//     return "0m";
+//   }
+// }
+
+/**  Format Product Status Data to ExcelJs Table
+ * @param productStatusData Product Status Data
+ * @param worksheet ExcelJS Worksheet
+ * @param lang Language
+ * @param currentRow Current Row
+ * @returns number of rows formatted
+ */
+function formatProductStatusDataToExcelJsTable(
+  productData: ProductStatusData,
+  productIndex: number,
+  worksheet: ExcelJS.Worksheet,
+  lang: string,
+  currentRow: number
+): number {
+  const initialRow = currentRow;
+  const langCode = lang || "ko";
+
+  // Product Status table headers
+  const productHeaders = [
+    getTranslation("productionReport.no", langCode),
+    getTranslation("productionReport.productInfo", langCode),
+    getTranslation("productionReport.instructionNo", langCode),
+    getTranslation("productionReport.designNo", langCode),
+    getTranslation("productionReport.customer", langCode),
+    getTranslation("productionReport.department", langCode),
+    getTranslation("productionReport.personInCharge", langCode),
+    getTranslation("productionReport.orderDate", langCode),
+    getTranslation("productionReport.deliveryDate", langCode),
+    getTranslation("productionReport.quantity", langCode),
+    getTranslation("productionReport.productionQuantity", langCode),
+    getTranslation("productionReport.remainingQuantity", langCode),
+    getTranslation("productionReport.completionRate", langCode),
+    getTranslation("productionReport.workTime", langCode),
+    getTranslation("productionReport.deliveryDelays", langCode),
+    getTranslation("productionReport.deliveryComplianceRate", langCode)
+  ];
+
+  productHeaders.forEach((header, idx) => {
+    let colNum = idx + 1;
+    if (idx >= 1) {
+      colNum += 1;
+      worksheet.mergeCells(currentRow, idx + 1, currentRow, colNum + 1);
+    }
+    const cell = worksheet.getCell(currentRow, colNum);
+    cell.value = header;
+    cell.font = { bold: true, size: 9 };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.NEUTRAL }
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+  worksheet.getRow(currentRow).height = 40;
+  currentRow++;
+
+  // Product Number Colomn
+  // Row Height: Product Number + Project + Part
+  const productNumberRowHeight =
+    productData.projects.length +
+    1 +
+    productData.parts.reduce(
+      (sum, p) => sum + Math.ceil(p.workDetails.length / 3),
+      0
+    );
+  worksheet.mergeCells(currentRow, 1, currentRow + productNumberRowHeight, 1);
+  const productNumberCell = worksheet.getCell(currentRow, 1);
+  productNumberCell.value = productIndex + 1;
+  productNumberCell.font = { size: 10 };
+  productNumberCell.alignment = { horizontal: "center", vertical: "middle" };
+  productNumberCell.border = {
+    top: { style: "thin" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
+
+  // Product Info Colomn
+  const projectCount =
+    productData.projects.length +
+    1 +
+    productData.parts.reduce(
+      (sum, p) => sum + Math.ceil(p.workDetails.length / 3),
+      0
+    );
+  worksheet.mergeCells(currentRow, 1, currentRow + projectCount, 1);
+  const productInfo = worksheet.getCell(currentRow, 1);
+  productInfo.value = productIndex + 1;
+  productInfo.font = { size: 10 };
+  productInfo.alignment = { horizontal: "center", vertical: "middle" };
+  productNumberCell.border = {
+    top: { style: "thin" },
+    left: { style: "medium" },
+    bottom: { style: "thin" },
+    right: { style: "medium" }
+  };
+  currentRow++;
+  return initialRow + productNumberRowHeight + 2;
+}
+
+/**
+ * Format date to YYYY.MM.DD format
+ */
+function formatDateKorean(date: Date | null): string {
+  if (!date) return "";
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}.${month}.${day}`;
+}
+
+/**
+ * Generate comprehensive Production Rate KPI Sheet (Productivity Report)
+ * New format: Overall KPIs → Approval → Product Status → Part Details with Work Content
  */
 export async function generateProductionRateKPISheet(
   workbook: ExcelJS.Workbook,
@@ -2763,7 +3371,8 @@ export async function generateProductionRateKPISheet(
   period?: "daily" | "weekly" | "monthly",
   lang?: string
 ): Promise<void> {
-  console.log("Generating Production Rate KPI Sheet...");
+  console.log("Generating Production Rate KPI Sheet (Productivity Report)...");
+  const langCode = lang || "ko";
 
   // Adjust date range based on period
   const adjustedDateRange = adjustDateRangeForPeriod(
@@ -2772,12 +3381,20 @@ export async function generateProductionRateKPISheet(
     period
   );
 
-  const worksheet = workbook.addWorksheet("Production Rate KPIs");
+  // Aggregate data for the new format
+  const [overallKPIs, productStatusData] = await Promise.all([
+    aggregateOverallKPIs(adjustedDateRange),
+    aggregateProductStatusData(adjustedDateRange)
+  ]);
 
-  // Configure page for A4 portrait and fit-to-width (7 columns max)
+  const worksheet = workbook.addWorksheet(
+    getTranslation("productionReport.title", langCode) || "Production Rate KPI"
+  );
+
+  // Configure page for A4 landscape
   worksheet.pageSetup = {
     paperSize: 9, // A4
-    orientation: "portrait",
+    orientation: "landscape",
     fitToPage: true,
     fitToWidth: 1,
     fitToHeight: 0,
@@ -2791,1034 +3408,377 @@ export async function generateProductionRateKPISheet(
     }
   };
 
+  worksheet.properties.defaultRowHeight = 24;
+
   let currentRow = 1;
 
-  const formatDate = (date: Date) => date.toISOString().split("T")[0];
-  const periodLabel = period
-    ? period.charAt(0).toUpperCase() + period.slice(1)
-    : "All Time";
-
-  // ===== COMPACT 7-COLUMN HEADER + APPROVAL BLOCK =====
-  // Layout (7 columns A-G total):
-  // Row 1: [A-C] REPORT_TITLE | [D-E] 관리자 (MANAGER) | [F-G] 대표 (CEO)
-  // Row 2: [A-C] REPORT_PERIOD | [D-E] 작업자 (WORKER) | [F-G] blank
-
-  // ===== ROW 1: Title + Manager + CEO =====
-  worksheet.mergeCells(currentRow, 1, currentRow, 3); // A-C
+  // ===== HEADER SECTION =====
+  // Row 1: Title
+  worksheet.mergeCells(currentRow, 1, currentRow, 17); // Title spans multiple columns
   const titleCell = worksheet.getCell(currentRow, 1);
-  titleCell.value = `${getTranslation(
-    "productionKPI.title",
-    lang
-  )} - ${periodLabel}`;
-  titleCell.font = { size: 14, bold: true };
-  titleCell.alignment = {
-    horizontal: "left",
-    vertical: "middle",
-    wrapText: true
-  };
-  titleCell.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
+  titleCell.value = getTranslation("productionReport.title", langCode);
+  titleCell.font = { size: 36, bold: true };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  worksheet.getRow(currentRow).height = 58;
+  currentRow += 2;
 
-  // Manager approval (D-E)
-  worksheet.mergeCells(currentRow, 4, currentRow, 5);
-  const managerCell = worksheet.getCell(currentRow, 4);
-  managerCell.value = `${getTranslation(
-    "roles.manager",
-    lang
-  )}\n____년  __월  __일`;
-  managerCell.font = { bold: true, size: 10 };
-  managerCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
-  };
-  managerCell.alignment = {
-    horizontal: "center",
-    vertical: "top",
-    wrapText: true
-  };
-  managerCell.border = {
-    top: { style: "medium" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
-
-  // CEO approval (F-G)
-  worksheet.mergeCells(currentRow, 6, currentRow, 7);
-  const ceoCell = worksheet.getCell(currentRow, 6);
-  ceoCell.value = `${getTranslation("roles.ceo", lang)}\n____년  __월  __일`;
-  ceoCell.font = { bold: true, size: 10 };
-  ceoCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
-  };
-  ceoCell.alignment = {
-    horizontal: "center",
-    vertical: "top",
-    wrapText: true
-  };
-  ceoCell.border = {
-    top: { style: "medium" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-
-  worksheet.getRow(currentRow).height = 100; // Tall for signature space
-  currentRow++;
-
-  // ===== ROW 2: Period + Worker =====
-  worksheet.mergeCells(currentRow, 1, currentRow, 3); // A-C
+  // === DATE + Approval section (작성/검토/승인) ====
+  // Row 3: Period (기준일시)
+  worksheet.mergeCells(currentRow, 1, currentRow, 4);
   const periodCell = worksheet.getCell(currentRow, 1);
   periodCell.value = `${getTranslation(
-    "productionKPI.period",
-    lang
-  )}: ${formatDate(adjustedDateRange.startDate)} ${getTranslation(
-    "productionKPI.to",
-    lang
-  )} ${formatDate(adjustedDateRange.endDate)}`;
-  periodCell.font = { size: 10, bold: true };
-  periodCell.alignment = {
-    horizontal: "left",
-    vertical: "middle",
-    wrapText: true
-  };
-  periodCell.border = {
-    top: { style: "thin" },
-    left: { style: "medium" },
-    bottom: { style: "medium" },
-    right: { style: "thin" }
-  };
+    "productionReport.referenceDateTime",
+    langCode
+  )}: ${formatDateKorean(adjustedDateRange.startDate)}~${formatDateKorean(
+    adjustedDateRange.endDate
+  )}`;
+  periodCell.font = { size: 14 };
+  periodCell.alignment = { horizontal: "left", vertical: "middle" };
 
-  // Worker approval (D-E)
-  worksheet.mergeCells(currentRow, 4, currentRow, 5);
-  const workerCell = worksheet.getCell(currentRow, 4);
-  workerCell.value = `${getTranslation(
-    "roles.worker",
-    lang
-  )}\n____년  __월  __일`;
-  workerCell.font = { bold: true, size: 10 };
-  workerCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
-  };
-  workerCell.alignment = {
-    horizontal: "center",
-    vertical: "top",
-    wrapText: true
-  };
-  workerCell.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "medium" },
-    right: { style: "thin" }
-  };
+  // Approval section (작성/검토/승인) - right side
+  const approvalCols = [
+    { col: 15, label: "productionReport.prepared" },
+    { col: 16, label: "productionReport.reviewed" },
+    { col: 17, label: "productionReport.approved" }
+  ];
 
-  // Blank space (F-G)
-  worksheet.mergeCells(currentRow, 6, currentRow, 7);
-  const blankCell = worksheet.getCell(currentRow, 6);
-  blankCell.value = "";
-  blankCell.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "medium" },
-    right: { style: "medium" }
-  };
+  approvalCols.forEach((col) => {
+    const cell = worksheet.getCell(currentRow, col.col);
+    cell.value = `${getTranslation(col.label, langCode)}`;
+    cell.font = { size: 14 };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+  worksheet.getRow(currentRow).height = 24;
+  currentRow++;
 
-  worksheet.getRow(currentRow).height = 100; // Tall for signature space
-  currentRow += 2;
+  // Row 4: Blank Signature cells
+  // Blank Signature cells
+  approvalCols.forEach((col) => {
+    worksheet.mergeCells(currentRow, col.col, currentRow + 4, col.col);
+    const cell = worksheet.getCell(currentRow, col.col);
+    cell.value = "";
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+    // Date Row
+    worksheet.mergeCells(currentRow + 5, col.col, currentRow + 5, col.col);
+    const dateCell = worksheet.getCell(currentRow + 5, col.col);
+    dateCell.value = formatDateKorean(new Date());
+    dateCell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+    dateCell.font = { size: 14 };
+    dateCell.alignment = { horizontal: "center", vertical: "middle" };
+    worksheet.getRow(currentRow + 5).height = 24;
+  });
+  currentRow++;
 
-  // Calculate all KPIs in parallel
-  const [
-    deliveryDelayCount,
-    productionRateByProduct,
-    overallProductionRate,
-    priorityRatio,
-    customerProduction,
-    partDefectRate,
-    workingHoursByProduct,
-    leadTimeData,
-    machineTypeErrorRate
-  ] = await Promise.all([
-    calculateDeliveryDelayCount(adjustedDateRange),
-    calculateProductionRateByProduct(adjustedDateRange),
-    calculateOverallProductionRate(adjustedDateRange),
-    calculatePriorityRatio(adjustedDateRange),
-    calculateCustomerProductionPercentage(adjustedDateRange),
-    calculatePartDefectRate(adjustedDateRange),
-    calculateWorkingHoursByProduct(adjustedDateRange),
-    calculateLeadTime(adjustedDateRange),
-    calculateMachineTypeErrorRate(adjustedDateRange)
-  ]);
-
-  // ===== SECTION 1: Overall KPIs - VERTICAL LABEL-VALUE FORMAT =====
-  // Format: 4 columns for label (A-D), 3 columns for value (E-G)
-  // KPI DATA HEADER
-  worksheet.mergeCells(currentRow, 1, currentRow, 4);
+  // Row 5: Overall KPIs
+  // Section header
+  worksheet.mergeCells(currentRow, 1, currentRow, 3);
   const kpiHeaderCell = worksheet.getCell(currentRow, 1);
-  kpiHeaderCell.value = getTranslation("productionKPI.overallKPIs", lang);
+  kpiHeaderCell.value = getTranslation(
+    "productionReport.overallKPIs",
+    langCode
+  );
   kpiHeaderCell.font = { bold: true, size: 12 };
-  kpiHeaderCell.alignment = { horizontal: "left", vertical: "top" };
-  kpiHeaderCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "E0E0E0" }
-  };
-  kpiHeaderCell.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "medium" },
-    right: { style: "medium" }
-  };
-  // KPI DATA HEADER VALUES
-  worksheet.mergeCells(currentRow, 5, currentRow, 7);
-  const kpiHeaderValuesCell = worksheet.getCell(currentRow, 5);
-  kpiHeaderValuesCell.value = getTranslation("titles.kpiValue", lang);
-  kpiHeaderValuesCell.font = { bold: true, size: 12 };
-  kpiHeaderValuesCell.alignment = { horizontal: "center", vertical: "top" };
-  kpiHeaderValuesCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "E0E0E0" }
-  };
-  kpiHeaderValuesCell.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "medium" },
-    right: { style: "medium" }
-  };
-  worksheet.getRow(currentRow).height = 25;
+  kpiHeaderCell.alignment = { horizontal: "left", vertical: "middle" };
   currentRow++;
 
-  // Delivery Delay Count
-  worksheet.mergeCells(currentRow, 1, currentRow, 4);
-  const delayLabelCell = worksheet.getCell(currentRow, 1);
-  delayLabelCell.value = getTranslation(
-    "productionKPI.deliveryDelayCount",
-    lang
-  );
-  delayLabelCell.font = { bold: true, size: 11 };
-  delayLabelCell.alignment = {
-    horizontal: "left",
-    vertical: "middle",
-    indent: 1
-  };
-  delayLabelCell.border = {
-    top: { style: "thin" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
-
-  worksheet.mergeCells(currentRow, 5, currentRow, 7);
-  const delayValueCell = worksheet.getCell(currentRow, 5);
-  delayValueCell.value = deliveryDelayCount;
-  delayValueCell.font = { size: 11 };
-  delayValueCell.alignment = { horizontal: "center", vertical: "middle" };
-  delayValueCell.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-  worksheet.getRow(currentRow).height = 25;
-  currentRow++;
-
-  // Overall Production Rate
-  worksheet.mergeCells(currentRow, 1, currentRow, 4);
-  const rateLabelCell = worksheet.getCell(currentRow, 1);
-  rateLabelCell.value = getTranslation(
-    "productionKPI.overallProductionRate",
-    lang
-  );
-  rateLabelCell.font = { bold: true, size: 11 };
-  rateLabelCell.alignment = {
-    horizontal: "left",
-    vertical: "middle",
-    indent: 1
-  };
-  rateLabelCell.border = {
-    top: { style: "thin" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
-
-  worksheet.mergeCells(currentRow, 5, currentRow, 7);
-  const rateValueCell = worksheet.getCell(currentRow, 5);
-  rateValueCell.value = `${overallProductionRate.toFixed(2)}%`;
-  rateValueCell.font = { size: 11 };
-  rateValueCell.numFmt = "0.00";
-  rateValueCell.alignment = { horizontal: "center", vertical: "middle" };
-  rateValueCell.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-  worksheet.getRow(currentRow).height = 25;
-  currentRow += 2;
-
-  // ===== SECTION 2: Production Rate by Product =====
-  worksheet.mergeCells(currentRow, 1, currentRow, 7);
-  const section2Header = worksheet.getCell(currentRow, 1);
-  section2Header.value = getTranslation(
-    "productionKPI.productionRateByProduct",
-    lang
-  );
-  section2Header.font = { size: 12, bold: true };
-  section2Header.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "E0E0E0" }
-  };
-  section2Header.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-  currentRow++;
-
-  // Headers - Compact 4-column format
-  const productHeaders = [
-    getTranslation("productionKPI.productName", lang),
-    getTranslation("productionKPI.targetQuantity", lang),
-    getTranslation("productionKPI.producedQuantity", lang),
-    getTranslation("productionKPI.productionRate", lang)
-  ];
-  productHeaders.forEach((header, idx) => {
-    const cell = worksheet.getCell(currentRow, idx === 0 ? 1 : idx + 4);
-    if (idx === 0) worksheet.mergeCells(currentRow, 1, currentRow, 4);
-    cell.value = header;
-    cell.font = {
-      bold: true,
-      size: 10,
-      color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
-    };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-    };
-    cell.alignment = {
-      horizontal: "center",
-      vertical: "middle",
-      wrapText: true
-    };
-    cell.border = {
-      top: { style: "thin" },
-      left: { style: idx === 0 ? "medium" : "thin" },
-      bottom: { style: "thin" },
-      right: { style: idx === 3 ? "medium" : "thin" }
-    };
-  });
-  worksheet.getRow(currentRow).height = 30;
-  currentRow++;
-
-  // Data rows
-  productionRateByProduct.forEach((product) => {
-    worksheet.mergeCells(currentRow, 1, currentRow, 4);
-    worksheet.getCell(currentRow, 1).value = product.productName;
-    worksheet.getCell(currentRow, 1).alignment = {
-      horizontal: "left",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 1).border = {
-      top: { style: "thin" },
-      left: { style: "medium" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-
-    worksheet.getCell(currentRow, 5).value = product.targetQuantity;
-    worksheet.getCell(currentRow, 5).numFmt = "#,##0";
-    worksheet.getCell(currentRow, 5).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 5).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-
-    worksheet.getCell(currentRow, 6).value = product.producedQuantity;
-    worksheet.getCell(currentRow, 6).numFmt = "#,##0";
-    worksheet.getCell(currentRow, 6).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 6).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-
-    worksheet.getCell(currentRow, 7).value = product.productionRate;
-    worksheet.getCell(currentRow, 7).numFmt = "0.00";
-    worksheet.getCell(currentRow, 7).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 7).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "medium" }
-    };
-
-    worksheet.getRow(currentRow).height = 20;
-    currentRow++;
-  });
-  currentRow += 2;
-
-  // ===== SECTION 3: Priority Distribution =====
-  worksheet.mergeCells(currentRow, 1, currentRow, 7);
-  const section3Header = worksheet.getCell(currentRow, 1);
-  section3Header.value = getTranslation(
-    "productionKPI.priorityDistribution",
-    lang
-  );
-  section3Header.font = { size: 12, bold: true };
-  section3Header.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "E0E0E0" }
-  };
-  section3Header.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-  currentRow++;
-
-  // Headers - 2-column format
-  worksheet.mergeCells(currentRow, 1, currentRow, 4);
-  worksheet.getCell(currentRow, 1).value = getTranslation(
-    "productionKPI.priority",
-    lang
-  );
-  worksheet.getCell(currentRow, 1).font = {
-    bold: true,
-    size: 10,
-    color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
-  };
-  worksheet.getCell(currentRow, 1).fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-  };
-  worksheet.getCell(currentRow, 1).alignment = {
-    horizontal: "center",
-    vertical: "middle"
-  };
-  worksheet.getCell(currentRow, 1).border = {
-    top: { style: "thin" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
-
-  worksheet.mergeCells(currentRow, 5, currentRow, 7);
-  worksheet.getCell(currentRow, 5).value = getTranslation(
-    "productionKPI.percentage",
-    lang
-  );
-  worksheet.getCell(currentRow, 5).font = {
-    bold: true,
-    size: 10,
-    color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
-  };
-  worksheet.getCell(currentRow, 5).fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-  };
-  worksheet.getCell(currentRow, 5).alignment = {
-    horizontal: "center",
-    vertical: "middle"
-  };
-  worksheet.getCell(currentRow, 5).border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-
-  worksheet.getRow(currentRow).height = 25;
-  currentRow++;
-
-  // Data rows
-  Object.entries(priorityRatio).forEach(([priority, percentage]) => {
-    worksheet.mergeCells(currentRow, 1, currentRow, 4);
-    worksheet.getCell(currentRow, 1).value = priority;
-    worksheet.getCell(currentRow, 1).alignment = {
-      horizontal: "left",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 1).border = {
-      top: { style: "thin" },
-      left: { style: "medium" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-
-    worksheet.mergeCells(currentRow, 5, currentRow, 7);
-    worksheet.getCell(currentRow, 5).value = percentage;
-    worksheet.getCell(currentRow, 5).numFmt = "0.00";
-    worksheet.getCell(currentRow, 5).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 5).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "medium" }
-    };
-
-    worksheet.getRow(currentRow).height = 20;
-    currentRow++;
-  });
-  currentRow += 2;
-
-  // ===== SECTION 4: Customer Production Percentage =====
-  worksheet.mergeCells(currentRow, 1, currentRow, 7);
-  const section4Header = worksheet.getCell(currentRow, 1);
-  section4Header.value = getTranslation(
-    "productionKPI.customerProduction",
-    lang
-  );
-  section4Header.font = { size: 12, bold: true };
-  section4Header.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "E0E0E0" }
-  };
-  section4Header.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-  currentRow++;
-
-  // Headers - 3-column format
-  worksheet.mergeCells(currentRow, 1, currentRow, 5);
-  worksheet.getCell(currentRow, 1).value = getTranslation(
-    "productionKPI.customerName",
-    lang
-  );
-  worksheet.getCell(currentRow, 1).font = {
-    bold: true,
-    size: 10,
-    color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
-  };
-  worksheet.getCell(currentRow, 1).fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-  };
-  worksheet.getCell(currentRow, 1).alignment = {
-    horizontal: "center",
-    vertical: "middle",
-    wrapText: true
-  };
-  worksheet.getCell(currentRow, 1).border = {
-    top: { style: "thin" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
-
-  worksheet.getCell(currentRow, 6).value = getTranslation(
-    "productionKPI.productionVolume",
-    lang
-  );
-  worksheet.getCell(currentRow, 6).font = {
-    bold: true,
-    size: 10,
-    color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
-  };
-  worksheet.getCell(currentRow, 6).fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-  };
-  worksheet.getCell(currentRow, 6).alignment = {
-    horizontal: "center",
-    vertical: "middle",
-    wrapText: true
-  };
-  worksheet.getCell(currentRow, 6).border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
-
-  worksheet.getCell(currentRow, 7).value = getTranslation(
-    "productionKPI.percentage",
-    lang
-  );
-  worksheet.getCell(currentRow, 7).font = {
-    bold: true,
-    size: 10,
-    color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
-  };
-  worksheet.getCell(currentRow, 7).fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-  };
-  worksheet.getCell(currentRow, 7).alignment = {
-    horizontal: "center",
-    vertical: "middle",
-    wrapText: true
-  };
-  worksheet.getCell(currentRow, 7).border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-
-  worksheet.getRow(currentRow).height = 30;
-  currentRow++;
-
-  // Data rows
-  customerProduction.forEach((customer) => {
-    worksheet.mergeCells(currentRow, 1, currentRow, 5);
-    worksheet.getCell(currentRow, 1).value = customer.customerName;
-    worksheet.getCell(currentRow, 1).alignment = {
-      horizontal: "left",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 1).border = {
-      top: { style: "thin" },
-      left: { style: "medium" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-
-    worksheet.getCell(currentRow, 6).value = customer.productionVolume;
-    worksheet.getCell(currentRow, 6).numFmt = "#,##0";
-    worksheet.getCell(currentRow, 6).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 6).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-
-    worksheet.getCell(currentRow, 7).value = customer.percentage;
-    worksheet.getCell(currentRow, 7).numFmt = "0.00";
-    worksheet.getCell(currentRow, 7).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 7).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "medium" }
-    };
-
-    worksheet.getRow(currentRow).height = 20;
-    currentRow++;
-  });
-  currentRow += 2;
-
-  // ===== SECTION 5: Part Defect Rate =====
-  worksheet.mergeCells(currentRow, 1, currentRow, 4);
-  const section5LabelCell = worksheet.getCell(currentRow, 1);
-  section5LabelCell.value = getTranslation(
-    "productionKPI.partDefectRate",
-    lang
-  );
-  section5LabelCell.font = { bold: true, size: 11 };
-  section5LabelCell.alignment = {
-    horizontal: "left",
-    vertical: "middle",
-    indent: 1
-  };
-  section5LabelCell.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
-
-  worksheet.mergeCells(currentRow, 5, currentRow, 7);
-  const section5ValueCell = worksheet.getCell(currentRow, 5);
-  section5ValueCell.value = `${partDefectRate.toFixed(2)}%`;
-  section5ValueCell.font = { size: 11 };
-  section5ValueCell.numFmt = "0.00";
-  section5ValueCell.alignment = { horizontal: "center", vertical: "middle" };
-  section5ValueCell.border = {
-    top: { style: "medium" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-  worksheet.getRow(currentRow).height = 25;
-  currentRow += 2;
-
-  // ===== SECTION 6: Working Hours by Product =====
-  worksheet.mergeCells(currentRow, 1, currentRow, 7);
-  const section6Header = worksheet.getCell(currentRow, 1);
-  section6Header.value = getTranslation(
-    "productionKPI.workingHoursByProduct",
-    lang
-  );
-  section6Header.font = { size: 12, bold: true };
-  section6Header.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "E0E0E0" }
-  };
-  section6Header.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-  currentRow++;
-
-  // Headers - Compact 4-column format
-  const hoursHeaders = [
-    getTranslation("productionKPI.productName", lang),
-    getTranslation("productionKPI.minimumHours", lang),
-    getTranslation("productionKPI.maximumHours", lang),
-    getTranslation("productionKPI.totalHours", lang)
-  ];
-  hoursHeaders.forEach((header, idx) => {
-    const cell = worksheet.getCell(currentRow, idx === 0 ? 1 : idx + 4);
-    if (idx === 0) worksheet.mergeCells(currentRow, 1, currentRow, 4);
-    cell.value = header;
-    cell.font = {
-      bold: true,
-      size: 10,
-      color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
-    };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-    };
-    cell.alignment = {
-      horizontal: "center",
-      vertical: "middle",
-      wrapText: true
-    };
-    cell.border = {
-      top: { style: "thin" },
-      left: { style: idx === 0 ? "medium" : "thin" },
-      bottom: { style: "thin" },
-      right: { style: idx === 3 ? "medium" : "thin" }
-    };
-  });
-
-  worksheet.getRow(currentRow).height = 30;
-  currentRow++;
-
-  // Data rows
-  workingHoursByProduct.forEach((product) => {
-    worksheet.mergeCells(currentRow, 1, currentRow, 4);
-    worksheet.getCell(currentRow, 1).value = product.productName;
-    worksheet.getCell(currentRow, 1).alignment = {
-      horizontal: "left",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 1).border = {
-      top: { style: "thin" },
-      left: { style: "medium" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-
-    worksheet.getCell(currentRow, 5).value = product.minHours;
-    worksheet.getCell(currentRow, 5).numFmt = "0.00";
-    worksheet.getCell(currentRow, 5).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 5).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-
-    worksheet.getCell(currentRow, 6).value = product.maxHours;
-    worksheet.getCell(currentRow, 6).numFmt = "0.00";
-    worksheet.getCell(currentRow, 6).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 6).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-
-    worksheet.getCell(currentRow, 7).value = product.totalHours;
-    worksheet.getCell(currentRow, 7).numFmt = "0.00";
-    worksheet.getCell(currentRow, 7).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 7).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "medium" }
-    };
-
-    worksheet.getRow(currentRow).height = 20;
-    currentRow++;
-  });
-  currentRow += 2;
-
-  // ===== SECTION 7: Lead Time Analysis =====
-  worksheet.mergeCells(currentRow, 1, currentRow, 7);
-  const section7Header = worksheet.getCell(currentRow, 1);
-  section7Header.value = getTranslation("productionKPI.leadTimeAnalysis", lang);
-  section7Header.font = { size: 12, bold: true };
-  section7Header.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "E0E0E0" }
-  };
-  section7Header.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-  currentRow++;
-
-  // Headers - Compact 4-column format
-  const leadTimeHeaders = [
-    getTranslation("productionKPI.projectName", lang),
-    getTranslation("productionKPI.startDate", lang),
-    getTranslation("productionKPI.endDate", lang),
-    getTranslation("productionKPI.leadTimeDays", lang)
-  ];
-  leadTimeHeaders.forEach((header, idx) => {
-    const cell = worksheet.getCell(currentRow, idx === 0 ? 1 : idx + 4);
-    if (idx === 0) worksheet.mergeCells(currentRow, 1, currentRow, 4);
-    cell.value = header;
-    cell.font = {
-      bold: true,
-      size: 10,
-      color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
-    };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-    };
-    cell.alignment = {
-      horizontal: "center",
-      vertical: "middle",
-      wrapText: true
-    };
-    cell.border = {
-      top: { style: "thin" },
-      left: { style: idx === 0 ? "medium" : "thin" },
-      bottom: { style: "thin" },
-      right: { style: idx === 3 ? "medium" : "thin" }
-    };
-  });
-  worksheet.getRow(currentRow).height = 30;
-  currentRow++;
-
-  // Data rows
-  leadTimeData.forEach((project) => {
-    worksheet.mergeCells(currentRow, 1, currentRow, 4);
-    worksheet.getCell(currentRow, 1).value = project.projectName;
-    worksheet.getCell(currentRow, 1).alignment = {
-      horizontal: "left",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 1).border = {
-      top: { style: "thin" },
-      left: { style: "medium" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-
-    worksheet.getCell(currentRow, 5).value = project.startDate;
-    worksheet.getCell(currentRow, 5).numFmt = "yyyy-mm-dd";
-    worksheet.getCell(currentRow, 5).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 5).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-
-    worksheet.getCell(currentRow, 6).value = project.endDate;
-    worksheet.getCell(currentRow, 6).numFmt = "yyyy-mm-dd";
-    worksheet.getCell(currentRow, 6).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 6).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-
-    worksheet.getCell(currentRow, 7).value = project.leadTimeDays;
-    worksheet.getCell(currentRow, 7).numFmt = "#,##0";
-    worksheet.getCell(currentRow, 7).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 7).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "medium" }
-    };
-
-    worksheet.getRow(currentRow).height = 20;
-    currentRow++;
-  });
-  currentRow += 2;
-
-  // ===== SECTION 8: Machine Type Error Rate =====
-  worksheet.mergeCells(currentRow, 1, currentRow, 7);
-  const section8Header = worksheet.getCell(currentRow, 1);
-  section8Header.value = getTranslation(
-    "productionKPI.machineTypeErrorRate",
-    lang
-  );
-  section8Header.font = { size: 12, bold: true };
-  section8Header.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "E0E0E0" }
-  };
-  section8Header.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-  currentRow++;
-
-  // Headers - 3-column format
-  const errorHeaders = [
-    getTranslation("productionKPI.machineType", lang),
-    getTranslation("productionKPI.errorCount", lang),
-    getTranslation("productionKPI.errorRate", lang)
-  ];
-  errorHeaders.forEach((header, idx) => {
-    const cell = worksheet.getCell(currentRow, idx === 0 ? 1 : idx + 5);
-    if (idx === 0) {
-      worksheet.mergeCells(currentRow, 1, currentRow, 5);
+  // Row 6: KPI Columns
+  // KPI Columns: Label | Value format
+  const kpiColumns = [
+    {
+      label: "productionReport.totalProductProduction",
+      value: overallKPIs.totalProductProduction,
+      startCol: 1,
+      endCol: 3
+    },
+    {
+      label: "productionReport.totalPartProduction",
+      value: overallKPIs.totalPartProduction,
+      startCol: 4,
+      endCol: 5
+    },
+    {
+      label: "productionReport.overallDeliveryComplianceRate",
+      value: `${overallKPIs.overallDeliveryComplianceRate.toFixed(0)}%`,
+      startCol: 6,
+      endCol: 7
+    },
+    {
+      label: "productionReport.totalWorkers",
+      value: overallKPIs.totalWorkers,
+      startCol: 8,
+      endCol: 9
     }
-    cell.value = header;
-    cell.font = {
-      bold: true,
-      size: 10,
-      color: { argb: ExcelFormatService.COLORS.HEADER_TEXT }
-    };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-    };
-    cell.alignment = {
-      horizontal: "center",
-      vertical: "middle",
-      wrapText: true
-    };
-    cell.border = {
-      top: { style: "thin" },
-      left: { style: idx === 0 ? "medium" : "thin" },
-      bottom: { style: "thin" },
-      right: { style: idx === 2 ? "medium" : "thin" }
-    };
-  });
-  worksheet.getRow(currentRow).height = 30;
-  currentRow++;
+  ];
 
-  // Data rows
-  machineTypeErrorRate.forEach((machineType) => {
-    worksheet.mergeCells(currentRow, 1, currentRow, 5);
-    worksheet.getCell(currentRow, 1).value = machineType.deviceTypeName;
-    worksheet.getCell(currentRow, 1).alignment = {
-      horizontal: "left",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 1).border = {
+  kpiColumns.forEach((kpi) => {
+    // Label Row
+    worksheet.mergeCells(currentRow, kpi.startCol, currentRow, kpi.endCol);
+    const labelCell = worksheet.getCell(currentRow, kpi.startCol);
+    labelCell.value = getTranslation(kpi.label, langCode);
+    labelCell.font = { size: 12, bold: true };
+    labelCell.alignment = { horizontal: "center", vertical: "middle" };
+    labelCell.border = {
       top: { style: "thin" },
-      left: { style: "medium" },
+      left: { style: "thin" },
       bottom: { style: "thin" },
       right: { style: "thin" }
     };
 
-    worksheet.getCell(currentRow, 6).value = machineType.errorCount;
-    worksheet.getCell(currentRow, 6).numFmt = "#,##0";
-    worksheet.getCell(currentRow, 6).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 6).border = {
+    // Value Row
+    worksheet.mergeCells(
+      currentRow + 1,
+      kpi.startCol,
+      currentRow + 2,
+      kpi.endCol
+    );
+    const valueCell = worksheet.getCell(currentRow + 1, kpi.startCol);
+    valueCell.value = kpi.value;
+    valueCell.font = { size: 12 };
+    valueCell.alignment = { horizontal: "center", vertical: "middle" };
+    valueCell.border = {
       top: { style: "thin" },
       left: { style: "thin" },
       bottom: { style: "thin" },
-      right: { style: "medium" }
+      right: { style: "thin" }
     };
-
-    worksheet.getCell(currentRow, 7).value = machineType.errorRate;
-    worksheet.getCell(currentRow, 7).numFmt = "0.00";
-    worksheet.getCell(currentRow, 7).alignment = {
-      horizontal: "center",
-      vertical: "middle"
-    };
-    worksheet.getCell(currentRow, 7).border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "medium" }
-    };
-
-    worksheet.getRow(currentRow).height = 20;
-    currentRow++;
   });
+  currentRow += 4;
 
-  // Set column widths optimized for A4 portrait (7 columns max)
-  worksheet.getColumn(1).width = 15; // Labels/data
-  worksheet.getColumn(2).width = 12; // Values/data
-  worksheet.getColumn(3).width = 12; // Values/data
-  worksheet.getColumn(4).width = 12; // Values/data
-  worksheet.getColumn(5).width = 12; // Approval blocks
-  worksheet.getColumn(6).width = 12; // Approval blocks
-  worksheet.getColumn(7).width = 12; // Approval blocks
+  // Row 10
+  // ===== SECTION 2: Product Status (제품별 현황) =====
+  // Section header
+  worksheet.mergeCells(currentRow, 1, currentRow, 4);
+  const productStatusHeader = worksheet.getCell(currentRow, 1);
+  productStatusHeader.value = getTranslation(
+    "productionReport.productStatus",
+    langCode
+  );
+  productStatusHeader.font = { bold: true, size: 12 };
+  productStatusHeader.alignment = { horizontal: "left", vertical: "middle" };
+  currentRow++;
 
-  console.log("✓ Production Rate KPI Sheet generated successfully");
+  // Product data rows
+  for (
+    let productIndex = 0;
+    productIndex < productStatusData.length;
+    productIndex++
+  ) {
+    const productData = productStatusData[productIndex];
+    currentRow = formatProductStatusDataToExcelJsTable(
+      productData,
+      productIndex,
+      worksheet,
+      langCode,
+      currentRow
+    );
+    // const product = productData.product;
+
+    // for (const projectData of productData.projects) {
+    //   const row = [
+    //     product.productName || "",
+    //     projectData.instructionNo || "",
+    //     product.designNumber || "",
+    //     product.customerName || "",
+    //     product.department || "",
+    //     product.personInCharge || "",
+    //     formatDateKorean(projectData.orderDate),
+    //     formatDateKorean(projectData.deliveryDate),
+    //     projectData.quantity,
+    //     projectData.productionQuantity,
+    //     projectData.remainingQuantity,
+    //     `${projectData.completionRate.toFixed(0)}%`,
+    //     formatTimeDuration(projectData.workTime, langCode),
+    //     projectData.deliveryDelays,
+    //     `${projectData.deliveryComplianceRate.toFixed(0)}%`
+    //   ];
+
+    //   row.forEach((val, idx) => {
+    //     const cell = worksheet.getCell(currentRow, idx + 1);
+    //     cell.value = val;
+    //     cell.font = { size: 9 };
+    //     cell.alignment = {
+    //       horizontal: idx < 6 ? "left" : "center",
+    //       vertical: "middle",
+    //       wrapText: true
+    //     };
+    //     cell.border = {
+    //       top: { style: "thin" },
+    //       left: { style: idx === 0 ? "medium" : "thin" },
+    //       bottom: { style: "thin" },
+    //       right: { style: idx === row.length - 1 ? "medium" : "thin" }
+    //     };
+    //     if (typeof val === "number" && idx >= 7 && idx <= 10) {
+    //       cell.numFmt = "#,##0";
+    //     }
+    //   });
+    //   worksheet.getRow(currentRow).height = 25;
+    //   currentRow++;
+    // }
+
+    // // Part Details section for this product
+    // if (productData.parts.length > 0) {
+    //   // Part Details header
+    //   worksheet.mergeCells(currentRow, 1, currentRow, 16);
+    //   const partHeader = worksheet.getCell(currentRow, 1);
+    //   partHeader.value = getTranslation(
+    //     "productionReport.partDetails",
+    //     langCode
+    //   );
+    //   partHeader.font = { bold: true, size: 11 };
+    //   partHeader.alignment = { horizontal: "left", vertical: "middle" };
+    //   partHeader.fill = {
+    //     type: "pattern",
+    //     pattern: "solid",
+    //     fgColor: { argb: "F0F0F0" }
+    //   };
+    //   partHeader.border = {
+    //     top: { style: "thin" },
+    //     left: { style: "medium" },
+    //     bottom: { style: "thin" },
+    //     right: { style: "medium" }
+    //   };
+    //   worksheet.getRow(currentRow).height = 25;
+    //   currentRow++;
+
+    //   // Part table headers
+    //   const partHeaders = [
+    //     getTranslation("productionReport.drawingNo", langCode),
+    //     getTranslation("productionReport.partName", langCode),
+    //     getTranslation("productionReport.quantity", langCode),
+    //     getTranslation("productionReport.productionQuantity", langCode),
+    //     getTranslation("productionReport.remainingQuantity", langCode),
+    //     getTranslation("productionReport.completionRate", langCode),
+    //     getTranslation("productionReport.totalWorkTime", langCode)
+    //   ];
+
+    //   // Add work details headers (multiple sets of 3 columns)
+    //   const maxWorkDetails = Math.max(
+    //     ...productData.parts.map((p) => p.workDetails.length),
+    //     1
+    //   );
+    //   for (let i = 0; i < maxWorkDetails; i++) {
+    //     partHeaders.push(
+    //       getTranslation("productionReport.worker", langCode),
+    //       getTranslation("productionReport.workQuantity", langCode),
+    //       getTranslation("productionReport.workTime", langCode)
+    //     );
+    //   }
+
+    //   partHeaders.forEach((header, idx) => {
+    //     const cell = worksheet.getCell(currentRow, idx + 1);
+    //     cell.value = header;
+    //     cell.font = { bold: true, size: 9 };
+    //     cell.alignment = {
+    //       horizontal: "center",
+    //       vertical: "middle",
+    //       wrapText: true
+    //     };
+    //     cell.fill = {
+    //       type: "pattern",
+    //       pattern: "solid",
+    //       fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    //     };
+    //     cell.border = {
+    //       top: { style: "thin" },
+    //       left: { style: idx === 0 ? "medium" : "thin" },
+    //       bottom: { style: "thin" },
+    //       right: { style: idx === partHeaders.length - 1 ? "medium" : "thin" }
+    //     };
+    //   });
+    //   worksheet.getRow(currentRow).height = 40;
+    //   currentRow++;
+
+    //   // Part data rows
+    //   for (const part of productData.parts) {
+    //     const row: any[] = [
+    //       part.dwgNo || "",
+    //       part.partName || "",
+    //       part.quantity,
+    //       part.productionQuantity,
+    //       part.remainingQuantity,
+    //       `${part.completionRate.toFixed(0)}%`,
+    //       formatTimeDuration(part.totalWorkTime, langCode)
+    //     ];
+
+    //     // Add work details
+    //     for (let i = 0; i < maxWorkDetails; i++) {
+    //       if (i < part.workDetails.length) {
+    //         const workDetail = part.workDetails[i];
+    //         row.push(
+    //           (workDetail.worker as any)?.name || "",
+    //           workDetail.workQuantity,
+    //           formatTimeDuration(workDetail.workTime, langCode)
+    //         );
+    //       } else {
+    //         row.push("", "", "");
+    //       }
+    //     }
+
+    //     row.forEach((val, idx) => {
+    //       const cell = worksheet.getCell(currentRow, idx + 1);
+    //       cell.value = val;
+    //       cell.font = { size: 9 };
+    //       cell.alignment = {
+    //         horizontal: idx < 2 ? "left" : "center",
+    //         vertical: "middle",
+    //         wrapText: true
+    //       };
+    //       cell.border = {
+    //         top: { style: "thin" },
+    //         left: { style: idx === 0 ? "medium" : "thin" },
+    //         bottom: { style: "thin" },
+    //         right: { style: idx === row.length - 1 ? "medium" : "thin" }
+    //       };
+    //       if (
+    //         typeof val === "number" &&
+    //         (idx === 2 || idx === 3 || idx === 4)
+    //       ) {
+    //         cell.numFmt = "#,##0";
+    //       }
+    //     });
+    //     worksheet.getRow(currentRow).height = 25;
+    //     currentRow++;
+    //   }
+    //   currentRow++; // Space after parts section
+    // }
+  }
+
+  // Set column widths optimized for the new format
+  worksheet.getColumn(1).width = 20; // Product info / Part name
+  worksheet.getColumn(2).width = 15; // Instruction No / Drawing No
+  worksheet.getColumn(3).width = 15; // Design No / Part name
+  worksheet.getColumn(4).width = 12; // Customer
+  worksheet.getColumn(5).width = 12; // Department
+  worksheet.getColumn(6).width = 12; // Person in Charge
+  worksheet.getColumn(7).width = 12; // Order Date
+  worksheet.getColumn(8).width = 12; // Delivery Date
+  worksheet.getColumn(9).width = 10; // Quantity
+  worksheet.getColumn(10).width = 12; // Production Quantity
+  worksheet.getColumn(11).width = 12; // Remaining Quantity
+  worksheet.getColumn(12).width = 12; // Completion Rate
+  worksheet.getColumn(13).width = 15; // Work Time
+  worksheet.getColumn(14).width = 12; // Delivery Delays
+  worksheet.getColumn(15).width = 15; // Delivery Compliance Rate
+  worksheet.getColumn(16).width = 15; // Work details columns start here
+  worksheet.getColumn(17).width = 15; // Work details columns start here
+
+  console.log(
+    "✓ Production Rate KPI Sheet (Productivity Report) generated successfully"
+  );
 }
