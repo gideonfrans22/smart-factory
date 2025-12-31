@@ -260,10 +260,14 @@ export const updateRawMaterial = async (
     // Track who modified the raw material
     await rawMaterial.save();
 
+    const newRawMaterial = await RawMaterial.findById(id).populate(
+      "modifiedBy"
+    );
+
     const response: APIResponse = {
       success: true,
       message: "Raw material updated successfully",
-      data: rawMaterial
+      data: newRawMaterial
     };
     res.json(response);
   } catch (error: any) {
