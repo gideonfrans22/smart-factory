@@ -20,11 +20,6 @@ export const getMonitorOverview = async (
     
     // Time boundaries
     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     
     // Get days in current month for proper percentage calculation
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
