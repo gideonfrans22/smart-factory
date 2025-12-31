@@ -103,6 +103,15 @@ ProductSchema.virtual("isDeleted").get(function (this: IProduct) {
   return this.deletedAt != null;
 });
 
+// Query middleware to exclude soft-deleted documents for countDocuments
+ProductSchema.pre(
+  /^countDocuments/,
+  function (this: mongoose.Query<any, any>, next) {
+    this.where({ deletedAt: null });
+    next();
+  }
+);
+
 // Query middleware to exclude soft-deleted documents by default and populate references
 ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
   const options = this.getOptions();
