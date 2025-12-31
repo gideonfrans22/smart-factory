@@ -145,7 +145,10 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
       alerts = await Alert.populate(alerts, [
         { path: "acknowledgedBy", select: "name username email" },
         { path: "reportedBy", select: "name username email" },
-        { path: "device", populate: { path: "deviceTypeId", select: "name" } },
+        { 
+          path: "device",
+          populate: { path: "deviceTypeId", select: "name" } 
+        },
         { path: "task" },
         { path: "project" }
       ]);
@@ -212,7 +215,10 @@ export const getAlertById = async (
 
     const alert = await Alert.findById(id)
       .populate("acknowledgedBy", "name username")
-      .populate("device")
+      .populate({
+        path: "device",
+        populate: { path: "deviceTypeId", select: "name" }
+      })
       .populate("task")
       .populate("project");
 

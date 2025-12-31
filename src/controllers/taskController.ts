@@ -107,7 +107,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     const tasks = await Task.find(query)
       .populate(
         "projectId",
-        "name status priority deadline progress targetQuantity producedQuantity"
+        "name status priority deadline progress targetQuantity producedQuantity projectNumber"
       )
       .populate("workerId", "name username")
       .populate("deviceId", "name deviceName")
@@ -122,6 +122,10 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
       .populate(
         "productSnapshotId",
         "name version productNumber customerName personInCharge department"
+      )
+      .populate(
+        "productId",
+        "designNumber productName customerName personInCharge department"
       )
       .skip(skip)
       .limit(limitNum)
@@ -165,7 +169,7 @@ export const getTaskById = async (
     const task = await Task.findById(id)
       .populate(
         "projectId",
-        "name status priority deadline progress targetQuantity producedQuantity"
+        "name status priority deadline progress targetQuantity producedQuantity projectNumber"
       )
       .populate("workerId", "name username")
       .populate({
@@ -179,6 +183,10 @@ export const getTaskById = async (
       .populate(
         "productSnapshotId",
         "name version productNumber customerName personInCharge department"
+      )
+      .populate(
+        "productId",
+        "designNumber productName customerName personInCharge department"
       )
       .populate("dependentTask", "title status");
 
