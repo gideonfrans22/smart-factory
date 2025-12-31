@@ -73,23 +73,22 @@ export const getMonitorOverview = async (
       // Top 5 Devices with Most Alerts (에러 현황)
       topDevicesWithAlerts
     ] = await Promise.all([
-      // 전체 작업 진행률 - 24-hour based
+      // 전체 작업 진행률:
+      // - 전체 작업 수 = (미완료 작업 실시간) + (24시간 내 완료된 작업)
+      // - 완료 작업 수 = 24시간 내 완료된 작업
+      
+      // Count of NOT completed tasks (real-time - PENDING, ONGOING, etc.)
       Task.countDocuments({
-        $or: [
-          { createdAt: { $gte: last24Hours } },
-          { updatedAt: { $gte: last24Hours } }
-        ]
+        status: { $nin: ["COMPLETED", "CANCELLED"] }
       }),
+      // Count of tasks completed in last 24 hours
       Task.countDocuments({
         status: "COMPLETED",
         completedAt: { $gte: last24Hours }
       }),
+      // Count of PENDING tasks (real-time)
       Task.countDocuments({
-        status: "PENDING",
-        $or: [
-          { createdAt: { $gte: last24Hours } },
-          { updatedAt: { $gte: last24Hours } }
-        ]
+        status: "PENDING"
       }),
 
       // 납기준수율 - Tasks that were due in last 24h and completed on time
@@ -114,40 +113,31 @@ export const getMonitorOverview = async (
         }
       }),
 
-      // 생산성 일간 - Today
+      // 생산성 일간 - Daily: completed in last 24h / assigned in last 24h
       Task.countDocuments({
         status: "COMPLETED",
-        completedAt: { $gte: startOfDay }
+        completedAt: { $gte: last24Hours }
       }),
       Task.countDocuments({
-        $or: [
-          { createdAt: { $gte: startOfDay } },
-          { deadline: { $gte: startOfDay, $lt: new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000) } }
-        ]
+        createdAt: { $gte: last24Hours }
       }),
 
-      // 생산성 주간 - This week
+      // 생산성 주간 - Weekly: completed in last 7 days / assigned in last 7 days
       Task.countDocuments({
         status: "COMPLETED",
-        completedAt: { $gte: startOfWeek }
+        completedAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) }
       }),
       Task.countDocuments({
-        $or: [
-          { createdAt: { $gte: startOfWeek } },
-          { deadline: { $gte: startOfWeek, $lt: new Date(startOfWeek.getTime() + 7 * 24 * 60 * 60 * 1000) } }
-        ]
+        createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) }
       }),
 
-      // 생산성 월간 - This month
+      // 생산성 월간 - Monthly: completed in last 30 days / assigned in last 30 days
       Task.countDocuments({
         status: "COMPLETED",
-        completedAt: { $gte: startOfMonth }
+        completedAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }
       }),
       Task.countDocuments({
-        $or: [
-          { createdAt: { $gte: startOfMonth } },
-          { deadline: { $gte: startOfMonth, $lt: new Date(now.getFullYear(), now.getMonth() + 1, 1) } }
-        ]
+        createdAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }
       }),
 
       // Equipment Utilization (real-time)
@@ -168,11 +158,12 @@ export const getMonitorOverview = async (
       Alert.countDocuments({}),
       Alert.countDocuments({ status: "RESOLVED" }),
 
-      // Top 5 Devices with Most Alerts (for 에러 현황 bar graph)
+      // Top 5 Devices with Most Alerts in Last 24 Hours (for 에러 현황 bar graph)
       Alert.aggregate([
         {
           $match: {
-            deviceId: { $exists: true, $ne: null }
+            deviceId: { $exists: true, $ne: null },
+            createdAt: { $gte: last24Hours } // ✅ Filter last 24 hours only
           }
         },
         {
@@ -198,7 +189,7 @@ export const getMonitorOverview = async (
             _id: "$device._id",
             deviceName: { $first: "$device.name" },
             deviceTypeName: { $first: "$deviceType.name" },
-            alertCount: { $sum: 1 }
+            alertCount: { $sum: 1 } // Count alerts in last 24 hours
           }
         },
         { $sort: { alertCount: -1 } },
@@ -206,9 +197,15 @@ export const getMonitorOverview = async (
       ])
     ]);
 
-    // Calculate percentages
+    // Calculate 전체 작업 진행률:
+    // - 전체 작업 수 = 미완료 작업 실시간 수 (완료되면 줄어듦)
+    // - 완료 작업 수 = 24시간 내 완료된 작업 수
+    // - 진행률 = 완료 / 전체 * 100%
+    // Note: totalTasksLast24h is now "not completed tasks count (real-time)"
+    const notCompletedTasks = totalTasksLast24h; // 미완료 작업 수 (실시간)
+    const totalTasksForProgress = notCompletedTasks; // 전체 = 미완료 작업 수
     const taskProgressPercentage =
-      totalTasksLast24h > 0 ? Math.round((completedTasksLast24h / totalTasksLast24h) * 100) : 0;
+      totalTasksForProgress > 0 ? Math.round((completedTasksLast24h / totalTasksForProgress) * 100) : 0;
     
     const deadlineCompliancePercentage =
       tasksDueLast24h > 0 ? Math.round((onTimeTasksLast24h / tasksDueLast24h) * 100) : 0;
@@ -240,6 +237,7 @@ export const getMonitorOverview = async (
       allAlerts > 0 ? Math.round((resolvedAlerts / allAlerts) * 100) : 0;
 
     // Process top 5 devices with alerts for bar graph
+    // ✅ Filtered to last 24 hours in aggregation pipeline above
     const maxAlertCount = topDevicesWithAlerts.length > 0 
       ? Math.max(...topDevicesWithAlerts.map((d: any) => d.alertCount))
       : 0;
@@ -263,7 +261,7 @@ export const getMonitorOverview = async (
         taskProgress: {
           percentage: taskProgressPercentage,
           completed: completedTasksLast24h,
-          total: totalTasksLast24h,
+          total: totalTasksForProgress, // (미완료 실시간) + (24시간 완료)
           pending: pendingTasksLast24h
         },
         deadlineCompliance: {
@@ -290,7 +288,7 @@ export const getMonitorOverview = async (
           }
         },
         // Top 5 devices with most alerts (for bar graph)
-        topDeviceErrors: topDeviceErrors,
+        deviceErrorFrequency: topDeviceErrors,
         errors: {
           categories: [], // Kept for backward compatibility
           total: allAlerts

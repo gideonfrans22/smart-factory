@@ -25,7 +25,7 @@ const seedDefaultUsers = async (): Promise<void> => {
     // Create monitor user
     const monitorExists = await User.findOne({ username: "monitor" });
     if (!monitorExists) {
-      const monitorPassword = await hashPassword("monitor123");
+      const monitorPassword = await hashPassword("admin123");
       await User.create({
         username: "monitor",
         name: "Monitor Display",
@@ -34,7 +34,7 @@ const seedDefaultUsers = async (): Promise<void> => {
         role: "monitor"
       });
       console.log(
-        "✅ Monitor user created (username: monitor, password: monitor123)"
+        "✅ Monitor user created (username: monitor, password: admin123)"
       );
     }
 

@@ -227,6 +227,19 @@ export const initializeWebSocket = async (
       console.log(`📊 Socket ${socket.id} left KPIs room`);
     });
 
+    // Join monitors room (for Monitor TV displays)
+    socket.on("join:monitors", () => {
+      socket.join("monitors");
+      console.log(`📺 Socket ${socket.id} joined monitors room`);
+      socket.emit("joined", { room: "monitors" });
+    });
+
+    // Leave monitors room
+    socket.on("leave:monitors", () => {
+      socket.leave("monitors");
+      console.log(`📺 Socket ${socket.id} left monitors room`);
+    });
+
     // Join user-specific room (for personal notifications)
     socket.on("join:user", (userId: string) => {
       if (!userId) return;
