@@ -427,7 +427,11 @@ export const createTask = async (
     await task.save();
     await task.populate([
       { path: "workerId", select: "name username email" },
-      { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" },
+      {
+        path: "productSnapshotId",
+        select:
+          "name version productNumber customerName personInCharge department"
+      },
       { path: "recipeSnapshotId", select: "name version" }
     ]);
 
@@ -634,7 +638,11 @@ export const updateTask = async (
       { path: "workerId", select: "name username email" },
       { path: "deviceId", select: "name deviceName" },
       { path: "recipeSnapshotId", select: "name version" },
-      { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" }
+      {
+        path: "productSnapshotId",
+        select:
+          "name version productNumber customerName personInCharge department"
+      }
     ]);
 
     // 🆕 Broadcast task status change in real-time
@@ -908,7 +916,11 @@ export const startTask = async (
       { path: "workerId", select: "name username email" },
       { path: "deviceId", select: "name deviceName ipAddress status" },
       { path: "recipeSnapshotId", select: "name version steps" },
-      { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" }
+      {
+        path: "productSnapshotId",
+        select:
+          "name version productNumber customerName personInCharge department"
+      }
     ]);
 
     const response: APIResponse = {
@@ -1014,7 +1026,11 @@ export const resumeTask = async (
       { path: "workerId", select: "name username email" },
       { path: "deviceId", select: "name deviceName ipAddress status" },
       { path: "recipeSnapshotId", select: "name version steps" },
-      { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" }
+      {
+        path: "productSnapshotId",
+        select:
+          "name version productNumber customerName personInCharge department"
+      }
     ]);
 
     const response: APIResponse = {
@@ -1099,7 +1115,11 @@ export const pauseTask = async (
       { path: "workerId", select: "name username email" },
       { path: "deviceId", select: "name deviceName ipAddress status" },
       { path: "recipeSnapshotId", select: "name version steps" },
-      { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" }
+      {
+        path: "productSnapshotId",
+        select:
+          "name version productNumber customerName personInCharge department"
+      }
     ]);
 
     const response: APIResponse = {
@@ -1164,7 +1184,11 @@ export const failTask = async (
       { path: "workerId", select: "name username email" },
       { path: "deviceId", select: "name deviceName ipAddress status" },
       { path: "recipeSnapshotId", select: "name version steps" },
-      { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" }
+      {
+        path: "productSnapshotId",
+        select:
+          "name version productNumber customerName personInCharge department"
+      }
     ]);
 
     // Cascade failure to all dependent tasks in the chain
@@ -1539,6 +1563,7 @@ export const getTaskStatistics = async (
       statusCounts,
       priorityCounts,
       totalTasks,
+      productTargetQuantity,
       completedTasks,
       overdueTasks,
       avgCompletionTime,
@@ -1571,6 +1596,34 @@ export const getTaskStatistics = async (
 
       // Total tasks
       Task.countDocuments(baseQuery),
+
+      // Product target quantity
+      Task.aggregate([
+        { $match: baseQuery },
+        {
+          $group: {
+            _id: "$projectId"
+          }
+        },
+        {
+          $lookup: {
+            from: "projects",
+            localField: "_id",
+            foreignField: "_id",
+            as: "project"
+          }
+        },
+        { $unwind: "$project" },
+        {
+          $group: {
+            _id: null,
+            // sum project.targetQuantity
+            totalTargetQuantity: {
+              $sum: "$project.targetQuantity"
+            }
+          }
+        }
+      ]),
 
       // Completed tasks count
       Task.countDocuments({ ...baseQuery, status: "COMPLETED" }),
@@ -1815,6 +1868,7 @@ export const getTaskStatistics = async (
         overview: {
           totalTasks,
           completedTasks,
+          targetQuantity: productTargetQuantity[0]?.totalTargetQuantity || 0,
           pendingTasks: statusStats.PENDING,
           ongoingTasks: statusStats.ONGOING,
           pausedTasks: statusStats.PAUSED,
@@ -2672,7 +2726,11 @@ export const batchUpdateTasks = async (
         { path: "workerId", select: "name username email" },
         { path: "deviceId", select: "name deviceName" },
         { path: "recipeSnapshotId", select: "name version" },
-        { path: "productSnapshotId", select: "name version productNumber customerName personInCharge department" }
+        {
+          path: "productSnapshotId",
+          select:
+            "name version productNumber customerName personInCharge department"
+        }
       ])
       .sort({ createdAt: -1 });
 
