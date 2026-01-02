@@ -151,9 +151,23 @@ export const getMonitorOverview = async (
       }),
 
       // Alert Summary - 24 hour filtered for monitor TV
-      Alert.countDocuments({ createdAt: { $gte: last24Hours } }), // all alerts in 24h
+      // 활성 알림 logic:
+      // - UNREAD/PENDING: always counted (even if > 24h old)
+      // - READ/ACKNOWLEDGED: only counted if within 24h (removed after 24h)
+      // - RESOLVED: never counted
+      Alert.countDocuments({ 
+        $or: [
+          // UNREAD or PENDING → always counted regardless of time
+          { status: { $in: ["UNREAD", "PENDING"] } },
+          // READ or ACKNOWLEDGED → only if within last 24 hours
+          { 
+            createdAt: { $gte: last24Hours },
+            status: { $in: ["READ", "ACKNOWLEDGED"] }
+          }
+        ]
+      }), // active alerts
       Alert.countDocuments({ status: "RESOLVED", resolvedAt: { $gte: last24Hours } }), // resolved in 24h
-      Alert.countDocuments({ level: { $in: ["HIGH", "CRITICAL"] }, createdAt: { $gte: last24Hours } }), // high priority in 24h
+      Alert.countDocuments({ level: { $in: ["HIGH", "CRITICAL"] }, status: { $ne: "RESOLVED" }, createdAt: { $gte: last24Hours } }), // high priority active in 24h
 
       // Top 5 Devices with Most Alerts in Last 24 Hours (for 에러 현황 bar graph)
       Alert.aggregate([
