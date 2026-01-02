@@ -157,23 +157,23 @@ export const getMonitorOverview = async (
       Alert.aggregate([
         {
           $match: {
-            deviceId: { $exists: true, $ne: null },
+            device: { $exists: true, $ne: null },  // Fixed: use 'device' not 'deviceId'
             createdAt: { $gte: last24Hours } // ✅ Filter last 24 hours only
           }
         },
         {
           $lookup: {
             from: "devices",
-            localField: "deviceId",
+            localField: "device",  // Fixed: use 'device' not 'deviceId'
             foreignField: "_id",
-            as: "device"
+            as: "deviceInfo"
           }
         },
-        { $unwind: "$device" },
+        { $unwind: "$deviceInfo" },
         {
           $lookup: {
             from: "devicetypes",
-            localField: "device.deviceTypeId",
+            localField: "deviceInfo.deviceTypeId",
             foreignField: "_id",
             as: "deviceType"
           }
@@ -181,8 +181,8 @@ export const getMonitorOverview = async (
         { $unwind: { path: "$deviceType", preserveNullAndEmptyArrays: true } },
         {
           $group: {
-            _id: "$device._id",
-            deviceName: { $first: "$device.name" },
+            _id: "$deviceInfo._id",
+            deviceName: { $first: "$deviceInfo.name" },
             deviceTypeName: { $first: "$deviceType.name" },
             alertCount: { $sum: 1 } // Count alerts in last 24 hours
           }
