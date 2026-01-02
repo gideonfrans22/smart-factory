@@ -178,11 +178,31 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
         .sort(sortObject);
     }
 
+    // Transform alerts to add flattened device info for easier frontend access
+    const transformedAlerts = alerts.map((alert: any) => {
+      const alertObj = alert.toObject ? alert.toObject() : alert;
+      
+      // Extract device name and type name from populated data
+      if (alertObj.device && typeof alertObj.device === 'object') {
+        alertObj.deviceName = alertObj.device.name || null;
+        if (alertObj.device.deviceTypeId && typeof alertObj.device.deviceTypeId === 'object') {
+          alertObj.deviceTypeName = alertObj.device.deviceTypeId.name || null;
+        }
+      }
+      
+      // Extract reporter name from populated data
+      if (alertObj.reportedBy && typeof alertObj.reportedBy === 'object') {
+        alertObj.reporterName = alertObj.reportedBy.name || alertObj.reportedBy.username || null;
+      }
+      
+      return alertObj;
+    });
+
     const response: APIResponse = {
       success: true,
       message: "Alerts retrieved successfully",
       data: {
-        items: alerts,
+        items: transformedAlerts,
         pagination: {
           page: pageNum,
           limit: limitNum,
