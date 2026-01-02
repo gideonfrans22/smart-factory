@@ -61,9 +61,10 @@ export const getMonitorOverview = async (
       totalWorkers,
       activeWorkers,
 
-      // Alert Summary
+      // Alert Summary (24h filtered)
       allAlerts,
       resolvedAlerts,
+      highPriorityAlerts,
       
       // Top 5 Devices with Most Alerts (에러 현황)
       topDevicesWithAlerts
@@ -149,9 +150,10 @@ export const getMonitorOverview = async (
         currentUser: { $exists: true, $ne: null }
       }),
 
-      // Alert Summary
-      Alert.countDocuments({}),
-      Alert.countDocuments({ status: "RESOLVED" }),
+      // Alert Summary - 24 hour filtered for monitor TV
+      Alert.countDocuments({ createdAt: { $gte: last24Hours } }), // all alerts in 24h
+      Alert.countDocuments({ status: "RESOLVED", resolvedAt: { $gte: last24Hours } }), // resolved in 24h
+      Alert.countDocuments({ level: { $in: ["HIGH", "CRITICAL"] }, createdAt: { $gte: last24Hours } }), // high priority in 24h
 
       // Top 5 Devices with Most Alerts in Last 24 Hours (for 에러 현황 bar graph)
       Alert.aggregate([
@@ -224,9 +226,15 @@ export const getMonitorOverview = async (
       workerCapacity > 0 ? Math.round((totalWorkers / workerCapacity) * 100) : 0;
     const idleWorkers = totalWorkers - activeWorkers;
 
-    // Alert summary calculations
-    const pendingAlerts = await Alert.countDocuments({ status: "PENDING" });
-    const inProgressAlerts = await Alert.countDocuments({ status: "ACKNOWLEDGED" });
+    // Alert summary calculations - 24h filtered
+    const pendingAlerts24h = await Alert.countDocuments({ 
+      status: "PENDING",
+      createdAt: { $gte: last24Hours }
+    });
+    const inProgressAlerts24h = await Alert.countDocuments({ 
+      status: "ACKNOWLEDGED",
+      createdAt: { $gte: last24Hours }
+    });
     const avgResponseTimeMinutes = 12; // TODO: Calculate from actual alert response times
     const resolutionRate =
       allAlerts > 0 ? Math.round((resolvedAlerts / allAlerts) * 100) : 0;
@@ -304,11 +312,13 @@ export const getMonitorOverview = async (
           idle: idleWorkers
         },
         alerts: {
-          total: allAlerts,
-          unconfirmed: pendingAlerts,
-          inProgress: inProgressAlerts,
-          resolved: resolvedAlerts,
-          avgResponseTime: avgResponseTimeMinutes,
+          total: allAlerts, // 24h alerts total
+          highPriority: highPriorityAlerts, // HIGH + CRITICAL in 24h
+          unconfirmed: pendingAlerts24h, // PENDING in 24h
+          inProgress: inProgressAlerts24h, // ACKNOWLEDGED in 24h
+          resolved: resolvedAlerts, // resolved in 24h
+          averageResponseTime: avgResponseTimeMinutes, // Fixed field name for FE
+          avgResponseTime: avgResponseTimeMinutes, // Keep for backward compat
           resolutionRate: resolutionRate
         },
         // Additional context info
