@@ -87,17 +87,16 @@ export const getMonitorOverview = async (
         status: "PENDING"
       }),
 
-      // 납기준수율 - Tasks that were due in last 24h and completed on time
+      // 납기준수율 - Deadline Compliance Rate
+      // Numerator: Tasks that had deadline in last 24h AND were completed ON TIME (before deadline)
       Task.countDocuments({
+        deadline: { $gte: last24Hours, $lte: now },
         status: "COMPLETED",
-        completedAt: { $gte: last24Hours },
-        deadline: { $exists: true },
         $expr: { $lte: ["$completedAt", "$deadline"] }
       }),
-      // Tasks that had deadline in last 24h or were completed in last 24h
+      // Denominator: ALL tasks that had deadline in last 24h (regardless of completion status)
       Task.countDocuments({
-        status: "COMPLETED",
-        completedAt: { $gte: last24Hours }
+        deadline: { $gte: last24Hours, $lte: now }
       }),
 
       // Urgent tasks (not completed AND deadline within next 24 hours or past)
