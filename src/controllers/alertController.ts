@@ -485,6 +485,11 @@ export const readAlert = async (
     }
 
     alert.status = "READ";
+    
+    // Set acknowledgedAt when read (first response time)
+    if (!alert.acknowledgedAt) {
+      alert.acknowledgedAt = new Date();
+    }
 
     await alert.save();
     await alert.populate("acknowledgedBy", "name username email");
@@ -605,7 +610,24 @@ export const bulkReadAlerts = async (
     }
 
     const result = await Alert.updateMany(
-      { _id: { $in: alertIds } },
+      { 
+        _id: { $in: alertIds },
+        acknowledgedAt: { $exists: false } // Only set if not already set
+      },
+      {
+        $set: {
+          status: "READ",
+          acknowledgedAt: new Date()
+        }
+      }
+    );
+    
+    // Also update alerts that already have acknowledgedAt (just change status)
+    await Alert.updateMany(
+      { 
+        _id: { $in: alertIds },
+        acknowledgedAt: { $exists: true }
+      },
       {
         $set: {
           status: "READ"
