@@ -606,3 +606,102 @@ export const getProductVersionHistory = async (
     res.status(500).json(response);
   }
 };
+
+// Restore product to a previous version
+export const restoreProductVersion = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id, versionId } = req.params;
+
+    // Verify the product exists
+    const product = await Product.findById(id);
+
+    if (!product) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Product not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Find the version snapshot to restore
+    const snapshot = await ProductSnapshot.findOne({
+      _id: versionId,
+      originalProductId: id
+    });
+
+    if (!snapshot) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Version snapshot not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    // Create a snapshot of the current product before restoring (to preserve history)
+    await SnapshotService.getOrCreateProductSnapshot(
+      product._id as mongoose.Types.ObjectId
+    );
+
+    // Restore product fields from snapshot
+    product.designNumber = snapshot.productNumber || product.designNumber;
+    product.productName = snapshot.name;
+    product.customerName = snapshot.customerName;
+    product.personInCharge = snapshot.personInCharge;
+    product.department = snapshot.department;
+
+    // Restore recipe associations
+    // Get the original recipe IDs from the recipe snapshots
+    const recipeSnapshotIds = snapshot.recipes.map((r) => r.recipeSnapshotId);
+    const recipeSnapshots = await RecipeSnapshot.find({
+      _id: { $in: recipeSnapshotIds }
+    });
+
+    // Map recipe snapshots to their original recipe IDs and quantities
+    const restoredRecipes = snapshot.recipes.map((pr) => {
+      const recipeSnapshot = recipeSnapshots.find(
+        (rs) => rs._id.toString() === pr.recipeSnapshotId.toString()
+      );
+
+      if (!recipeSnapshot) {
+        throw new Error(
+          `Recipe snapshot ${pr.recipeSnapshotId} not found for restoration`
+        );
+      }
+
+      return {
+        recipeId: recipeSnapshot.originalRecipeId,
+        quantity: pr.quantity
+      };
+    });
+
+    product.recipes = restoredRecipes;
+    product.modifiedBy = req.user?.id;
+
+    await product.save();
+
+    const populatedProduct = await Product.findById(product._id);
+
+    const response: APIResponse = {
+      success: true,
+      message: "Product restored successfully",
+      data: populatedProduct
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Restore product version error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: error instanceof Error ? error.message : "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};

@@ -7,7 +7,8 @@ import {
   updateProduct,
   deleteProduct,
   duplicateProduct,
-  getProductVersionHistory
+  getProductVersionHistory,
+  restoreProductVersion
 } from "../controllers/productController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -77,6 +78,18 @@ router.get(
   authenticateToken,
   requireAdmin,
   getProductVersionHistory
+);
+
+/**
+ * @route POST /api/products/:id/restore/:versionId
+ * @desc Restore a product to a previous version
+ * @access Admin only
+ */
+router.post(
+  "/:id/restore/:versionId",
+  authenticateToken,
+  requireAdmin,
+  restoreProductVersion
 );
 
 export default router;
