@@ -3134,7 +3134,7 @@ export async function aggregateProductStatusData(
   }
 
   // For each product, get recipes and aggregate part details
-  for (const [productSnapshotId, productSnapshotData] of productMap.entries()) {
+  for (const [_, productSnapshotData] of productMap.entries()) {
     const product = productSnapshotData.product;
     if (!product.recipes || product.recipes.length === 0) continue;
 
