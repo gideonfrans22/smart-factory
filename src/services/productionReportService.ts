@@ -1,8 +1,8 @@
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
+import { RecipeSnapshot } from "../models";
 import { Alert } from "../models/Alert";
 import { Project } from "../models/Project";
-import { Recipe } from "../models/Recipe";
 import { Task } from "../models/Task";
 import * as ExcelFormatService from "./excelFormatService";
 
@@ -2997,6 +2997,10 @@ export interface ProductStatusData {
   projects: Array<{
     project: any; // IProject
     instructionNo: string;
+    designNumber: string;
+    customerName: string;
+    personInCharge: string;
+    department: string;
     orderDate: Date | null;
     deliveryDate: Date | null;
     quantity: number;
@@ -3035,6 +3039,7 @@ export async function aggregateProductStatusData(
   // Get all projects with products in date range
   const projects = await Project.find({
     product: { $exists: true, $ne: null },
+    productSnapshot: { $exists: true, $ne: null },
     $or: [
       { createdAt: { $gte: startDate, $lte: endDate } },
       { startDate: { $gte: startDate, $lte: endDate } },
@@ -3042,6 +3047,7 @@ export async function aggregateProductStatusData(
     ]
   })
     .populate("product")
+    .populate("productSnapshot")
     .lean();
 
   // Get all tasks for these projects
@@ -3058,20 +3064,20 @@ export async function aggregateProductStatusData(
   const productMap = new Map<string, ProductStatusData>();
 
   for (const project of projects) {
-    const productId = (project.product as any)?._id?.toString();
-    if (!productId) continue;
+    const productSnapshotId = (project.productSnapshot as any)?._id;
+    if (!productSnapshotId) continue;
 
-    const product = project.product as any;
+    const productSnapshot = project.productSnapshot as any;
 
-    if (!productMap.has(productId)) {
-      productMap.set(productId, {
-        product: product,
+    if (!productMap.has(productSnapshotId)) {
+      productMap.set(productSnapshotId, {
+        product: productSnapshot,
         projects: [],
         parts: []
       });
     }
 
-    const productData = productMap.get(productId)!;
+    const productSnapshotData = productMap.get(productSnapshotId)!;
 
     // Calculate work time for this project (sum of task durations)
     const projectTasks = tasks.filter(
@@ -3108,9 +3114,13 @@ export async function aggregateProductStatusData(
         ? (project.producedQuantity / project.targetQuantity) * 100
         : 0;
 
-    productData.projects.push({
+    productSnapshotData.projects.push({
       project: project,
       instructionNo: project.projectNumber || "",
+      designNumber: (project.productSnapshot as any)?.productNumber || "",
+      customerName: (project.productSnapshot as any)?.customerName || "",
+      personInCharge: (project.productSnapshot as any)?.personInCharge || "",
+      department: (project.productSnapshot as any)?.department || "",
       orderDate: project.startDate || project.createdAt || null,
       deliveryDate: project.deadline || null,
       quantity: project.targetQuantity,
@@ -3124,23 +3134,26 @@ export async function aggregateProductStatusData(
   }
 
   // For each product, get recipes and aggregate part details
-  for (const [productId, productData] of productMap.entries()) {
-    console.log("productId", productId);
-    const product = productData.product;
+  for (const [productSnapshotId, productSnapshotData] of productMap.entries()) {
+    const product = productSnapshotData.product;
     if (!product.recipes || product.recipes.length === 0) continue;
 
-    // Get all recipes for this product
-    const recipeIds = product.recipes.map((r: any) => r.recipeId);
-    const recipes = await Recipe.find({ _id: { $in: recipeIds } }).lean();
+    // Get all recipe snapshots for this product
+    const recipeSnapshotIds = product.recipes.map(
+      (r: any) => r.recipeSnapshotId
+    );
+    const recipeSnapshots = await RecipeSnapshot.find({
+      _id: { $in: recipeSnapshotIds }
+    }).lean();
 
     // Get all projects for this product to calculate part quantities
-    const productProjects = productData.projects;
+    const productProjects = productSnapshotData.projects;
 
     for (const recipeRef of product.recipes) {
-      const recipe = recipes.find(
-        (r) => r._id.toString() === recipeRef.recipeId.toString()
+      const recipeSnapshot = recipeSnapshots.find(
+        (r) => r._id.toString() === recipeRef.recipeSnapshotId.toString()
       );
-      if (!recipe) continue;
+      if (!recipeSnapshot) continue;
 
       // Calculate total quantity for this part across all projects
       const totalQuantity = productProjects.reduce(
@@ -3152,7 +3165,10 @@ export async function aggregateProductStatusData(
       const recipeTasks = tasks.filter((t) => {
         const recipeSnapshot = t.recipeSnapshotId as any;
         if (!recipeSnapshot) return false;
-        return recipeSnapshot.recipeId?.toString() === recipe._id.toString();
+        return (
+          recipeSnapshot._id.toString() ===
+          recipeRef.recipeSnapshotId.toString()
+        );
       });
 
       // Calculate production quantity (completed recipe executions)
@@ -3177,12 +3193,12 @@ export async function aggregateProductStatusData(
       >();
 
       for (const task of recipeTasks) {
-        const workerId = task.workerId?.toString();
+        const workerId = task.workerId?._id.toString();
         if (!workerId) continue;
 
         if (!workerMap.has(workerId)) {
           workerMap.set(workerId, {
-            worker: task.workerId,
+            worker: (task.workerId as any)?.name || workerId || "",
             workQuantity: 0,
             workTime: 0
           });
@@ -3193,10 +3209,10 @@ export async function aggregateProductStatusData(
         workerData.workTime += task.actualDuration || 0;
       }
 
-      productData.parts.push({
-        recipe: recipe,
-        dwgNo: recipe.dwgNo || "",
-        partName: recipe.name || "",
+      productSnapshotData.parts.push({
+        recipe: recipeSnapshot,
+        dwgNo: recipeSnapshot.dwgNo || "",
+        partName: recipeSnapshot.name || "",
         quantity: totalQuantity,
         productionQuantity: productionQuantity,
         remainingQuantity: remainingQuantity,
@@ -3213,31 +3229,83 @@ export async function aggregateProductStatusData(
 /**
  * Format time duration in minutes to Korean format (X시간 Y분)
  */
-// function formatTimeDuration(minutes: number, lang?: string): string {
-//   if (lang === "ko") {
-//     const hours = Math.floor(minutes / 60);
-//     const mins = Math.round(minutes % 60);
-//     if (hours > 0 && mins > 0) {
-//       return `${hours}시간${mins}분`;
-//     } else if (hours > 0) {
-//       return `${hours}시간`;
-//     } else if (mins > 0) {
-//       return `${mins}분`;
-//     }
-//     return "0분";
-//   } else {
-//     const hours = Math.floor(minutes / 60);
-//     const mins = Math.round(minutes % 60);
-//     if (hours > 0 && mins > 0) {
-//       return `${hours}h ${mins}m`;
-//     } else if (hours > 0) {
-//       return `${hours}h`;
-//     } else if (mins > 0) {
-//       return `${mins}m`;
-//     }
-//     return "0m";
-//   }
-// }
+function formatTimeDuration(minutes: number, lang?: string): string {
+  if (lang === "ko") {
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.round(minutes % 60);
+    if (hours > 0 && mins > 0) {
+      return `${hours}시간${mins}분`;
+    } else if (hours > 0) {
+      return `${hours}시간`;
+    } else if (mins > 0) {
+      return `${mins}분`;
+    }
+    return "0분";
+  } else {
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.round(minutes % 60);
+    if (hours > 0 && mins > 0) {
+      return `${hours}h ${mins}m`;
+    } else if (hours > 0) {
+      return `${hours}h`;
+    } else if (mins > 0) {
+      return `${mins}m`;
+    }
+    return "0m";
+  }
+}
+
+/**
+ * Format Project Data to ExcelJs Table
+ * @param projectData Project Data
+ * @param worksheet ExcelJS Worksheet
+ * @param lang Language
+ * @param currentRow Current Row
+ * @returns number of rows formatted
+ */
+function formatProjectDataToExcelJsTable(
+  projectData: ProductStatusData["projects"],
+  worksheet: ExcelJS.Worksheet,
+  langCode: string,
+  currentRow: number
+): number {
+  const initialRow = currentRow;
+
+  for (const project of projectData) {
+    let colNum = 4;
+    const formattedProjectData = [
+      project.instructionNo,
+      project.designNumber,
+      project.customerName,
+      project.personInCharge,
+      project.department,
+      project.orderDate ? formatDateKorean(project.orderDate) : "",
+      project.deliveryDate ? formatDateKorean(project.deliveryDate) : "",
+      project.quantity,
+      project.productionQuantity,
+      project.remainingQuantity,
+      project.completionRate,
+      formatTimeDuration(project.workTime, langCode),
+      project.deliveryDelays,
+      project.deliveryComplianceRate || 0
+    ];
+    formattedProjectData.forEach((data, idx) => {
+      const cell = worksheet.getCell(currentRow, colNum + idx);
+      cell.value = data;
+      cell.font = { size: 10 };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+    });
+    worksheet.getRow(currentRow).height = 20;
+    currentRow++;
+  }
+  return initialRow + projectData.length;
+}
 
 /**  Format Product Status Data to ExcelJs Table
  * @param productStatusData Product Status Data
@@ -3278,9 +3346,10 @@ function formatProductStatusDataToExcelJsTable(
 
   productHeaders.forEach((header, idx) => {
     let colNum = idx + 1;
-    if (idx >= 1) {
+    if (idx === 1) {
+      worksheet.mergeCells(currentRow, colNum, currentRow, colNum + 1);
+    } else if (idx > 1) {
       colNum += 1;
-      worksheet.mergeCells(currentRow, idx + 1, currentRow, colNum + 1);
     }
     const cell = worksheet.getCell(currentRow, colNum);
     cell.value = header;
@@ -3305,13 +3374,13 @@ function formatProductStatusDataToExcelJsTable(
   worksheet.getRow(currentRow).height = 40;
   currentRow++;
 
-  // Product Number Colomn
+  // Product Number Colomn (1 column)
   // Row Height: Product Number + Project + Part
   const productNumberRowHeight =
     productData.projects.length +
     1 +
     productData.parts.reduce(
-      (sum, p) => sum + Math.ceil(p.workDetails.length / 3),
+      (sum, p) => sum + (Math.ceil(p.workDetails.length / 3) || 1),
       0
     );
   worksheet.mergeCells(currentRow, 1, currentRow + productNumberRowHeight, 1);
@@ -3319,33 +3388,213 @@ function formatProductStatusDataToExcelJsTable(
   productNumberCell.value = productIndex + 1;
   productNumberCell.font = { size: 10 };
   productNumberCell.alignment = { horizontal: "center", vertical: "middle" };
+  productNumberCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.NEUTRAL }
+  };
   productNumberCell.border = {
     top: { style: "thin" },
-    left: { style: "medium" },
+    left: { style: "thin" },
     bottom: { style: "thin" },
-    right: { style: "medium" }
+    right: { style: "thin" }
   };
 
-  // Product Info Colomn
-  const projectCount =
-    productData.projects.length +
-    1 +
-    productData.parts.reduce(
-      (sum, p) => sum + Math.ceil(p.workDetails.length / 3),
-      0
-    );
-  worksheet.mergeCells(currentRow, 1, currentRow + projectCount, 1);
-  const productInfo = worksheet.getCell(currentRow, 1);
-  productInfo.value = productIndex + 1;
+  // Product Info Colomn (2 columns)
+  const projectCount = productData.projects.length - 1;
+  worksheet.mergeCells(currentRow, 2, currentRow + projectCount, 3);
+  const productInfo = worksheet.getCell(currentRow, 2);
+  productInfo.value = productData.product.name || "";
   productInfo.font = { size: 10 };
   productInfo.alignment = { horizontal: "center", vertical: "middle" };
-  productNumberCell.border = {
+  productInfo.border = {
     top: { style: "thin" },
-    left: { style: "medium" },
+    left: { style: "thin" },
     bottom: { style: "thin" },
-    right: { style: "medium" }
+    right: { style: "thin" }
+  };
+
+  // project data rows (projectCount rows)
+  // From column 4 to column 17
+  currentRow = formatProjectDataToExcelJsTable(
+    productData.projects,
+    worksheet,
+    langCode,
+    currentRow
+  );
+
+  // part data rows (partCount rows)
+  // Part Status Table Headers (from column 2 to column 8)
+  const partHeaders = [
+    getTranslation("productionReport.drawingNo", langCode),
+    getTranslation("productionReport.partName", langCode),
+    getTranslation("productionReport.quantity", langCode),
+    getTranslation("productionReport.productionQuantity", langCode),
+    getTranslation("productionReport.remainingQuantity", langCode),
+    getTranslation("productionReport.completionRate", langCode),
+    getTranslation("productionReport.totalWorkTime", langCode)
+  ];
+  partHeaders.forEach((header, idx) => {
+    let colNum = idx + 2;
+    worksheet.mergeCells(currentRow, colNum, currentRow + 1, colNum);
+    const cell = worksheet.getCell(currentRow, colNum);
+    cell.value = header;
+    cell.font = { bold: true, size: 9 };
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true
+    };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.NEUTRAL }
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+
+  // Part Worker Table Headers
+  // From Column 9 to Column 17
+  worksheet.mergeCells(currentRow, 9, currentRow, 17);
+  const workDetails = worksheet.getCell(currentRow, 9);
+  workDetails.value = getTranslation("productionReport.workDetails", langCode);
+  workDetails.font = { bold: true, size: 9 };
+  workDetails.alignment = { horizontal: "center", vertical: "middle" };
+  workDetails.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: ExcelFormatService.COLORS.NEUTRAL }
+  };
+  workDetails.border = {
+    top: { style: "thin" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "thin" }
   };
   currentRow++;
+
+  const partWorkerHeaders = [
+    getTranslation("productionReport.worker", langCode),
+    getTranslation("productionReport.workQuantity", langCode),
+    getTranslation("productionReport.workTime", langCode),
+    getTranslation("productionReport.worker", langCode),
+    getTranslation("productionReport.workQuantity", langCode),
+    getTranslation("productionReport.workTime", langCode),
+    getTranslation("productionReport.worker", langCode),
+    getTranslation("productionReport.workQuantity", langCode),
+    getTranslation("productionReport.workTime", langCode)
+  ];
+  partWorkerHeaders.forEach((header, idx) => {
+    let colNum = idx + 9;
+    const cell = worksheet.getCell(currentRow, colNum);
+    cell.value = header;
+    cell.font = { bold: true, size: 9 };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.NEUTRAL }
+    };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+  worksheet.getRow(currentRow).height = 20;
+  currentRow++;
+
+  // Part Worker Data Rows
+  for (const part of productData.parts) {
+    // Part Row Height = Ceil(Part Worker Columns / 3) default 1
+    const partRowHeight = Math.ceil(part.workDetails.length / 3) || 1;
+    // Part Info Columns
+    const partInfo = [
+      part.dwgNo,
+      part.partName,
+      part.quantity,
+      part.productionQuantity,
+      part.remainingQuantity,
+      part.completionRate,
+      formatTimeDuration(part.totalWorkTime, langCode)
+    ];
+    partInfo.forEach((info, idx) => {
+      if (partRowHeight > 1) {
+        worksheet.mergeCells(
+          currentRow,
+          idx + 2,
+          currentRow + partRowHeight - 1,
+          idx + 2
+        );
+      }
+      const cell = worksheet.getCell(currentRow, idx + 2);
+      cell.value = info;
+      cell.font = { size: 9 };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      if (idx === 0) {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.NEUTRAL }
+        };
+      }
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+    });
+    let workerCount = 0;
+    for (const worker of part.workDetails) {
+      workerCount++;
+      // Worker Info Columns (From Column 9 to Column 17)
+      const workerInfo = [
+        worker.worker,
+        worker.workQuantity,
+        formatTimeDuration(worker.workTime, langCode)
+      ];
+      workerInfo.forEach((info, idx) => {
+        const cell = worksheet.getCell(
+          currentRow + Math.floor((workerCount - 1) / 3),
+          9 + idx + ((workerCount - 1) % 3) * 3
+        );
+        cell.value = info;
+        cell.font = { size: 9 };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" }
+        };
+      });
+    }
+    // Fill Unused Worker Columns with color
+    if (workerCount % 3 !== 0 || workerCount === 0) {
+      for (let i = 9 + (workerCount % 3) * 3; i <= 17; i++) {
+        const cell = worksheet.getCell(
+          currentRow +
+            (workerCount > 0 ? Math.floor((workerCount - 1) / 3) : 0),
+          i
+        );
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.WARNING }
+        };
+      }
+    }
+    worksheet.getRow(currentRow).height = 24;
+    currentRow += partRowHeight;
+  }
+
   return initialRow + productNumberRowHeight + 2;
 }
 
@@ -3533,6 +3782,11 @@ export async function generateProductionRateKPISheet(
     labelCell.value = getTranslation(kpi.label, langCode);
     labelCell.font = { size: 12, bold: true };
     labelCell.alignment = { horizontal: "center", vertical: "middle" };
+    labelCell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.NEUTRAL }
+    };
     labelCell.border = {
       top: { style: "thin" },
       left: { style: "thin" },
@@ -3760,12 +4014,12 @@ export async function generateProductionRateKPISheet(
   }
 
   // Set column widths optimized for the new format
-  worksheet.getColumn(1).width = 20; // Product info / Part name
-  worksheet.getColumn(2).width = 15; // Instruction No / Drawing No
-  worksheet.getColumn(3).width = 15; // Design No / Part name
+  worksheet.getColumn(1).width = 4.5; // Product info / Part name
+  worksheet.getColumn(2).width = 4.5; // Instruction No / Drawing No
+  worksheet.getColumn(3).width = 21; // Design No / Part name
   worksheet.getColumn(4).width = 12; // Customer
   worksheet.getColumn(5).width = 12; // Department
-  worksheet.getColumn(6).width = 12; // Person in Charge
+  worksheet.getColumn(6).width = 9.5; // Person in Charge
   worksheet.getColumn(7).width = 12; // Order Date
   worksheet.getColumn(8).width = 12; // Delivery Date
   worksheet.getColumn(9).width = 10; // Quantity
