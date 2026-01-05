@@ -22,10 +22,10 @@ const seedDefaultUsers = async (): Promise<void> => {
       );
     }
 
-    // Create monitor user
+    // Create monitor user (or update password if exists)
     const monitorExists = await User.findOne({ username: "monitor" });
+    const monitorPassword = await hashPassword("admin123");
     if (!monitorExists) {
-      const monitorPassword = await hashPassword("admin123");
       await User.create({
         username: "monitor",
         name: "Monitor Display",
@@ -35,6 +35,15 @@ const seedDefaultUsers = async (): Promise<void> => {
       });
       console.log(
         "✅ Monitor user created (username: monitor, password: admin123)"
+      );
+    } else {
+      // Force update password to ensure it's correct
+      await User.updateOne(
+        { username: "monitor" },
+        { password: monitorPassword, isActive: true }
+      );
+      console.log(
+        "✅ Monitor user password reset (username: monitor, password: admin123)"
       );
     }
 

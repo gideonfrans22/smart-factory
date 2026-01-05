@@ -72,4 +72,48 @@ router.get("/monitor-overview", dashboardController.getMonitorOverview);
  */
 router.get("/task-status-distribution", dashboardController.getTaskStatusDistribution);
 
+/**
+ * @route   GET /api/dashboard/monitor-tasks
+ * @desc    Get optimized task list for Monitor TV display
+ * @access  Public
+ * 
+ * @query   limit - Maximum number of tasks (default: 100, max: 200)
+ * 
+ * @response Returns flattened task data optimized for TV display
+ * - Server-side filtering: excludes COMPLETED tasks older than 24h
+ * - Flattened structure: no deep populates needed
+ * 
+ * @example
+ * GET /api/dashboard/monitor-tasks?limit=100
+ * 
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "items": [
+ *       {
+ *         "_id": "...",
+ *         "title": "Step 1 - Product A",
+ *         "status": "ONGOING",
+ *         "priority": "HIGH",
+ *         "progress": 50,
+ *         "projectNumber": "PRJ-001",
+ *         "projectName": "Project A",
+ *         "productName": "Product A",
+ *         "productNumber": "PROD-001",
+ *         "customerName": "Customer A",
+ *         "department": "Engineering",
+ *         "personInCharge": "John Doe",
+ *         "stepName": "Welding",
+ *         "recipeExecutionNumber": 1,
+ *         "totalRecipeExecutions": 5,
+ *         ...
+ *       }
+ *     ],
+ *     "total": 50
+ *   }
+ * }
+ */
+router.get("/monitor-tasks", dashboardController.getMonitorTasks);
+
 export default router;
