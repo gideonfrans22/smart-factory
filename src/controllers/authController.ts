@@ -176,8 +176,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     user.lastLoginAt = new Date();
     await user.save();
 
-    // Generate JWT token with username-based expiration
-    // Monitor user (username="monitor"): 365 days
+    // Generate JWT token with role-based expiration
+    // Monitor role: 365 days (for TV dashboard displays)
     // Admin/Worker: 24 hours
     const accessTokenPayload: JWTPayload = {
       sub: (user._id as any).toString(),
@@ -187,8 +187,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         : {})
     };
 
-    // Set token expiration: monitor gets 365 days, others get 24 hours
-    const tokenExpiration = user.username === "monitor" ? "365d" : "24h";
+    // Set token expiration: monitor role gets 365 days, others get 24 hours
+    const tokenExpiration = user.role === "monitor" ? "365d" : "24h";
     const accessToken = generateToken(accessTokenPayload, tokenExpiration);
 
     const response: APIResponse = {
