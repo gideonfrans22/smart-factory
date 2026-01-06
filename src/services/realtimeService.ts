@@ -258,7 +258,10 @@ class RealtimeService {
         mqttService.publish(`device/${deviceId}/task/status`, payload);
       }
 
-      // Broadcast via WebSocket
+      // Broadcast via WebSocket to global room (for admin/monitor dashboards)
+      io.to("global").emit("task:status", payload);
+
+      // Broadcast to specific rooms
       io.to(`task:${task._id}`).emit("task:status", payload);
       if (task.deviceId) {
         const deviceId =
