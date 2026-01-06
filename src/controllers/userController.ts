@@ -163,6 +163,17 @@ export const createUser = async (
       return;
     }
 
+    // Monitor role requires username or email for login
+    if (role === "monitor" && !username && !email) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Username or email is required for monitor users"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     if (email && !validateEmail(email)) {
       const response: APIResponse = {
         success: false,
