@@ -112,31 +112,52 @@ export const getMonitorOverview = async (
         }
       }),
 
-      // 생산성 일간 - Daily: completed in last 24h / assigned in last 24h
+      // 생산성 일간 - Daily: completed in last 24h / (assigned in last 24h + pending backlog)
       Task.countDocuments({
         status: "COMPLETED",
         completedAt: { $gte: last24Hours }
       }),
+      // Target = today's new tasks + backlog (not completed tasks created before today)
       Task.countDocuments({
-        createdAt: { $gte: last24Hours }
+        $or: [
+          { createdAt: { $gte: last24Hours } }, // Tasks created today
+          { 
+            createdAt: { $lt: last24Hours },    // Tasks created before today
+            status: { $nin: ["COMPLETED", "CANCELLED"] } // That are still not completed
+          }
+        ]
       }),
 
-      // 생산성 주간 - Weekly: completed in last 7 days / assigned in last 7 days
+      // 생산성 주간 - Weekly: completed in last 7 days / (assigned in last 7 days + pending backlog)
       Task.countDocuments({
         status: "COMPLETED",
         completedAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) }
       }),
+      // Target = this week's tasks + backlog
       Task.countDocuments({
-        createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) }
+        $or: [
+          { createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } },
+          { 
+            createdAt: { $lt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
+            status: { $nin: ["COMPLETED", "CANCELLED"] }
+          }
+        ]
       }),
 
-      // 생산성 월간 - Monthly: completed in last 30 days / assigned in last 30 days
+      // 생산성 월간 - Monthly: completed in last 30 days / (assigned in last 30 days + pending backlog)
       Task.countDocuments({
         status: "COMPLETED",
         completedAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }
       }),
+      // Target = this month's tasks + backlog
       Task.countDocuments({
-        createdAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }
+        $or: [
+          { createdAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } },
+          { 
+            createdAt: { $lt: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
+            status: { $nin: ["COMPLETED", "CANCELLED"] }
+          }
+        ]
       }),
 
       // Equipment Utilization (real-time)
