@@ -41,14 +41,17 @@ export const getMonitorOverview = async (
       // 생산성 현황 - Daily (tasks created/due today)
       dailyCompletedTasks,
       dailyTotalTasks,
+      dailyPendingFromPrevious,
       
       // 생산성 현황 - Weekly
       weeklyCompletedTasks,
       weeklyTotalTasks,
+      weeklyPendingFromPrevious,
       
       // 생산성 현황 - Monthly
       monthlyCompletedTasks,
       monthlyTotalTasks,
+      monthlyPendingFromPrevious,
 
       // Equipment Utilization (real-time)
       totalDevices,
@@ -127,6 +130,11 @@ export const getMonitorOverview = async (
           }
         ]
       }),
+      // Pending from previous period (daily): tasks created >24h ago, still not completed
+      Task.countDocuments({
+        createdAt: { $lt: last24Hours },
+        status: { $nin: ["COMPLETED", "CANCELLED"] }
+      }),
 
       // 생산성 주간 - Weekly: completed in last 7 days / (assigned in last 7 days + pending backlog)
       Task.countDocuments({
@@ -143,6 +151,11 @@ export const getMonitorOverview = async (
           }
         ]
       }),
+      // Pending from previous period (weekly): tasks created >7 days ago, still not completed
+      Task.countDocuments({
+        createdAt: { $lt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
+        status: { $nin: ["COMPLETED", "CANCELLED"] }
+      }),
 
       // 생산성 월간 - Monthly: completed in last 30 days / (assigned in last 30 days + pending backlog)
       Task.countDocuments({
@@ -158,6 +171,11 @@ export const getMonitorOverview = async (
             status: { $nin: ["COMPLETED", "CANCELLED"] }
           }
         ]
+      }),
+      // Pending from previous period (monthly): tasks created >30 days ago, still not completed
+      Task.countDocuments({
+        createdAt: { $lt: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
+        status: { $nin: ["COMPLETED", "CANCELLED"] }
       }),
 
       // Equipment Utilization (real-time)
@@ -351,17 +369,20 @@ export const getMonitorOverview = async (
           daily: {
             current: dailyCompletedTasks,
             target: dailyTotal, // Now using actual total tasks, not fixed target
-            percentage: dailyPercentage
+            percentage: dailyPercentage,
+            pendingFromPrevious: dailyPendingFromPrevious // 24시간 전에 아직 안 끝난 작업
           },
           weekly: {
             current: weeklyCompletedTasks,
             target: weeklyTotal, // Now using actual total tasks, not fixed target
-            percentage: weeklyPercentage
+            percentage: weeklyPercentage,
+            pendingFromPrevious: weeklyPendingFromPrevious // 1주일 전에 아직 안 끝난 작업
           },
           monthly: {
             current: monthlyCompletedTasks,
             target: monthlyTotal, // Now using actual total tasks, not fixed target
-            percentage: monthlyPercentage
+            percentage: monthlyPercentage,
+            pendingFromPrevious: monthlyPendingFromPrevious // 한달 전에 아직 안 끝난 작업
           }
         },
         // Top 5 devices with most alerts (for 설비 현황 page - 3페이지)
