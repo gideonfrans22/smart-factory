@@ -443,6 +443,17 @@ export const acknowledgeAlert = async (
       return;
     }
 
+    // Cannot acknowledge if already resolved
+    if (alert.status === "RESOLVED") {
+      const response: APIResponse = {
+        success: false,
+        error: "ALREADY_RESOLVED",
+        message: "Cannot acknowledge resolved alert"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     alert.status = "ACKNOWLEDGED";
     if (userId) {
       alert.acknowledgedBy = userId;
@@ -504,6 +515,17 @@ export const readAlert = async (
       return;
     }
 
+    // Cannot mark as read if already resolved
+    if (alert.status === "RESOLVED") {
+      const response: APIResponse = {
+        success: false,
+        error: "ALREADY_RESOLVED",
+        message: "Cannot mark resolved alert as read"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     alert.status = "READ";
     
     // Set acknowledgedAt when read (first response time)
@@ -552,6 +574,17 @@ export const resolveAlert = async (
         message: "Alert not found"
       };
       res.status(404).json(response);
+      return;
+    }
+
+    // Check if already resolved
+    if (alert.status === "RESOLVED") {
+      const response: APIResponse = {
+        success: false,
+        error: "ALREADY_RESOLVED",
+        message: "Alert is already resolved"
+      };
+      res.status(400).json(response);
       return;
     }
 
