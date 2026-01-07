@@ -16,6 +16,8 @@ export interface ISpecifications {
   dimensions?: IDimensions;
   weight?: IWeight;
   color?: string;
+  /** Override supplier for this specific specification (if empty, uses material's default supplier) */
+  supplier?: string;
   // Can be extended with additional fields as needed
   [key: string]: any;
 }
