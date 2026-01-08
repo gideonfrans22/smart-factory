@@ -41,7 +41,7 @@ class RealtimeService {
         // Save alert to database
         const alert = await Alert.create({
           deviceId,
-          type: alertData.alertType || alertData.type || "INFO",
+          type: alertData.alertType || alertData.type || "OTHER",
           message: alertData.message,
           severity: alertData.severity || "LOW",
           metadata: alertData.sensorData || alertData.metadata || {},

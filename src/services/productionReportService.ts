@@ -1507,7 +1507,7 @@ export async function calculatePartDefectRate(
 
   const [defectCount, totalParts] = await Promise.all([
     Alert.countDocuments({
-      type: "DEFECT",
+      type: { $in: ["PROCESSING_DEFECT", "MATERIAL_DEFECT"] },
       createdAt: { $gte: startDate, $lte: endDate }
     }),
     Project.aggregate([
@@ -1666,7 +1666,7 @@ export async function calculateMachineTypeErrorRate(
   const errorStats = await Alert.aggregate([
     {
       $match: {
-        type: "MACHINE_ERROR",
+        type: "EQUIPMENT_DEFECT",
         createdAt: { $gte: startDate, $lte: endDate },
         device: { $exists: true, $ne: null }
       }

@@ -19,8 +19,8 @@ export const getRealtimeKPI = async (
       status: { $in: ["ONGOING", "PAUSED"] } 
     });
     const emergencyAlerts = await Alert.countDocuments({
-      type: "EMERGENCY",
-      status: "PENDING"
+      level: "CRITICAL",
+      status: { $in: ["UNREAD", "READ", "ACKNOWLEDGED"] }
     });
 
     // Calculate rates from recent KPI data (last 24 hours)

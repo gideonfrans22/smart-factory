@@ -268,7 +268,7 @@ export async function calculateEquipmentErrorCount(
   const errorStats = await Alert.aggregate([
     {
       $match: {
-        type: { $in: ["MACHINE_ERROR", "ERROR"] },
+        type: "EQUIPMENT_DEFECT",
         device: { $exists: true, $ne: null },
         createdAt: { $gte: startDate, $lte: endDate }
       }

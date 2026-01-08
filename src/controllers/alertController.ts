@@ -594,7 +594,8 @@ export const resolveAlert = async (
     await alert.save();
     await alert.populate("acknowledgedBy", "name username email");
 
-    if (alert.type === "EQUIPMENT_DEFECT") {
+    // For equipment-related alerts, set device back to ONLINE
+    if (alert.type === "EQUIPMENT_DEFECT" || alert.type === "TOOL_CHANGE") {
       const device = await Device.findById(alert.device);
       if (device) {
         device.status = "ONLINE";
@@ -604,7 +605,7 @@ export const resolveAlert = async (
         device.statusHistory.push({
           status: "ONLINE",
           changedAt: new Date(),
-          reason: `Machine error resolved: ${alert.message}`,
+          reason: `Alert resolved: ${alert.message}`,
           changedBy: alert.reportedBy?.toString() || "System"
         });
         await device.save();
