@@ -594,7 +594,7 @@ export const resolveAlert = async (
     await alert.save();
     await alert.populate("acknowledgedBy", "name username email");
 
-    if (alert.type === "MACHINE_ERROR") {
+    if (alert.type === "EQUIPMENT_DEFECT") {
       const device = await Device.findById(alert.device);
       if (device) {
         device.status = "ONLINE";
@@ -922,11 +922,11 @@ export const resolveEmergencyAlert = async (
       return;
     }
 
-    if (alert.type !== "EMERGENCY") {
+    if (alert.level !== "CRITICAL") {
       const response: APIResponse = {
         success: false,
         error: "INVALID_TYPE",
-        message: "Only EMERGENCY alerts can be resolved with this endpoint"
+        message: "Only CRITICAL level alerts can be resolved with this endpoint"
       };
       res.status(400).json(response);
       return;
