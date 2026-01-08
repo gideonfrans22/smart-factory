@@ -327,12 +327,11 @@ export const getMonitorOverview = async (
 
     // Process top 5 error types for bar graph (1페이지 전체 현황)
     const ERROR_TYPE_LABELS: Record<string, string> = {
-      "ERROR": "일반 에러",
-      "WARNING": "경고",
-      "EMERGENCY": "긴급",
-      "DEFECT": "불량",
-      "MACHINE_ERROR": "장비 에러",
-      "INFO": "정보"
+      "EQUIPMENT_DEFECT": "장비결함",
+      "TOOL_CHANGE": "툴체인지",
+      "MATERIAL_DEFECT": "소재불량",
+      "PROCESSING_DEFECT": "가공불량",
+      "OTHER": "기타"
     };
     
     const maxErrorTypeCount = topErrorTypes.length > 0 
