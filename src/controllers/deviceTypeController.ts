@@ -232,9 +232,10 @@ export const createDeviceType = async (
       return;
     }
 
-    // Check if device type with same name already exists
+    // Check if device type with same name already exists (only active ones)
     const existingDeviceType = await DeviceType.findOne({
-      name: name.trim()
+      name: name.trim(),
+      isActive: { $ne: false }
     });
 
     if (existingDeviceType) {
@@ -315,11 +316,12 @@ export const updateDeviceType = async (
       return;
     }
 
-    // Check if new name conflicts with existing device type
+    // Check if new name conflicts with existing device type (only active ones)
     if (name && name.trim() !== deviceType.name) {
       const existingDeviceType = await DeviceType.findOne({
         name: name.trim(),
-        _id: { $ne: id }
+        _id: { $ne: id },
+        isActive: { $ne: false }
       });
 
       if (existingDeviceType) {
@@ -371,7 +373,7 @@ export const updateDeviceType = async (
 };
 
 /**
- * Delete a device type
+ * Delete a device type (soft delete)
  */
 export const deleteDeviceType = async (
   req: Request,
@@ -390,7 +392,7 @@ export const deleteDeviceType = async (
       return;
     }
 
-    const deviceType = await DeviceType.findByIdAndDelete(id);
+    const deviceType = await DeviceType.findById(id);
 
     if (!deviceType) {
       const response: APIResponse = {
@@ -402,6 +404,58 @@ export const deleteDeviceType = async (
       return;
     }
 
+    // Check for dependencies before soft deletion
+    const Device = mongoose.model("Device");
+    const devicesWithType = await Device.findOne({
+      deviceTypeId: id,
+      isActive: { $ne: false }
+    });
+
+    if (devicesWithType) {
+      const response: APIResponse = {
+        success: false,
+        error: "CONFLICT",
+        message: `Cannot delete device type: It is referenced by device "${devicesWithType.name}". Please reassign or delete dependent devices first.`
+      };
+      res.status(409).json(response);
+      return;
+    }
+
+    const Recipe = mongoose.model("Recipe");
+    const recipesWithDeviceType = await Recipe.findOne({
+      "steps.deviceTypeId": id
+    });
+
+    if (recipesWithDeviceType) {
+      const response: APIResponse = {
+        success: false,
+        error: "CONFLICT",
+        message: `Cannot delete device type: It is referenced by recipe steps in recipe "${recipesWithDeviceType.name}". Please update or delete dependent recipes first.`
+      };
+      res.status(409).json(response);
+      return;
+    }
+
+    const Task = mongoose.model("Task");
+    const tasksWithDeviceType = await Task.findOne({
+      deviceTypeId: id
+    });
+
+    if (tasksWithDeviceType) {
+      const response: APIResponse = {
+        success: false,
+        error: "CONFLICT",
+        message: `Cannot delete device type: It is referenced by task "${tasksWithDeviceType.title}". Please update or delete dependent tasks first.`
+      };
+      res.status(409).json(response);
+      return;
+    }
+
+    // Perform soft delete - set isActive to false
+    // The pre-save hook will handle auto-renaming
+    deviceType.isActive = false;
+    await deviceType.save();
+
     const response: APIResponse = {
       success: true,
       message: "Device type deleted successfully",
@@ -411,17 +465,6 @@ export const deleteDeviceType = async (
     res.json(response);
   } catch (error: any) {
     console.error("Delete device type error:", error);
-
-    // Check if error is due to dependencies (cascade prevention)
-    if (error.message && error.message.includes("Cannot delete device type")) {
-      const response: APIResponse = {
-        success: false,
-        error: "CONFLICT",
-        message: error.message
-      };
-      res.status(409).json(response);
-      return;
-    }
 
     const response: APIResponse = {
       success: false,

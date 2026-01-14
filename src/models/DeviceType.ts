@@ -17,6 +17,7 @@ export interface IDeviceType extends Document {
     [key: string]: any; // Allow flexible specifications
   };
   modifiedBy?: mongoose.Types.ObjectId;
+  isActive?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -43,6 +44,11 @@ const DeviceTypeSchema: Schema = new Schema(
     modifiedBy: {
       type: Schema.Types.ObjectId,
       ref: "User"
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+      comment: "Whether the device type is active"
     }
   },
   {
@@ -67,14 +73,45 @@ DeviceTypeSchema.virtual("devices", {
   }
 });
 
+// Pre-find hook to exclude soft-deleted device types
+DeviceTypeSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
+  const options = this.getOptions();
+  const includeDeleted =
+    (options as any).includeDeleted === false ? false : true;
+  if (!includeDeleted) {
+    this.where({
+      isActive: {
+        $ne: false
+      }
+    });
+  }
+  next();
+});
+
+// Pre-save hook for auto-rename on soft delete
+DeviceTypeSchema.pre("save", function (next) {
+  if (this.isModified("isActive") && this.isActive === false) {
+    // Check if name already has deleted suffix to avoid double-renaming
+    if (!this.name.includes("_deleted_")) {
+      const timestamp = Date.now();
+      this.name = `${this.name}_deleted_${timestamp}`;
+    }
+  }
+  next();
+});
+
 // Pre-remove hook to check for dependent devices, recipe steps, and tasks
+// Note: This hook still runs for findOneAndDelete, but we'll use soft delete in controller
 DeviceTypeSchema.pre("findOneAndDelete", async function (next) {
   try {
     const deviceTypeId = this.getQuery()._id;
 
-    // Check if any device references this device type
+    // Check if any active device references this device type
     const Device = mongoose.model("Device");
-    const devicesWithType = await Device.findOne({ deviceTypeId });
+    const devicesWithType = await Device.findOne({
+      deviceTypeId,
+      isActive: { $ne: false }
+    });
 
     if (devicesWithType) {
       return next(
