@@ -18,6 +18,7 @@ export interface IDeviceType extends Document {
   };
   modifiedBy?: mongoose.Types.ObjectId;
   isActive?: boolean;
+  validRecipeStepNames?: string[]; // Array of recipe step names that can use this device type. If undefined, device type can be used by any step.
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,6 +50,28 @@ const DeviceTypeSchema: Schema = new Schema(
       type: Boolean,
       default: true,
       comment: "Whether the device type is active"
+    },
+    validRecipeStepNames: {
+      type: [String],
+      default: undefined,
+      validate: {
+        validator: function (value: string[] | undefined) {
+          if (value === undefined || value === null) {
+            return true; // Optional field
+          }
+          if (!Array.isArray(value)) {
+            return false;
+          }
+          // Ensure all items are non-empty strings
+          return value.every(
+            (stepName) =>
+              typeof stepName === "string" && stepName.trim().length > 0
+          );
+        },
+        message: "validRecipeStepNames must be an array of non-empty strings"
+      },
+      comment:
+        "Array of recipe step names that can use this device type. If undefined, device type can be used by any step."
     }
   },
   {
@@ -88,7 +111,7 @@ DeviceTypeSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
   next();
 });
 
-// Pre-save hook for auto-rename on soft delete
+// Pre-save hook for auto-rename on soft delete and trim recipe step names
 DeviceTypeSchema.pre("save", function (next) {
   if (this.isModified("isActive") && this.isActive === false) {
     // Check if name already has deleted suffix to avoid double-renaming
@@ -97,6 +120,14 @@ DeviceTypeSchema.pre("save", function (next) {
       this.name = `${this.name}_deleted_${timestamp}`;
     }
   }
+
+  // Trim recipe step names to avoid whitespace issues
+  if (this.isModified("validRecipeStepNames") && this.validRecipeStepNames) {
+    this.validRecipeStepNames = (this.validRecipeStepNames as string[])
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+  }
+
   next();
 });
 
