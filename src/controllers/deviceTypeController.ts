@@ -219,7 +219,8 @@ export const createDeviceType = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { name, description, specifications } = req.body;
+    const { name, description, specifications, validRecipeStepNames } =
+      req.body;
 
     // Validate required fields
     if (!name) {
@@ -251,7 +252,8 @@ export const createDeviceType = async (
     const deviceType = await DeviceType.create({
       name: name.trim(),
       description: description?.trim(),
-      specifications
+      specifications,
+      validRecipeStepNames
     });
 
     const response: APIResponse = {
@@ -292,7 +294,8 @@ export const updateDeviceType = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, description, specifications } = req.body;
+    const { name, description, specifications, validRecipeStepNames } =
+      req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       const response: APIResponse = {
@@ -340,7 +343,8 @@ export const updateDeviceType = async (
     if (description !== undefined) deviceType.description = description?.trim();
     if (specifications !== undefined)
       deviceType.specifications = specifications;
-
+    if (validRecipeStepNames !== undefined)
+      deviceType.validRecipeStepNames = validRecipeStepNames;
     await deviceType.save();
 
     const response: APIResponse = {
