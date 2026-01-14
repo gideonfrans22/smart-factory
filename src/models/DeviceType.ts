@@ -92,7 +92,7 @@ DeviceTypeSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
 DeviceTypeSchema.pre("save", function (next) {
   if (this.isModified("isActive") && this.isActive === false) {
     // Check if name already has deleted suffix to avoid double-renaming
-    if (!this.name.includes("_deleted_")) {
+    if (!(this.name as string).includes("_deleted_")) {
       const timestamp = Date.now();
       this.name = `${this.name}_deleted_${timestamp}`;
     }
