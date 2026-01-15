@@ -3144,7 +3144,7 @@ export async function aggregateProductStatusData(
   }
 
   // For each product, get recipes and aggregate part details
-  for (const [_, productSnapshotData] of productMap.entries()) {
+  for (const [productSnapshotId, productSnapshotData] of productMap.entries()) {
     const product = productSnapshotData.product;
     if (!product.recipes || product.recipes.length === 0) continue;
 
@@ -3175,11 +3175,13 @@ export async function aggregateProductStatusData(
 
       // Get tasks for this recipe across all projects
       const recipeTasks = tasks.filter((t) => {
-        const recipeSnapshot = t.recipeSnapshotId as any;
-        if (!recipeSnapshot) return false;
+        const taskRecipeSnapId = t.recipeSnapshotId as any;
+        const taskProductSnapId = t.productSnapshotId as any;
+        if (!taskRecipeSnapId || !taskProductSnapId) return false;
         return (
-          recipeSnapshot._id.toString() ===
-          recipeRef.recipeSnapshotId.toString()
+          taskRecipeSnapId._id.toString() ===
+            recipeRef.recipeSnapshotId.toString() &&
+          taskProductSnapId._id.toString() === productSnapshotId.toString()
         );
       });
 
