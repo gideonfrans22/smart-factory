@@ -6,6 +6,7 @@
  */
 
 import { createClient, RedisClientType } from "redis";
+import { loggerService } from "./loggerService";
 
 interface OnlineUser {
   userId: string;
@@ -37,26 +38,26 @@ export async function initializeUserOnlineService(): Promise<void> {
     redisClient = createClient({ url: redisUrl });
     
     redisClient.on("error", (err) => {
-      console.error("❌ Redis error in UserOnlineService:", err);
+      loggerService.error("Redis error in UserOnlineService", { error: err.message });
       isRedisConnected = false;
     });
     
     redisClient.on("connect", () => {
-      console.log("✅ UserOnlineService connected to Redis");
+      loggerService.info("UserOnlineService connected to Redis");
       isRedisConnected = true;
     });
     
     redisClient.on("disconnect", () => {
-      console.log("⚠️ UserOnlineService disconnected from Redis");
+      loggerService.warn("UserOnlineService disconnected from Redis");
       isRedisConnected = false;
     });
     
     await redisClient.connect();
     isRedisConnected = true;
-    console.log("✅ UserOnlineService Redis initialized");
+    loggerService.info("UserOnlineService Redis initialized");
   } catch (error) {
-    console.error("❌ Failed to connect to Redis for UserOnlineService:", error);
-    console.warn("⚠️ Using in-memory fallback for online user tracking");
+    loggerService.error("Failed to connect to Redis for UserOnlineService", { error: (error as Error).message });
+    loggerService.warn("Using in-memory fallback for online user tracking");
     isRedisConnected = false;
   }
 }
@@ -91,9 +92,9 @@ export async function registerUserOnline(
       await redisClient.hSet(REDIS_ONLINE_USERS_KEY, userId, JSON.stringify(user));
       await redisClient.hSet(REDIS_SOCKET_TO_USER_KEY, socketId, userId);
       
-      console.log(`👤 [Redis] User online: ${name} (${role}) - Socket: ${socketId}`);
+      loggerService.info(`[Redis] User online: ${name} (${role})`, { userId, socketId, role, name });
     } catch (error) {
-      console.error("❌ Redis error in registerUserOnline:", error);
+      loggerService.error("Redis error in registerUserOnline", { error: (error as Error).message });
       // Fallback to in-memory
       registerUserOnlineInMemory(socketId, userId, role, name);
     }
@@ -122,7 +123,7 @@ function registerUserOnlineInMemory(
   });
   inMemorySocketToUser.set(socketId, userId);
 
-  console.log(`👤 [Memory] User online: ${name} (${role}) - Socket: ${socketId}`);
+  loggerService.info(`[Memory] User online: ${name} (${role})`, { userId, socketId, role, name });
 }
 
 /**
@@ -146,14 +147,14 @@ export async function unregisterUserOnline(socketId: string): Promise<OnlineUser
       if (user.socketId === socketId) {
         await redisClient.hDel(REDIS_ONLINE_USERS_KEY, userId);
         await redisClient.hDel(REDIS_SOCKET_TO_USER_KEY, socketId);
-        console.log(`👤 [Redis] User offline: ${user.name} (${user.role})`);
+        loggerService.info(`[Redis] User offline: ${user.name} (${user.role})`, { userId: user.userId, socketId, role: user.role, name: user.name });
         return user;
       }
 
       await redisClient.hDel(REDIS_SOCKET_TO_USER_KEY, socketId);
       return undefined;
     } catch (error) {
-      console.error("❌ Redis error in unregisterUserOnline:", error);
+      loggerService.error("Redis error in unregisterUserOnline", { error: (error as Error).message });
       return unregisterUserOnlineInMemory(socketId);
     }
   } else {
@@ -169,7 +170,7 @@ function unregisterUserOnlineInMemory(socketId: string): OnlineUser | undefined 
   if (user && user.socketId === socketId) {
     inMemoryOnlineUsers.delete(userId);
     inMemorySocketToUser.delete(socketId);
-    console.log(`👤 [Memory] User offline: ${user.name} (${user.role})`);
+    loggerService.info(`[Memory] User offline: ${user.name} (${user.role})`, { userId: user.userId, socketId, role: user.role, name: user.name });
     return user;
   }
 
@@ -186,7 +187,7 @@ export async function isUserOnline(userId: string): Promise<boolean> {
       const exists = await redisClient.hExists(REDIS_ONLINE_USERS_KEY, userId);
       return Boolean(exists);
     } catch (error) {
-      console.error("❌ Redis error in isUserOnline:", error);
+      loggerService.error("Redis error in isUserOnline", { error: (error as Error).message, userId });
       return inMemoryOnlineUsers.has(userId);
     }
   }
@@ -216,7 +217,7 @@ export async function getOnlineCountByRole(): Promise<{ admin: number; monitor: 
       
       return counts;
     } catch (error) {
-      console.error("❌ Redis error in getOnlineCountByRole:", error);
+      loggerService.error("Redis error in getOnlineCountByRole", { error: (error as Error).message });
       return getOnlineCountByRoleInMemory();
     }
   }
@@ -245,7 +246,7 @@ export async function getAllOnlineUsers(): Promise<OnlineUser[]> {
       const allUsers = await redisClient.hGetAll(REDIS_ONLINE_USERS_KEY);
       return Object.values(allUsers).map((json) => JSON.parse(json));
     } catch (error) {
-      console.error("❌ Redis error in getAllOnlineUsers:", error);
+      loggerService.error("Redis error in getAllOnlineUsers", { error: (error as Error).message });
       return Array.from(inMemoryOnlineUsers.values());
     }
   }
@@ -269,7 +270,7 @@ export async function getTotalOnlineCount(): Promise<number> {
       const count = await redisClient.hLen(REDIS_ONLINE_USERS_KEY);
       return count;
     } catch (error) {
-      console.error("❌ Redis error in getTotalOnlineCount:", error);
+      loggerService.error("Redis error in getTotalOnlineCount", { error: (error as Error).message });
       return inMemoryOnlineUsers.size;
     }
   }

@@ -1,4 +1,5 @@
 import { createClient } from "redis";
+import { loggerService } from "./loggerService";
 
 /**
  * Device Occupation Service
@@ -13,7 +14,7 @@ let redisClient: ReturnType<typeof createClient> | null = null;
  */
 export const initializeDeviceOccupationService = async (): Promise<void> => {
   if (redisClient) {
-    console.log("⚠️ Device occupation service already initialized");
+    loggerService.warn("Device occupation service already initialized");
     return;
   }
 
@@ -22,9 +23,9 @@ export const initializeDeviceOccupationService = async (): Promise<void> => {
   try {
     redisClient = createClient({ url: redisUrl });
     await redisClient.connect();
-    console.log("✅ Device occupation Redis client connected");
+    loggerService.info("Device occupation Redis client connected");
   } catch (error) {
-    console.error("❌ Failed to connect Redis for device occupation:", error);
+    loggerService.error("Failed to connect Redis for device occupation", { error: (error as Error).message });
     // Continue without Redis - device occupation checks will fail gracefully
   }
 };
@@ -63,10 +64,7 @@ export const isDeviceOccupied = async (
       socketId: data.socketId
     };
   } catch (error) {
-    console.error(
-      `❌ Error checking device occupation for ${deviceId}:`,
-      error
-    );
+    loggerService.error("Error checking device occupation", { error: (error as Error).message, deviceId });
     // If Redis fails, assume device is not occupied (fail open)
     return { isOccupied: false };
   }
@@ -92,11 +90,9 @@ export const setDeviceOccupied = async (
     });
 
     await client.setEx(key, ttlSeconds, value);
-    console.log(
-      `✅ Device ${deviceId} marked as occupied by socket ${socketId}`
-    );
+    loggerService.info("Device marked as occupied", { deviceId, socketId, ttlSeconds });
   } catch (error) {
-    console.error(`❌ Error setting device occupation for ${deviceId}:`, error);
+    loggerService.error("Error setting device occupation", { error: (error as Error).message, deviceId, socketId });
     throw error;
   }
 };
@@ -110,9 +106,9 @@ export const releaseDevice = async (deviceId: string): Promise<void> => {
     const client = getRedisClient();
     const key = `device:occupied:${deviceId}`;
     await client.del(key);
-    console.log(`✅ Device ${deviceId} released`);
+    loggerService.info("Device released", { deviceId });
   } catch (error) {
-    console.error(`❌ Error releasing device ${deviceId}:`, error);
+    loggerService.error("Error releasing device", { error: (error as Error).message, deviceId });
     // Don't throw - releasing is best effort
   }
 };
@@ -136,15 +132,13 @@ export const releaseDeviceBySocketId = async (
         if (data.socketId === socketId) {
           await client.del(key);
           const deviceId = key.replace("device:occupied:", "");
-          console.log(
-            `✅ Device ${deviceId} released (socket ${socketId} disconnected)`
-          );
+          loggerService.info("Device released (socket disconnected)", { deviceId, socketId });
           return;
         }
       }
     }
   } catch (error) {
-    console.error(`❌ Error releasing device by socket ID ${socketId}:`, error);
+    loggerService.error("Error releasing device by socket ID", { error: (error as Error).message, socketId });
     // Don't throw - releasing is best effort
   }
 };
@@ -175,7 +169,7 @@ export const getAllOccupiedDevices = async (): Promise<
 
     return devices;
   } catch (error) {
-    console.error("❌ Error getting all occupied devices:", error);
+    loggerService.error("Error getting all occupied devices", { error: (error as Error).message });
     return [];
   }
 };

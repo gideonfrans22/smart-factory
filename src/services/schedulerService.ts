@@ -33,7 +33,9 @@ export function initializeScheduler(): void {
   const enableScheduler = process.env.ENABLE_SCHEDULER !== "false"; // Default to true
 
   if (!enableScheduler) {
-    loggerService.logSchedulerEvent("Scheduler disabled via ENABLE_SCHEDULER environment variable");
+    loggerService.logSchedulerEvent(
+      "Scheduler disabled via ENABLE_SCHEDULER environment variable"
+    );
     return;
   }
 
@@ -60,7 +62,11 @@ export function initializeScheduler(): void {
     },
     true
   ).catch((err) => {
-    loggerService.logSchedulerEvent("Failed to log scheduler initialization", {}, err as Error);
+    loggerService.logSchedulerEvent(
+      "Failed to log scheduler initialization",
+      {},
+      err as Error
+    );
   });
 
   loggerService.logSchedulerEvent("Report scheduler initialized");
@@ -78,9 +84,12 @@ function scheduleDailyReports(): void {
       loggerService.logSchedulerEvent("Daily report schedule triggered");
       try {
         const dateRange = getPreviousDayRange();
-        loggerService.logSchedulerEvent("Generating daily WORKER_PERFORMANCE_KPI report", {
-          dateRange: formatDateRange(dateRange)
-        });
+        loggerService.logSchedulerEvent(
+          "Generating daily WORKER_PERFORMANCE_KPI report",
+          {
+            dateRange: formatDateRange(dateRange)
+          }
+        );
 
         await generateScheduledReport({
           type: "WORKER_PERFORMANCE_KPI",
@@ -88,7 +97,11 @@ function scheduleDailyReports(): void {
           dateRange
         });
       } catch (error: any) {
-        loggerService.logSchedulerEvent("Error in daily report schedule", {}, error);
+        loggerService.logSchedulerEvent(
+          "Error in daily report schedule",
+          {},
+          error
+        );
         await logActivity(
           "SCHEDULED_REPORT_FAILED",
           {
@@ -98,7 +111,11 @@ function scheduleDailyReports(): void {
           },
           false
         ).catch((err) => {
-          loggerService.logSchedulerEvent("Failed to log error", {}, err as Error);
+          loggerService.logSchedulerEvent(
+            "Failed to log error",
+            {},
+            err as Error
+          );
         });
       }
     },
@@ -107,7 +124,7 @@ function scheduleDailyReports(): void {
     }
   );
 
-  console.log("✅ Daily reports scheduled (02:00 every day)");
+  loggerService.logSchedulerEvent("Daily reports scheduled (02:00 every day)");
 }
 
 /**
@@ -153,7 +170,9 @@ function scheduleWeeklyReports(): void {
     }
   );
 
-  console.log("✅ Weekly reports scheduled (02:00 every Monday)");
+  loggerService.logSchedulerEvent(
+    "Weekly reports scheduled (02:00 every Monday)"
+  );
 }
 
 /**
@@ -199,7 +218,9 @@ function scheduleMonthlyReports(): void {
     }
   );
 
-  console.log("✅ Monthly reports scheduled (02:00 on 1st of month)");
+  loggerService.logSchedulerEvent(
+    "Monthly reports scheduled (02:00 on 1st of month)"
+  );
 }
 
 /**
@@ -212,17 +233,20 @@ async function generateScheduledReport(
   const startTime = Date.now();
 
   try {
-    loggerService.logSchedulerEvent(`Generating scheduled ${type} report (${period})`, {
-      dateRange: formatDateRange(dateRange)
-    });
+    loggerService.logSchedulerEvent(
+      `Generating scheduled ${type} report (${period})`,
+      {
+        dateRange: formatDateRange(dateRange)
+      }
+    );
 
     // Generate report title
     const formatDate = (date: Date) => {
-      return DateTime.fromJSDate(date)
-        .setZone(TIMEZONE)
-        .toFormat("yyyyMMdd");
+      return DateTime.fromJSDate(date).setZone(TIMEZONE).toFormat("yyyyMMdd");
     };
-    const timePeriod = `${formatDate(dateRange.startDate)}-${formatDate(dateRange.endDate)}`;
+    const timePeriod = `${formatDate(dateRange.startDate)}-${formatDate(
+      dateRange.endDate
+    )}`;
     const fileExtension = "xlsx";
     let reportTitle: string;
 
@@ -272,23 +296,25 @@ async function generateScheduledReport(
         );
         break;
       case "EQUIPMENT_PERFORMANCE":
-        result = await ReportGenerationService.generateEquipmentPerformanceReport(
-          dateRange.startDate,
-          dateRange.endDate,
-          SYSTEM_USER_ID,
-          reportIdStr,
-          undefined, // lang
-          period as "daily" | "weekly" | "monthly"
-        );
+        result =
+          await ReportGenerationService.generateEquipmentPerformanceReport(
+            dateRange.startDate,
+            dateRange.endDate,
+            SYSTEM_USER_ID,
+            reportIdStr,
+            undefined, // lang
+            period as "daily" | "weekly" | "monthly"
+          );
         break;
       case "WORKER_PERFORMANCE_KPI":
-        result = await ReportGenerationService.generateWorkerPerformanceKPIReport(
-          dateRange.startDate,
-          dateRange.endDate,
-          SYSTEM_USER_ID,
-          reportIdStr,
-          undefined // lang
-        );
+        result =
+          await ReportGenerationService.generateWorkerPerformanceKPIReport(
+            dateRange.startDate,
+            dateRange.endDate,
+            SYSTEM_USER_ID,
+            reportIdStr,
+            undefined // lang
+          );
         break;
       default:
         throw new Error(`Unknown report type: ${type}`);
@@ -318,13 +344,24 @@ async function generateScheduledReport(
       true
     );
 
-    console.log(
-      `✅ Successfully generated ${type} report (${period}) in ${generationTime}ms. Report ID: ${reportIdStr}`
+    loggerService.logSchedulerEvent(
+      `Successfully generated ${type} report (${period})`,
+      {
+        reportId: reportIdStr,
+        generationTime,
+        period,
+        type
+      }
     );
   } catch (error: any) {
     const generationTime = Date.now() - startTime;
-    console.error(
-      `❌ Failed to generate scheduled ${type} report (${period}):`,
+    loggerService.logSchedulerEvent(
+      `Failed to generate scheduled ${type} report (${period})`,
+      {
+        period,
+        generationTime,
+        type
+      },
       error
     );
 
@@ -346,7 +383,11 @@ async function generateScheduledReport(
         await report.save();
       }
     } catch (updateError) {
-      loggerService.logSchedulerEvent("Failed to update report status", {}, updateError as Error);
+      loggerService.logSchedulerEvent(
+        "Failed to update report status",
+        {},
+        updateError as Error
+      );
     }
 
     // Log failure
@@ -385,7 +426,11 @@ async function logActivity(
       ...(success ? {} : { errorMessage: details.error })
     });
   } catch (error) {
-    loggerService.logSchedulerEvent("Failed to create activity log", {}, error as Error);
+    loggerService.logSchedulerEvent(
+      "Failed to create activity log",
+      {},
+      error as Error
+    );
     // Don't throw - activity logging failure shouldn't break report generation
   }
 }
