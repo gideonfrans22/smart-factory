@@ -3,13 +3,19 @@ import { Task } from "../models/Task";
 import { Alert } from "../models/Alert";
 import { Device } from "../models/Device";
 import { User } from "../models/User";
+import { Project } from "../models/Project";
 import { APIResponse } from "../types";
 
 /**
  * GET /api/dashboard/monitor-overview
  * Get aggregated metrics for Monitor TV display
  * 
- * All task-related metrics are based on the LAST 24 HOURS for real-time monitoring
+ * 수정 기준:
+ * - 전체 작업 진행률: ACTIVE 프로젝트의 작업만 (실시간)
+ * - 납품일 기준 현황: 납기 임박(6시간 이내) + 납기 지연(납기일 지남)
+ * - 작업인원: role="worker"인 사용자만
+ * - 에러유형 Top 5: 항상 5가지 유형 표시 (0건이어도)
+ * - 생산성: 일간(오늘), 주간(월~일), 월간(월초~월말) 현재까지 기준
  */
 export const getMonitorOverview = async (
   _req: Request,
@@ -20,38 +26,51 @@ export const getMonitorOverview = async (
     
     // Time boundaries
     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const sixHoursFromNow = new Date(now.getTime() + 6 * 60 * 60 * 1000);
     
-    // Get days in current month for proper percentage calculation
+    // 일간: 오늘 자정 (AM 00:00) ~ 현재
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    
+    // 주간: 이번 주 월요일 ~ 현재
+    const dayOfWeekNum = now.getDay(); // 0 = Sunday
+    const mondayOffset = dayOfWeekNum === 0 ? 6 : dayOfWeekNum - 1;
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset, 0, 0, 0);
+    
+    // 월간: 이번 달 1일 ~ 현재
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+    
+    // Get days in current month for context
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const dayOfMonth = now.getDate();
     const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); // Sunday = 7
 
+    // Get active project IDs for filtering tasks
+    const activeProjects = await Project.find({ status: "ACTIVE" }).select("_id");
+    const activeProjectIds = activeProjects.map(p => p._id);
+
     // Run all queries in parallel
     const [
-      // 전체 작업 진행률 (24-hour based)
-      totalTasksLast24h,
-      completedTasksLast24h,
-      pendingTasksLast24h,
+      // 전체 작업 진행률 (ACTIVE 프로젝트 기준, 실시간)
+      completedTasksActiveProjects,
+      ongoingTasksActiveProjects,
+      pendingTasksActiveProjects,
+      pausedTasksActiveProjects,
       
-      // 납기준수율 (24-hour based)
-      onTimeTasksLast24h,
-      tasksDueLast24h,
-      urgentTasks,
+      // 납품일 기준 현황 (납기 임박 6시간 + 납기 지연)
+      deadlineImminentTasks, // 납기 6시간 이내
+      deadlineDelayedTasks, // 납기 지남
       
-      // 생산성 현황 - Daily (tasks created/due today)
+      // 생산성 현황 - Daily (오늘 AM00:00 ~ 현재)
       dailyCompletedTasks,
       dailyTotalTasks,
-      dailyPendingFromPrevious,
       
-      // 생산성 현황 - Weekly
+      // 생산성 현황 - Weekly (월요일 ~ 현재)
       weeklyCompletedTasks,
       weeklyTotalTasks,
-      weeklyPendingFromPrevious,
       
-      // 생산성 현황 - Monthly
+      // 생산성 현황 - Monthly (월초 ~ 현재)
       monthlyCompletedTasks,
       monthlyTotalTasks,
-      monthlyPendingFromPrevious,
 
       // Equipment Utilization (real-time)
       totalDevices,
@@ -60,159 +79,139 @@ export const getMonitorOverview = async (
       maintenanceDevices,
       errorDevices,
 
-      // Workers (real-time)
+      // Workers - only role="worker" (사용자 마스터에서 "작업자"로 분류된 수만)
       totalWorkers,
       activeWorkers,
 
-      // Alert Summary (24h filtered)
-      allAlerts,
-      resolvedAlerts,
-      highPriorityAlerts,
-      totalAlerts24h, // NEW: All alerts created in 24h for resolution rate
+      // Alert Summary (24h filtered) - 활성알림: 24시간 내 신고, 해결/읽음 시 카운트다운
+      activeAlerts24h,
+      resolvedAlerts24h,
+      highPriorityAlerts24h,
+      totalAlerts24h,
       
       // Top 5 Devices with Most Alerts (for 설비 현황 page - 3페이지)
       topDevicesWithAlerts,
       
-      // Top 5 Error Types (for 전체 현황 page - 1페이지)
-      topErrorTypes
+      // Error Types Counts (for 전체 현황 page - 1페이지) - 모든 유형 각각 카운트
+      errorTypeCounts
     ] = await Promise.all([
-      // 전체 작업 진행률:
-      // - 전체 작업 수 = (미완료 작업 실시간) + (24시간 내 완료된 작업)
-      // - 완료 작업 수 = 24시간 내 완료된 작업
-      
-      // Count of NOT completed tasks (real-time - PENDING, ONGOING, etc.)
+      // === 전체 작업 진행률 (ACTIVE 프로젝트의 작업만, 실시간) ===
+      // 완료 작업 수
       Task.countDocuments({
-        status: { $nin: ["COMPLETED", "CANCELLED"] }
+        projectId: { $in: activeProjectIds },
+        status: "COMPLETED"
       }),
-      // Count of tasks completed in last 24 hours
+      // 진행 작업 수
       Task.countDocuments({
-        status: "COMPLETED",
-        completedAt: { $gte: last24Hours }
+        projectId: { $in: activeProjectIds },
+        status: "ONGOING"
       }),
-      // Count of PENDING tasks (real-time)
+      // 대기 작업 수
       Task.countDocuments({
+        projectId: { $in: activeProjectIds },
         status: "PENDING"
       }),
-
-      // 납기준수율 - Deadline Compliance Rate
-      // Numerator: Tasks that had deadline in last 24h AND were completed ON TIME (before deadline)
+      // 일시정지 작업 수
       Task.countDocuments({
-        deadline: { $gte: last24Hours, $lte: now },
-        status: "COMPLETED",
-        $expr: { $lte: ["$completedAt", "$deadline"] }
-      }),
-      // Denominator: ALL tasks that had deadline in last 24h (regardless of completion status)
-      Task.countDocuments({
-        deadline: { $gte: last24Hours, $lte: now }
+        projectId: { $in: activeProjectIds },
+        status: { $in: ["PAUSED", "PAUSED_EMERGENCY"] }
       }),
 
-      // Urgent tasks (not completed AND deadline within next 24 hours or past)
+      // === 납품일 기준 현황 ===
+      // 납기 임박: 납기일이 현재~6시간 이내 (미완료 작업)
       Task.countDocuments({
-        status: { $ne: "COMPLETED" },
-        deadline: {
-          $exists: true,
-          $lt: new Date(Date.now() + 24 * 60 * 60 * 1000)
-        }
+        status: { $nin: ["COMPLETED", "CANCELLED"] },
+        deadline: { $exists: true, $gte: now, $lte: sixHoursFromNow }
+      }),
+      // 납기 지연: 납기일이 지났으나 미완료 작업
+      Task.countDocuments({
+        status: { $nin: ["COMPLETED", "CANCELLED"] },
+        deadline: { $exists: true, $lt: now }
       }),
 
-      // 생산성 일간 - Daily: completed in last 24h / (assigned in last 24h + pending backlog)
+      // === 생산성 일간: 오늘 (AM00:00 ~ 현재) ===
       Task.countDocuments({
         status: "COMPLETED",
-        completedAt: { $gte: last24Hours }
+        completedAt: { $gte: todayStart, $lte: now }
       }),
-      // Target = today's new tasks + backlog (not completed tasks created before today)
       Task.countDocuments({
+        createdAt: { $lte: now },
         $or: [
-          { createdAt: { $gte: last24Hours } }, // Tasks created today
-          { 
-            createdAt: { $lt: last24Hours },    // Tasks created before today
-            status: { $nin: ["COMPLETED", "CANCELLED"] } // That are still not completed
-          }
+          { createdAt: { $gte: todayStart } },
+          { status: { $nin: ["COMPLETED", "CANCELLED"] } }
         ]
       }),
-      // Pending from previous period (daily): tasks created >24h ago, still not completed
-      Task.countDocuments({
-        createdAt: { $lt: last24Hours },
-        status: { $nin: ["COMPLETED", "CANCELLED"] }
-      }),
 
-      // 생산성 주간 - Weekly: completed in last 7 days / (assigned in last 7 days + pending backlog)
+      // === 생산성 주간: 월요일 ~ 현재 ===
       Task.countDocuments({
         status: "COMPLETED",
-        completedAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) }
+        completedAt: { $gte: weekStart, $lte: now }
       }),
-      // Target = this week's tasks + backlog
       Task.countDocuments({
+        createdAt: { $lte: now },
         $or: [
-          { createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } },
-          { 
-            createdAt: { $lt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
-            status: { $nin: ["COMPLETED", "CANCELLED"] }
-          }
+          { createdAt: { $gte: weekStart } },
+          { status: { $nin: ["COMPLETED", "CANCELLED"] } }
         ]
       }),
-      // Pending from previous period (weekly): tasks created >7 days ago, still not completed
-      Task.countDocuments({
-        createdAt: { $lt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
-        status: { $nin: ["COMPLETED", "CANCELLED"] }
-      }),
 
-      // 생산성 월간 - Monthly: completed in last 30 days / (assigned in last 30 days + pending backlog)
+      // === 생산성 월간: 월초 ~ 현재 ===
       Task.countDocuments({
         status: "COMPLETED",
-        completedAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }
+        completedAt: { $gte: monthStart, $lte: now }
       }),
-      // Target = this month's tasks + backlog
       Task.countDocuments({
+        createdAt: { $lte: now },
         $or: [
-          { createdAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } },
-          { 
-            createdAt: { $lt: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
-            status: { $nin: ["COMPLETED", "CANCELLED"] }
-          }
+          { createdAt: { $gte: monthStart } },
+          { status: { $nin: ["COMPLETED", "CANCELLED"] } }
         ]
       }),
-      // Pending from previous period (monthly): tasks created >30 days ago, still not completed
-      Task.countDocuments({
-        createdAt: { $lt: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
-        status: { $nin: ["COMPLETED", "CANCELLED"] }
-      }),
 
-      // Equipment Utilization (real-time)
+      // === Equipment Utilization (real-time) ===
       Device.countDocuments({}),
       Device.countDocuments({ status: "ONLINE" }),
       Device.countDocuments({ status: "OFFLINE" }),
       Device.countDocuments({ status: "MAINTENANCE" }),
       Device.countDocuments({ status: "ERROR" }),
 
-      // Workers - count non-deleted, active workers
+      // === Workers - role="worker"인 사용자만 ===
       User.countDocuments({ role: "worker", isActive: true, deletedAt: null }),
+      // 현재 접속중인 작업자 (ONLINE 장비에 currentUser 있는 경우)
       Device.countDocuments({
         status: "ONLINE",
         currentUser: { $exists: true, $ne: null }
       }),
 
-      // Alert Summary - 24 hour filtered for monitor TV
-      // 활성 알림 = UNREAD + PENDING only (realtime, no 24h filter)
-      Alert.countDocuments({ status: { $in: ["UNREAD", "PENDING"] } }), // 활성 알림
-      Alert.countDocuments({ status: "RESOLVED", resolvedAt: { $gte: last24Hours } }), // resolved in 24h
-      Alert.countDocuments({ level: { $in: ["HIGH", "CRITICAL"] }, status: { $ne: "RESOLVED" }, createdAt: { $gte: last24Hours } }), // high priority active in 24h
-      // 해결률 = resolved_24h / total_created_24h × 100
-      // total_created_24h = ALL alerts created in last 24 hours (any status)
+      // === Alert Summary - 24h 기준 ===
+      // 활성 알림: 24시간 내 신고된 알림 중 해결/읽음 안 된 것
+      Alert.countDocuments({ 
+        createdAt: { $gte: last24Hours },
+        status: { $in: ["UNREAD", "PENDING"] }
+      }),
+      Alert.countDocuments({ 
+        status: "RESOLVED", 
+        resolvedAt: { $gte: last24Hours } 
+      }),
+      Alert.countDocuments({ 
+        level: { $in: ["HIGH", "CRITICAL"] }, 
+        status: { $nin: ["RESOLVED", "READ"] }, 
+        createdAt: { $gte: last24Hours } 
+      }),
       Alert.countDocuments({ createdAt: { $gte: last24Hours } }),
 
-      // Top 5 Devices with Most Alerts in Last 24 Hours (for 에러 현황 bar graph)
+      // === Top 5 Devices with Most Alerts in Last 24 Hours ===
       Alert.aggregate([
         {
           $match: {
-            device: { $exists: true, $ne: null },  // Fixed: use 'device' not 'deviceId'
-            createdAt: { $gte: last24Hours } // ✅ Filter last 24 hours only
+            device: { $exists: true, $ne: null },
+            createdAt: { $gte: last24Hours }
           }
         },
         {
           $lookup: {
             from: "devices",
-            localField: "device",  // Fixed: use 'device' not 'deviceId'
+            localField: "device",
             foreignField: "_id",
             as: "deviceInfo"
           }
@@ -232,14 +231,14 @@ export const getMonitorOverview = async (
             _id: "$deviceInfo._id",
             deviceName: { $first: "$deviceInfo.name" },
             deviceTypeName: { $first: "$deviceType.name" },
-            alertCount: { $sum: 1 } // Count alerts in last 24 hours
+            alertCount: { $sum: 1 }
           }
         },
         { $sort: { alertCount: -1 } },
         { $limit: 5 }
       ]),
       
-      // Top 5 Error Types in Last 24 Hours (for 전체 현황 page)
+      // === Error Types - 각 유형별 카운트 (24시간 내) ===
       Alert.aggregate([
         {
           $match: {
@@ -251,26 +250,18 @@ export const getMonitorOverview = async (
             _id: "$type",
             alertCount: { $sum: 1 }
           }
-        },
-        { $sort: { alertCount: -1 } },
-        { $limit: 5 }
+        }
       ])
     ]);
 
-    // Calculate 전체 작업 진행률:
-    // - 전체 작업 수 = 미완료 작업 실시간 수 (완료되면 줄어듦)
-    // - 완료 작업 수 = 24시간 내 완료된 작업 수
-    // - 진행률 = 완료 / 전체 * 100%
-    // Note: totalTasksLast24h is now "not completed tasks count (real-time)"
-    const notCompletedTasks = totalTasksLast24h; // 미완료 작업 수 (실시간)
-    const totalTasksForProgress = notCompletedTasks; // 전체 = 미완료 작업 수
-    const taskProgressPercentage =
-      totalTasksForProgress > 0 ? Math.round((completedTasksLast24h / totalTasksForProgress) * 100) : 0;
-    
-    const deadlineCompliancePercentage =
-      tasksDueLast24h > 0 ? Math.round((onTimeTasksLast24h / tasksDueLast24h) * 100) : 0;
+    // === 전체 작업 진행률 계산 (ACTIVE 프로젝트 기준) ===
+    // 전체작업수 = 완료 + 진행 + 대기 + 일시정지
+    const totalTasksActiveProjects = completedTasksActiveProjects + ongoingTasksActiveProjects + pendingTasksActiveProjects + pausedTasksActiveProjects;
+    const taskProgressPercentage = totalTasksActiveProjects > 0 
+      ? Math.round((completedTasksActiveProjects / totalTasksActiveProjects) * 100) 
+      : 0;
 
-    // Productivity percentages (based on total tasks, not fixed targets)
+    // === 생산성 계산 ===
     const dailyTotal = Math.max(1, dailyTotalTasks);
     const weeklyTotal = Math.max(1, weeklyTotalTasks);
     const monthlyTotal = Math.max(1, monthlyTotalTasks);
@@ -279,36 +270,21 @@ export const getMonitorOverview = async (
     const weeklyPercentage = Math.round((weeklyCompletedTasks / weeklyTotal) * 100);
     const monthlyPercentage = Math.round((monthlyCompletedTasks / monthlyTotal) * 100);
 
-    // Equipment utilization
+    // === Equipment utilization ===
     const equipmentUtilizationPercentage =
       totalDevices > 0 ? Math.round((onlineDevices / totalDevices) * 100) : 0;
 
-    // Worker capacity (can be configured or stored in DB)
-    const workerCapacity = 10;
-    const workerPercentage =
-      workerCapacity > 0 ? Math.round((totalWorkers / workerCapacity) * 100) : 0;
+    // === Worker metrics (작업자 role만) ===
+    const workerPercentage = totalWorkers > 0 ? Math.round((activeWorkers / totalWorkers) * 100) : 0;
     const idleWorkers = totalWorkers - activeWorkers;
 
-    // Alert summary calculations - 24h filtered
-    const pendingAlerts24h = await Alert.countDocuments({ 
-      status: "PENDING",
-      createdAt: { $gte: last24Hours }
-    });
-    const inProgressAlerts24h = await Alert.countDocuments({ 
-      status: "ACKNOWLEDGED",
-      createdAt: { $gte: last24Hours }
-    });
+    // === Alert summary - 24h 기준 ===
     const avgResponseTimeMinutes = 12; // TODO: Calculate from actual alert response times
-    
-    // Resolution Rate: 해결률 = resolved_24h / total_created_24h × 100
-    // - totalAlerts24h: All alerts CREATED in last 24 hours (any status)
-    // - resolvedAlerts: Alerts RESOLVED in last 24 hours
-    // If no alerts created in 24h, show 100% (nothing to resolve)
-    const resolutionRate =
-      totalAlerts24h > 0 ? Math.round((resolvedAlerts / totalAlerts24h) * 100) : 100;
+    const resolutionRate = totalAlerts24h > 0 
+      ? Math.round((resolvedAlerts24h / totalAlerts24h) * 100) 
+      : 100;
 
-    // Process top 5 devices with alerts for bar graph
-    // ✅ Filtered to last 24 hours in aggregation pipeline above
+    // === Top 5 devices with alerts (for 설비 현황 page) ===
     const maxAlertCount = topDevicesWithAlerts.length > 0 
       ? Math.max(...topDevicesWithAlerts.map((d: any) => d.alertCount))
       : 0;
@@ -316,7 +292,6 @@ export const getMonitorOverview = async (
     const topDeviceErrors = topDevicesWithAlerts.map((item: any) => {
       const deviceName = item.deviceName || "Unknown Device";
       const deviceTypeName = item.deviceTypeName || "Unknown Type";
-      // Format: "장비명(장비타입)"
       const displayName = `${deviceName}(${deviceTypeName})`;
       return {
         deviceName: displayName,
@@ -325,73 +300,75 @@ export const getMonitorOverview = async (
       };
     });
 
-    // Process top 5 error types for bar graph (1페이지 전체 현황)
-    const ERROR_TYPE_LABELS: Record<string, string> = {
-      "EQUIPMENT_DEFECT": "장비결함",
-      "TOOL_CHANGE": "툴체인지",
-      "MATERIAL_DEFECT": "소재불량",
-      "PROCESSING_DEFECT": "가공불량",
-      "OTHER": "기타"
-    };
+    // === 에러 유형 Top 5 - 항상 5가지 표시 (0건이어도) ===
+    const ERROR_TYPES_LIST = [
+      { type: "EQUIPMENT_DEFECT", label: "장비결함" },
+      { type: "TOOL_CHANGE", label: "툴체인지" },
+      { type: "MATERIAL_DEFECT", label: "소재불량" },
+      { type: "PROCESSING_DEFECT", label: "가공불량" },
+      { type: "OTHER", label: "기타" }
+    ];
     
-    const maxErrorTypeCount = topErrorTypes.length > 0 
-      ? Math.max(...topErrorTypes.map((d: any) => d.alertCount))
-      : 0;
-    
-    const topErrorTypesList = topErrorTypes.map((item: any) => {
-      const typeName = ERROR_TYPE_LABELS[item._id] || item._id || "Unknown";
-      return {
-        errorType: item._id,
-        errorTypeName: typeName,
-        alertCount: item.alertCount,
-        percentage: maxErrorTypeCount > 0 ? Math.round((item.alertCount / maxErrorTypeCount) * 100) : 0
-      };
+    // Convert aggregation result to a map for easy lookup
+    const errorCountMap: Record<string, number> = {};
+    errorTypeCounts.forEach((item: any) => {
+      errorCountMap[item._id] = item.alertCount;
     });
+    
+    // Build the full list - always 5 items, sorted by count descending
+    const fullErrorTypesList = ERROR_TYPES_LIST.map(et => ({
+      errorType: et.type,
+      errorTypeName: et.label,
+      alertCount: errorCountMap[et.type] || 0
+    })).sort((a, b) => b.alertCount - a.alertCount);
+    
+    const maxErrorTypeCount = Math.max(...fullErrorTypesList.map(d => d.alertCount), 1);
+    const topErrorTypesList = fullErrorTypesList.map(item => ({
+      ...item,
+      percentage: maxErrorTypeCount > 0 ? Math.round((item.alertCount / maxErrorTypeCount) * 100) : 0
+    }));
 
     const response: APIResponse = {
       success: true,
       message: "Monitor overview data retrieved successfully",
       data: {
+        // === 전체 작업 진행률 (ACTIVE 프로젝트 기준) ===
         taskProgress: {
           percentage: taskProgressPercentage,
-          completed: completedTasksLast24h,
-          total: totalTasksForProgress, // (미완료 실시간) + (24시간 완료)
-          pending: pendingTasksLast24h
+          completed: completedTasksActiveProjects,
+          ongoing: ongoingTasksActiveProjects,
+          pending: pendingTasksActiveProjects,
+          paused: pausedTasksActiveProjects,
+          total: totalTasksActiveProjects
         },
-        deadlineCompliance: {
-          percentage: deadlineCompliancePercentage,
-          onTime: onTimeTasksLast24h,
-          total: tasksDueLast24h,
-          urgent: urgentTasks
+        // === 납품일 기준 현황 (납기준수율 삭제) ===
+        deadlineStatus: {
+          imminent: deadlineImminentTasks, // 납기 임박 (6시간 이내)
+          delayed: deadlineDelayedTasks    // 납기 지연 (납기일 지남)
         },
+        // === 생산성 현황 ===
         productivity: {
           daily: {
             current: dailyCompletedTasks,
-            target: dailyTotal, // Now using actual total tasks, not fixed target
-            percentage: dailyPercentage,
-            pendingFromPrevious: dailyPendingFromPrevious // 24시간 전에 아직 안 끝난 작업
+            target: dailyTotal,
+            percentage: dailyPercentage
           },
           weekly: {
             current: weeklyCompletedTasks,
-            target: weeklyTotal, // Now using actual total tasks, not fixed target
-            percentage: weeklyPercentage,
-            pendingFromPrevious: weeklyPendingFromPrevious // 1주일 전에 아직 안 끝난 작업
+            target: weeklyTotal,
+            percentage: weeklyPercentage
           },
           monthly: {
             current: monthlyCompletedTasks,
-            target: monthlyTotal, // Now using actual total tasks, not fixed target
-            percentage: monthlyPercentage,
-            pendingFromPrevious: monthlyPendingFromPrevious // 한달 전에 아직 안 끝난 작업
+            target: monthlyTotal,
+            percentage: monthlyPercentage
           }
         },
-        // Top 5 devices with most alerts (for 설비 현황 page - 3페이지)
+        // === Top 5 devices with alerts (for 설비 현황 page - 3페이지) ===
         deviceErrorFrequency: topDeviceErrors,
-        // Top 5 error types (for 전체 현황 page - 1페이지)
+        // === 에러 유형 Top 5 (항상 5가지 표시, 0건이어도) ===
         errorTypeFrequency: topErrorTypesList,
-        errors: {
-          categories: [], // Kept for backward compatibility
-          total: allAlerts
-        },
+        // === 장비 가동률 (real-time) ===
         equipmentUtilization: {
           percentage: equipmentUtilizationPercentage,
           online: onlineDevices,
@@ -400,24 +377,24 @@ export const getMonitorOverview = async (
           error: errorDevices,
           total: totalDevices
         },
+        // === 작업인원 (role="worker"만) ===
         workers: {
-          current: totalWorkers,
-          capacity: workerCapacity,
+          current: activeWorkers,       // 현재 접속중인 작업자 수
+          total: totalWorkers,          // 사용자 마스터의 "작업자" 분류 인원
           percentage: workerPercentage,
           active: activeWorkers,
           idle: idleWorkers
         },
+        // === 알림 요약 (24시간 기준) ===
         alerts: {
-          total: allAlerts, // 24h alerts total
-          highPriority: highPriorityAlerts, // HIGH + CRITICAL in 24h
-          unconfirmed: pendingAlerts24h, // PENDING in 24h
-          inProgress: inProgressAlerts24h, // ACKNOWLEDGED in 24h
-          resolved: resolvedAlerts, // resolved in 24h
-          averageResponseTime: avgResponseTimeMinutes, // Fixed field name for FE
-          avgResponseTime: avgResponseTimeMinutes, // Keep for backward compat
+          total: activeAlerts24h,           // 활성 알림 (24h 내 신고, 미해결)
+          highPriority: highPriorityAlerts24h,
+          resolved: resolvedAlerts24h,
+          averageResponseTime: avgResponseTimeMinutes,
+          avgResponseTime: avgResponseTimeMinutes,
           resolutionRate: resolutionRate
         },
-        // Additional context info
+        // === Context info ===
         periodInfo: {
           daysInMonth: daysInMonth,
           dayOfMonth: dayOfMonth,
