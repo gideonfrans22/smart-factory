@@ -239,11 +239,11 @@ export const getMonitorOverview = async (
         { $limit: 5 }
       ]),
       
-      // === Error Types - 각 유형별 카운트 (24시간 내) ===
+      // === Error Types - 각 유형별 카운트 (오늘 KST 기준 AM00:00~PM11:59) ===
       Alert.aggregate([
         {
           $match: {
-            createdAt: { $gte: last24Hours }
+            createdAt: { $gte: todayStart }
           }
         },
         {
@@ -482,22 +482,39 @@ export const getMonitorTasks = async (
     const { limit = 100 } = req.query;
     const limitNum = Math.min(parseInt(limit as string) || 100, 200); // Cap at 200
     
+    // KST timezone: Today start at AM00:00 KST
+    const KST_OFFSET = 9 * 60 * 60 * 1000; // UTC+9
     const now = new Date();
-    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const nowKST = new Date(now.getTime() + KST_OFFSET);
+    const todayStartKST = new Date(nowKST);
+    todayStartKST.setUTCHours(0, 0, 0, 0);
+    const todayStartUTC = new Date(todayStartKST.getTime() - KST_OFFSET);
+
+    // Step 1: Find all projectNumbers that have at least one non-COMPLETED task
+    // These projects should show ALL their tasks (including completed ones)
+    const projectsWithPendingTasks = await Task.distinct("projectNumber", {
+      status: { $ne: "COMPLETED" },
+      projectNumber: { $ne: null }
+    });
 
     // Use aggregation for optimized data fetching with flattened structure
     const tasks = await Task.aggregate([
-      // Stage 1: Filter - exclude old COMPLETED tasks
+      // Stage 1: Filter - 일간 기준 (KST AM00:00~PM11:59)
+      // Show: 1) Non-completed tasks, 2) Completed today (KST), 3) Completed tasks from projects with pending tasks
       {
         $match: {
           $or: [
+            // 1. All non-completed tasks
             { status: { $ne: "COMPLETED" } },
+            // 2. Completed tasks from today (KST)
             { 
               status: "COMPLETED",
-              $or: [
-                { completedAt: { $gte: twentyFourHoursAgo } },
-                { updatedAt: { $gte: twentyFourHoursAgo } }
-              ]
+              completedAt: { $gte: todayStartUTC }
+            },
+            // 3. Completed tasks from projects that still have pending tasks
+            {
+              status: "COMPLETED",
+              projectNumber: { $in: projectsWithPendingTasks }
             }
           ]
         }
@@ -560,6 +577,30 @@ export const getMonitorTasks = async (
           ]
         }
       },
+      // Stage 7.5: Lookup device data for equipment name
+      {
+        $lookup: {
+          from: "devices",
+          localField: "deviceId",
+          foreignField: "_id",
+          as: "device",
+          pipeline: [
+            { $project: { name: 1 } }
+          ]
+        }
+      },
+      // Stage 7.6: Lookup device type data (fallback if no device assigned)
+      {
+        $lookup: {
+          from: "devicetypes",
+          localField: "deviceTypeId",
+          foreignField: "_id",
+          as: "deviceType",
+          pipeline: [
+            { $project: { name: 1 } }
+          ]
+        }
+      },
       // Stage 8: Project flattened fields
       {
         $project: {
@@ -615,10 +656,17 @@ export const getMonitorTasks = async (
           },
           // Recipe snapshot for step name
           recipeName: { $arrayElemAt: ["$recipeSnapshot.name", 0] },
-          recipeSteps: { $arrayElemAt: ["$recipeSnapshot.steps", 0] }
+          recipeSteps: { $arrayElemAt: ["$recipeSnapshot.steps", 0] },
+          // Device/Equipment name (device name or device type name as fallback)
+          deviceName: {
+            $ifNull: [
+              { $arrayElemAt: ["$device.name", 0] },
+              { $arrayElemAt: ["$deviceType.name", 0] }
+            ]
+          }
         }
       },
-      // Stage 9: Add computed step name
+      // Stage 9: Add computed step name and total steps
       {
         $addFields: {
           stepName: {
@@ -639,7 +687,9 @@ export const getMonitorTasks = async (
               },
               in: { $ifNull: ["$$matchedStep.name", "$recipeName"] }
             }
-          }
+          },
+          // Total steps in recipe
+          totalSteps: { $size: { $ifNull: ["$recipeSteps", []] } }
         }
       },
       // Stage 10: Remove recipeSteps from final output
