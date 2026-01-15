@@ -1,6 +1,8 @@
 import cluster, { Worker } from "cluster";
 import os from "os";
 import * as dotenv from "dotenv";
+import { connectDB, disconnectDB } from "./config/database";
+import { initializeScheduler } from "./services/schedulerService";
 
 // Load environment variables
 dotenv.config();
@@ -62,7 +64,7 @@ if (cluster.isPrimary) {
   });
 
   // Graceful shutdown for master
-  const gracefulShutdown = (signal: string) => {
+  const gracefulShutdown = async (signal: string) => {
     console.log(
       `\n📤 ${signal} received on master. Shutting down gracefully...`
     );
@@ -83,26 +85,66 @@ if (cluster.isPrimary) {
       );
       if (aliveWorkers.length === 0) {
         clearInterval(checkWorkers);
-        console.log("✅ All workers stopped. Master exiting...");
-        process.exit(0);
+        // Disconnect database before exiting
+        disconnectDB()
+          .then(() => {
+            console.log("✅ All workers stopped. Master exiting...");
+            process.exit(0);
+          })
+          .catch((error) => {
+            console.error("Error disconnecting database:", error);
+            process.exit(0);
+          });
       }
     }, 1000);
 
     // Force exit after timeout
     setTimeout(() => {
       console.log("⚠️ Force exiting after timeout...");
-      process.exit(1);
+      disconnectDB().finally(() => {
+        process.exit(1);
+      });
     }, 10000);
   };
 
-  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => {
+    gracefulShutdown("SIGTERM").catch((error) => {
+      console.error("Error during graceful shutdown:", error);
+      process.exit(1);
+    });
+  });
+  process.on("SIGINT", () => {
+    gracefulShutdown("SIGINT").catch((error) => {
+      console.error("Error during graceful shutdown:", error);
+      process.exit(1);
+    });
+  });
 
   // Handle uncaught exceptions in master
   process.on("uncaughtException", (error) => {
     console.error("❌ Master uncaught exception:", error);
     gracefulShutdown("uncaughtException");
   });
+
+  // Initialize scheduler in master process
+  const initializeMasterServices = async (): Promise<void> => {
+    try {
+      // Connect to MongoDB for scheduler
+      await connectDB();
+      console.log("✅ Master process connected to database");
+
+      // Initialize report scheduler
+      initializeScheduler();
+    } catch (error) {
+      console.error("❌ Failed to initialize master services:", error);
+      // Don't exit - allow workers to start even if scheduler fails
+    }
+  };
+
+  // Initialize scheduler after a short delay to ensure workers start first
+  setTimeout(() => {
+    initializeMasterServices();
+  }, 1000);
 
   console.log(`🚀 Master process ready. Workers will listen on port ${PORT}`);
 } else {
