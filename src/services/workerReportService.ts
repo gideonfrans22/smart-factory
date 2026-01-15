@@ -1,8 +1,9 @@
-import mongoose from "mongoose";
 import ExcelJS from "exceljs";
+import mongoose from "mongoose";
 import { Task } from "../models/Task";
 import { User } from "../models/User";
 import * as ExcelFormatService from "./excelFormatService";
+import { formatDateKorean } from "./excelFormatService";
 
 /**
  * Worker Performance Report Data Aggregation Service
@@ -256,6 +257,9 @@ const TRANSLATIONS = {
       en: "WORKER PERFORMANCE KPI REPORT",
       ko: "작업자 성과 KPI 보고서"
     },
+    prepared: { en: "Prepared", ko: "작성" },
+    reviewed: { en: "Reviewed", ko: "검토" },
+    approved: { en: "Approved", ko: "승인" },
     workerName: { en: "Worker Name", ko: "작업자 이름" },
     department: { en: "Department", ko: "부서" },
     workProficiency: { en: "Work Proficiency", ko: "작업 숙련도" },
@@ -3298,10 +3302,10 @@ export async function generateWorkerPerformanceSummarySheet(
 
   const worksheet = workbook.addWorksheet("Worker Performance Summary");
 
-  // Configure page for A4 portrait
+  // Configure page for A4 landscape
   worksheet.pageSetup = {
     paperSize: 9, // A4
-    orientation: "portrait",
+    orientation: "landscape",
     fitToPage: true,
     fitToWidth: 1,
     fitToHeight: 0,
@@ -3320,17 +3324,9 @@ export async function generateWorkerPerformanceSummarySheet(
   // Get summary data for all workers
   const summaryData = await getWorkerPerformanceSummaryData(dateRange);
 
-  // Format dates for display
-  const formatDate = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}.${month}.${day}`;
-  };
-
-  const periodText = `${formatDate(dateRange.startDate)}~${formatDate(
-    dateRange.endDate
-  )}`;
+  const periodText = `${formatDateKorean(
+    dateRange.startDate
+  )}~${formatDateKorean(dateRange.endDate)}`;
 
   // ===== TITLE ROW =====
   worksheet.mergeCells(currentRow, 1, currentRow, 9);
@@ -3351,67 +3347,56 @@ export async function generateWorkerPerformanceSummarySheet(
   )}: ${periodText}`;
   periodCell.font = { size: 11, bold: true };
   periodCell.alignment = { horizontal: "left", vertical: "middle", indent: 1 };
-  periodCell.border = {
-    top: { style: "thin" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
 
-  // Right side: Signature block (Created, Reviewed, Approved)
-  // Created
-  worksheet.mergeCells(currentRow, 4, currentRow, 5);
-  const createdCell = worksheet.getCell(currentRow, 4);
-  createdCell.value = "작성\n____년  __월  __일";
-  createdCell.font = { size: 10, bold: true };
-  createdCell.alignment = {
-    horizontal: "center",
-    vertical: "top",
-    wrapText: true
-  };
-  createdCell.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
+  // Approval section (작성/검토/승인) - right side
+  const approvalCols = [
+    { col: 7, label: "workerKPI.prepared" },
+    { col: 8, label: "workerKPI.reviewed" },
+    { col: 9, label: "workerKPI.approved" }
+  ];
 
-  // Reviewed
-  worksheet.mergeCells(currentRow, 6, currentRow, 7);
-  const reviewedCell = worksheet.getCell(currentRow, 6);
-  reviewedCell.value = "검토\n____년  __월  __일";
-  reviewedCell.font = { size: 10, bold: true };
-  reviewedCell.alignment = {
-    horizontal: "center",
-    vertical: "top",
-    wrapText: true
-  };
-  reviewedCell.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
+  approvalCols.forEach((col) => {
+    const cell = worksheet.getCell(currentRow, col.col);
+    cell.value = `${getTranslation(col.label, lang)}`;
+    cell.font = { size: 14 };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+  worksheet.getRow(currentRow).height = 24;
+  currentRow++;
 
-  // Approved
-  worksheet.mergeCells(currentRow, 8, currentRow, 9);
-  const approvedCell = worksheet.getCell(currentRow, 8);
-  approvedCell.value = "승인\n____년  __월  __일";
-  approvedCell.font = { size: 10, bold: true };
-  approvedCell.alignment = {
-    horizontal: "center",
-    vertical: "top",
-    wrapText: true
-  };
-  approvedCell.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-
-  worksheet.getRow(currentRow).height = 50;
-  currentRow += 2;
+  // Row 4: Blank Signature cells
+  // Blank Signature cells
+  approvalCols.forEach((col) => {
+    worksheet.mergeCells(currentRow, col.col, currentRow + 3, col.col);
+    const cell = worksheet.getCell(currentRow, col.col);
+    cell.value = "";
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+    // Date Row
+    worksheet.mergeCells(currentRow + 4, col.col, currentRow + 4, col.col);
+    const dateCell = worksheet.getCell(currentRow + 4, col.col);
+    dateCell.value = formatDateKorean(new Date());
+    dateCell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+    dateCell.font = { size: 14 };
+    dateCell.alignment = { horizontal: "center", vertical: "middle" };
+    worksheet.getRow(currentRow + 4).height = 24;
+  });
+  currentRow += 6;
 
   // ===== TABLE HEADERS =====
   const headers = [
@@ -3492,30 +3477,6 @@ export async function generateWorkerPerformanceSummarySheet(
     currentRow++;
   });
 
-  // Add empty rows for additional entries (up to row 20 as shown in image)
-  const emptyRowsNeeded = Math.max(0, 20 - summaryData.length);
-  for (let i = 0; i < emptyRowsNeeded; i++) {
-    const row = ["000", "", "", "", "", "", "", "", ""];
-
-    row.forEach((val, idx) => {
-      const cell = worksheet.getCell(currentRow, idx + 1);
-      cell.value = val;
-      cell.alignment = {
-        horizontal: idx === 0 ? "center" : "left",
-        vertical: "middle"
-      };
-      cell.border = {
-        top: { style: "thin" },
-        left: { style: "thin" },
-        bottom: { style: "thin" },
-        right: { style: "thin" }
-      };
-    });
-
-    worksheet.getRow(currentRow).height = 20;
-    currentRow++;
-  }
-
   // Column widths
   worksheet.getColumn(1).width = 8; // 순번
   worksheet.getColumn(2).width = 15; // 이름
@@ -3525,10 +3486,7 @@ export async function generateWorkerPerformanceSummarySheet(
   worksheet.getColumn(6).width = 12; // 생산량
   worksheet.getColumn(7).width = 15; // 불량 발생건 수
   worksheet.getColumn(8).width = 15; // 작업 지연률
-  worksheet.getColumn(9).width = 20; // 비고
-
-  // Apply borders to all cells
-  ExcelFormatService.applyBorders(worksheet, 1, currentRow - 1, 1, 9);
+  worksheet.getColumn(9).width = 15; // 비고
 
   console.log(
     `✓ Worker Performance Summary Sheet generated with ${summaryData.length} workers`

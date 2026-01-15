@@ -5,6 +5,7 @@ import { Alert } from "../models/Alert";
 import { Project } from "../models/Project";
 import { Task } from "../models/Task";
 import * as ExcelFormatService from "./excelFormatService";
+import { formatDateKorean } from "./excelFormatService";
 
 /**
  * Production Rate Report Data Aggregation Service
@@ -3596,18 +3597,6 @@ function formatProductStatusDataToExcelJsTable(
   }
 
   return initialRow + productNumberRowHeight + 2;
-}
-
-/**
- * Format date to YYYY.MM.DD format
- */
-function formatDateKorean(date: Date | null): string {
-  if (!date) return "";
-  const d = new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}.${month}.${day}`;
 }
 
 /**
