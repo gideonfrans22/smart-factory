@@ -292,13 +292,12 @@ export async function generateWorkerPerformanceReport(
 
 /**
  * Generate Worker Performance KPI Report
- * Single sheet with personalized KPI data for one worker
+ * Summary sheet with performance data for all workers
  */
 export async function generateWorkerPerformanceKPIReport(
   startDate: Date,
   endDate: Date,
   _userId: string,
-  workerId: string,
   reportId?: string,
   lang?: string
 ): Promise<ReportGenerationResult> {
@@ -306,7 +305,7 @@ export async function generateWorkerPerformanceKPIReport(
 
   try {
     console.log(
-      `[WorkerKPIReport] Starting generation for worker: ${workerId}, date range: ${startDate.toISOString()} to ${endDate.toISOString()}`
+      `[WorkerKPIReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}`
     );
 
     // Create new workbook
@@ -315,17 +314,21 @@ export async function generateWorkerPerformanceKPIReport(
     workbook.created = new Date();
     workbook.modified = new Date();
 
-    // Generate KPI sheet
+    // Generate summary sheet
     const sheetsGenerated: string[] = [];
     const dateRange = { startDate, endDate };
 
-    await WorkerReportService.generateWorkerKPISheet(
+    await WorkerReportService.generateWorkerPerformanceSummarySheet(
       workbook,
       dateRange,
-      workerId,
       lang
     );
-    sheetsGenerated.push("Worker KPI");
+    sheetsGenerated.push("Worker Performance Summary");
+
+    // Get record count
+    const summaryData =
+      await WorkerReportService.getWorkerPerformanceSummaryData(dateRange);
+    const recordCount = summaryData.length;
 
     // Save workbook to file
     const fileName = generateReportFileName(
@@ -348,7 +351,7 @@ export async function generateWorkerPerformanceKPIReport(
         completedAt: new Date(),
         metadata: {
           sheetsGenerated,
-          recordCount: 1, // One worker row
+          recordCount,
           generationTime
         }
       });
@@ -361,7 +364,7 @@ export async function generateWorkerPerformanceKPIReport(
       reportId,
       metadata: {
         sheetsGenerated,
-        recordCount: 1,
+        recordCount,
         generationTime
       }
     };
