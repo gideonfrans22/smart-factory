@@ -1,6 +1,7 @@
 import * as dotenv from "dotenv";
 import { connectDB, disconnectDB } from "./config/database";
 import { initializeScheduler } from "./services/schedulerService";
+import { loggerService } from "./services/loggerService";
 
 // Load environment variables
 dotenv.config();
@@ -32,16 +33,23 @@ const startScheduler = async (): Promise<void> => {
 
 // Handle graceful shutdown
 const gracefulShutdown = async (signal: string) => {
-  console.log(
-    `\n📤 ${signal} received on scheduler worker ${process.pid}, shutting down gracefully...`
+  loggerService.logSchedulerEvent(
+    `${signal} received on scheduler worker, shutting down gracefully`,
+    {
+      processId: process.pid
+    }
   );
 
   try {
     await disconnectDB();
-    console.log("✅ Scheduler worker shutdown complete");
+    loggerService.logSchedulerEvent("Scheduler worker shutdown complete");
     process.exit(0);
   } catch (error) {
-    console.error("❌ Error during graceful shutdown:", error);
+    loggerService.logSchedulerEvent(
+      "Error during graceful shutdown",
+      {},
+      error as Error
+    );
     process.exit(1);
   }
 };
@@ -51,18 +59,19 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 // Handle uncaught exceptions
 process.on("uncaughtException", (error) => {
-  console.error("❌ Scheduler worker uncaught exception:", error);
+  loggerService.logSchedulerEvent(
+    "Scheduler worker uncaught exception",
+    {},
+    error
+  );
   gracefulShutdown("uncaughtException");
 });
 
 // Handle unhandled promise rejections
-process.on("unhandledRejection", (reason, promise) => {
-  console.error(
-    "❌ Scheduler worker unhandled rejection at:",
-    promise,
-    "reason:",
-    reason
-  );
+process.on("unhandledRejection", (reason) => {
+  loggerService.logSchedulerEvent("Scheduler worker unhandled rejection", {
+    reason: String(reason)
+  });
   gracefulShutdown("unhandledRejection");
 });
 
