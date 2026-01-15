@@ -5,7 +5,8 @@ import {
   createUser,
   updateUser,
   deleteUser,
-  getWorkerStatistics
+  getWorkerStatistics,
+  getUserStatistics
 } from "../controllers/userController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -14,6 +15,14 @@ const router = Router();
 // ========================================
 // USER QUERY ENDPOINTS (GET)
 // ========================================
+
+/**
+ * @route   GET /api/users/statistics
+ * @desc    Get user statistics by role (total and online counts)
+ * @response Returns: { admin: { total, online }, monitor: { total, online }, worker: { total, online }, summary: { totalUsers, totalOnline } }
+ * @access  Private (Admin only)
+ */
+router.get("/statistics", getUserStatistics);
 
 /**
  * @route   GET /api/users
@@ -30,7 +39,7 @@ const router = Router();
 router.get("/", getUsers);
 
 /**
- * @route   GET /api/workers/statistics
+ * @route   GET /api/users/worker-performance
  * @desc    Get worker performance metrics and productivity data
  * @query   timeRange - Filter by time range: "daily" | "weekly" | "monthly" (default: daily)
  * @query   department - Filter by department (optional)
@@ -38,7 +47,7 @@ router.get("/", getUsers);
  * @response Returns array of workers with performance metrics: completionRate, avgDuration, qualityScore, taskCount, currentTask, productivity, etc.
  * @access  Private (Admin only)
  */
-router.get("/statistics", authenticateToken, requireAdmin, getWorkerStatistics);
+router.get("/worker-performance", authenticateToken, requireAdmin, getWorkerStatistics);
 
 /**
  * @route   GET /api/users/:id
