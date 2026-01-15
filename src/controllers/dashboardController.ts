@@ -439,9 +439,19 @@ export const getTaskStatusDistribution = async (
 
     const distribution = await Task.aggregate([
       {
-        // Filter by 일간: tasks created today (KST)
+        // Filter: 
+        // 1. 일간: 완료 tasks from today (KST AM00:00~PM11:59)
+        // 2. 미완료: All non-completed tasks regardless of date
         $match: {
-          createdAt: { $gte: todayStartKST, $lte: todayEndKST }
+          $or: [
+            // 1. Non-completed tasks (any date)
+            { status: { $ne: "COMPLETED" } },
+            // 2. Completed tasks from today (KST)
+            { 
+              status: "COMPLETED",
+              completedAt: { $gte: todayStartKST, $lte: todayEndKST }
+            }
+          ]
         }
       },
       {
