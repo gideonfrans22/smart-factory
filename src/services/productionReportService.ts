@@ -145,6 +145,10 @@ const TRANSLATIONS = {
       en: "Work Details",
       ko: "작업내용"
     },
+    deviceTypeName: {
+      en: "Device Type Name",
+      ko: "장비 유형명"
+    },
     worker: {
       en: "Worker",
       ko: "작업자"
@@ -3021,10 +3025,15 @@ export interface ProductStatusData {
     remainingQuantity: number;
     completionRate: number;
     totalWorkTime: number; // in minutes
-    workDetails: Array<{
-      worker: any; // IUser
-      workQuantity: number;
-      workTime: number; // in minutes
+    steps: Array<{
+      stepId: string;
+      stepName: string;
+      deviceTypeName: string;
+      workDetails: Array<{
+        worker: any; // IUser
+        workQuantity: number;
+        workTime: number; // in minutes
+      }>;
     }>;
   }>;
 }
@@ -3145,7 +3154,9 @@ export async function aggregateProductStatusData(
     );
     const recipeSnapshots = await RecipeSnapshot.find({
       _id: { $in: recipeSnapshotIds }
-    }).lean();
+    })
+      .populate("steps.deviceTypeId", "name")
+      .lean();
 
     // Get all projects for this product to calculate part quantities
     const productProjects = productSnapshotData.projects;
@@ -3187,26 +3198,49 @@ export async function aggregateProductStatusData(
         0
       );
 
-      // Group work details by worker
-      const workerMap = new Map<
+      // Group work details by step
+      const steps = recipeSnapshot.steps;
+      const stepMap = new Map<
         string,
-        { worker: any; workQuantity: number; workTime: number }
+        {
+          stepId: string;
+          stepName: string;
+          deviceTypeName: string;
+          workDetails: Map<
+            string,
+            {
+              worker: any; // IUser
+              workQuantity: number;
+              workTime: number; // in minutes
+            }
+          >;
+        }
       >();
+      steps.forEach((s) => {
+        stepMap.set(s._id.toString(), {
+          stepId: s._id.toString(),
+          stepName: s.name,
+          deviceTypeName: (s.deviceTypeId as any).name || "",
+          workDetails: new Map()
+        });
+      });
 
       for (const task of recipeTasks) {
         const workerId = task.workerId?._id.toString();
-        if (!workerId) continue;
+        const stepId = task.recipeStepId.toString();
+        const stepData = stepMap.get(stepId)!;
+        if (!workerId || !stepData) continue;
 
-        if (!workerMap.has(workerId)) {
-          workerMap.set(workerId, {
+        if (!stepData.workDetails.has(workerId)) {
+          stepData.workDetails.set(workerId, {
             worker: (task.workerId as any)?.name || workerId || "",
             workQuantity: 0,
             workTime: 0
           });
         }
 
-        const workerData = workerMap.get(workerId)!;
-        workerData.workQuantity += 1;
+        const workerData = stepData.workDetails.get(workerId)!;
+        workerData.workQuantity++;
         workerData.workTime += task.actualDuration || 0;
       }
 
@@ -3219,7 +3253,12 @@ export async function aggregateProductStatusData(
         remainingQuantity: remainingQuantity,
         completionRate: Math.round(completionRate * 100) / 100,
         totalWorkTime: totalWorkTime,
-        workDetails: Array.from(workerMap.values())
+        steps: Array.from(stepMap.values()).map((s) => ({
+          stepId: s.stepId,
+          stepName: s.stepName,
+          deviceTypeName: s.deviceTypeName,
+          workDetails: Array.from(s.workDetails.values())
+        }))
       });
     }
   }
@@ -3381,7 +3420,8 @@ function formatProductStatusDataToExcelJsTable(
     productData.projects.length +
     1 +
     productData.parts.reduce(
-      (sum, p) => sum + (Math.ceil(p.workDetails.length / 3) || 1),
+      (sum, p) =>
+        sum + (Math.max(...p.steps.map((s) => s.workDetails.length)) || 1),
       0
     );
   worksheet.mergeCells(currentRow, 1, currentRow + productNumberRowHeight, 1);
@@ -3460,8 +3500,13 @@ function formatProductStatusDataToExcelJsTable(
   });
 
   // Part Worker Table Headers
-  // From Column 9 to Column 17
-  worksheet.mergeCells(currentRow, 9, currentRow, 17);
+  // From Column 9 Until the last step
+  // Each step has 4 columns: Device Type Name, Worker, Work Quantity, Work Time
+  const maxStepCount = Math.max(
+    ...productData.parts.map((p) => p.steps.length)
+  );
+  const lastStepCol = 9 + maxStepCount * 4 - 1;
+  worksheet.mergeCells(currentRow, 9, currentRow, lastStepCol);
   const workDetails = worksheet.getCell(currentRow, 9);
   workDetails.value = getTranslation("productionReport.workDetails", langCode);
   workDetails.font = { bold: true, size: 9 };
@@ -3480,41 +3525,40 @@ function formatProductStatusDataToExcelJsTable(
   currentRow++;
 
   const partWorkerHeaders = [
-    getTranslation("productionReport.worker", langCode),
-    getTranslation("productionReport.workQuantity", langCode),
-    getTranslation("productionReport.workTime", langCode),
-    getTranslation("productionReport.worker", langCode),
-    getTranslation("productionReport.workQuantity", langCode),
-    getTranslation("productionReport.workTime", langCode),
+    getTranslation("productionReport.deviceTypeName", langCode),
     getTranslation("productionReport.worker", langCode),
     getTranslation("productionReport.workQuantity", langCode),
     getTranslation("productionReport.workTime", langCode)
   ];
-  partWorkerHeaders.forEach((header, idx) => {
-    let colNum = idx + 9;
-    const cell = worksheet.getCell(currentRow, colNum);
-    cell.value = header;
-    cell.font = { bold: true, size: 9 };
-    cell.alignment = { horizontal: "center", vertical: "middle" };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: ExcelFormatService.COLORS.NEUTRAL }
-    };
-    cell.border = {
-      top: { style: "thin" },
-      left: { style: "thin" },
-      bottom: { style: "thin" },
-      right: { style: "thin" }
-    };
-  });
+
+  for (let i = 0; i < maxStepCount; i++) {
+    partWorkerHeaders.forEach((header, idx) => {
+      let colNum = 9 + i * 4 + idx;
+      const cell = worksheet.getCell(currentRow, colNum);
+      cell.value = header;
+      cell.font = { bold: true, size: 9 };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: ExcelFormatService.COLORS.NEUTRAL }
+      };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+    });
+  }
   worksheet.getRow(currentRow).height = 20;
   currentRow++;
 
   // Part Worker Data Rows
   for (const part of productData.parts) {
-    // Part Row Height = Ceil(Part Worker Columns / 3) default 1
-    const partRowHeight = Math.ceil(part.workDetails.length / 3) || 1;
+    // Part Row Height = Max(Part Step's Worker Count) default 1
+    const partRowHeight =
+      Math.max(...part.steps.map((s) => s.workDetails.length)) || 1;
     // Part Info Columns
     const partInfo = [
       part.dwgNo,
@@ -3552,45 +3596,56 @@ function formatProductStatusDataToExcelJsTable(
         right: { style: "thin" }
       };
     });
-    let workerCount = 0;
-    for (const worker of part.workDetails) {
-      workerCount++;
-      // Worker Info Columns (From Column 9 to Column 17)
-      const workerInfo = [
-        worker.worker,
-        worker.workQuantity,
-        formatTimeDuration(worker.workTime, langCode)
-      ];
-      workerInfo.forEach((info, idx) => {
-        const cell = worksheet.getCell(
-          currentRow + Math.floor((workerCount - 1) / 3),
-          9 + idx + ((workerCount - 1) % 3) * 3
-        );
-        cell.value = info;
-        cell.font = { size: 9 };
-        cell.alignment = { horizontal: "center", vertical: "middle" };
-        cell.border = {
-          top: { style: "thin" },
-          left: { style: "thin" },
-          bottom: { style: "thin" },
-          right: { style: "thin" }
-        };
-      });
-    }
-    // Fill Unused Worker Columns with color
-    if (workerCount % 3 !== 0 || workerCount === 0) {
-      for (let i = 9 + (workerCount % 3) * 3; i <= 17; i++) {
-        const cell = worksheet.getCell(
-          currentRow +
-            (workerCount > 0 ? Math.floor((workerCount - 1) / 3) : 0),
-          i
-        );
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: ExcelFormatService.COLORS.WARNING }
-        };
+    let stepCount = 0;
+    for (const step of part.steps) {
+      const stepStartCol = 9 + stepCount * 4;
+      // Step Device Type Name Column Same for all workers in the step
+      worksheet.mergeCells(
+        currentRow,
+        stepStartCol,
+        currentRow + step.workDetails.length - 1,
+        stepStartCol
+      );
+      const deviceTypeNameCell = worksheet.getCell(currentRow, stepStartCol);
+      deviceTypeNameCell.value = step.deviceTypeName;
+      deviceTypeNameCell.font = { size: 9 };
+      deviceTypeNameCell.alignment = {
+        horizontal: "center",
+        vertical: "middle"
+      };
+      deviceTypeNameCell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+
+      let workerCount = 0;
+      for (const worker of step.workDetails) {
+        // Worker Info Columns (From Column 9 to Column 17)
+        const workerInfo = [
+          worker.worker,
+          worker.workQuantity,
+          formatTimeDuration(worker.workTime, langCode)
+        ];
+        workerInfo.forEach((info, idx) => {
+          const cell = worksheet.getCell(
+            currentRow + workerCount,
+            stepStartCol + idx + 1
+          );
+          cell.value = info;
+          cell.font = { size: 9 };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" }
+          };
+        });
+        workerCount++;
       }
+      stepCount++;
     }
     worksheet.getRow(currentRow).height = 24;
     currentRow += partRowHeight;
@@ -3830,176 +3885,6 @@ export async function generateProductionRateKPISheet(
       langCode,
       currentRow
     );
-    // const product = productData.product;
-
-    // for (const projectData of productData.projects) {
-    //   const row = [
-    //     product.productName || "",
-    //     projectData.instructionNo || "",
-    //     product.designNumber || "",
-    //     product.customerName || "",
-    //     product.department || "",
-    //     product.personInCharge || "",
-    //     formatDateKorean(projectData.orderDate),
-    //     formatDateKorean(projectData.deliveryDate),
-    //     projectData.quantity,
-    //     projectData.productionQuantity,
-    //     projectData.remainingQuantity,
-    //     `${projectData.completionRate.toFixed(0)}%`,
-    //     formatTimeDuration(projectData.workTime, langCode),
-    //     projectData.deliveryDelays,
-    //     `${projectData.deliveryComplianceRate.toFixed(0)}%`
-    //   ];
-
-    //   row.forEach((val, idx) => {
-    //     const cell = worksheet.getCell(currentRow, idx + 1);
-    //     cell.value = val;
-    //     cell.font = { size: 9 };
-    //     cell.alignment = {
-    //       horizontal: idx < 6 ? "left" : "center",
-    //       vertical: "middle",
-    //       wrapText: true
-    //     };
-    //     cell.border = {
-    //       top: { style: "thin" },
-    //       left: { style: idx === 0 ? "medium" : "thin" },
-    //       bottom: { style: "thin" },
-    //       right: { style: idx === row.length - 1 ? "medium" : "thin" }
-    //     };
-    //     if (typeof val === "number" && idx >= 7 && idx <= 10) {
-    //       cell.numFmt = "#,##0";
-    //     }
-    //   });
-    //   worksheet.getRow(currentRow).height = 25;
-    //   currentRow++;
-    // }
-
-    // // Part Details section for this product
-    // if (productData.parts.length > 0) {
-    //   // Part Details header
-    //   worksheet.mergeCells(currentRow, 1, currentRow, 16);
-    //   const partHeader = worksheet.getCell(currentRow, 1);
-    //   partHeader.value = getTranslation(
-    //     "productionReport.partDetails",
-    //     langCode
-    //   );
-    //   partHeader.font = { bold: true, size: 11 };
-    //   partHeader.alignment = { horizontal: "left", vertical: "middle" };
-    //   partHeader.fill = {
-    //     type: "pattern",
-    //     pattern: "solid",
-    //     fgColor: { argb: "F0F0F0" }
-    //   };
-    //   partHeader.border = {
-    //     top: { style: "thin" },
-    //     left: { style: "medium" },
-    //     bottom: { style: "thin" },
-    //     right: { style: "medium" }
-    //   };
-    //   worksheet.getRow(currentRow).height = 25;
-    //   currentRow++;
-
-    //   // Part table headers
-    //   const partHeaders = [
-    //     getTranslation("productionReport.drawingNo", langCode),
-    //     getTranslation("productionReport.partName", langCode),
-    //     getTranslation("productionReport.quantity", langCode),
-    //     getTranslation("productionReport.productionQuantity", langCode),
-    //     getTranslation("productionReport.remainingQuantity", langCode),
-    //     getTranslation("productionReport.completionRate", langCode),
-    //     getTranslation("productionReport.totalWorkTime", langCode)
-    //   ];
-
-    //   // Add work details headers (multiple sets of 3 columns)
-    //   const maxWorkDetails = Math.max(
-    //     ...productData.parts.map((p) => p.workDetails.length),
-    //     1
-    //   );
-    //   for (let i = 0; i < maxWorkDetails; i++) {
-    //     partHeaders.push(
-    //       getTranslation("productionReport.worker", langCode),
-    //       getTranslation("productionReport.workQuantity", langCode),
-    //       getTranslation("productionReport.workTime", langCode)
-    //     );
-    //   }
-
-    //   partHeaders.forEach((header, idx) => {
-    //     const cell = worksheet.getCell(currentRow, idx + 1);
-    //     cell.value = header;
-    //     cell.font = { bold: true, size: 9 };
-    //     cell.alignment = {
-    //       horizontal: "center",
-    //       vertical: "middle",
-    //       wrapText: true
-    //     };
-    //     cell.fill = {
-    //       type: "pattern",
-    //       pattern: "solid",
-    //       fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-    //     };
-    //     cell.border = {
-    //       top: { style: "thin" },
-    //       left: { style: idx === 0 ? "medium" : "thin" },
-    //       bottom: { style: "thin" },
-    //       right: { style: idx === partHeaders.length - 1 ? "medium" : "thin" }
-    //     };
-    //   });
-    //   worksheet.getRow(currentRow).height = 40;
-    //   currentRow++;
-
-    //   // Part data rows
-    //   for (const part of productData.parts) {
-    //     const row: any[] = [
-    //       part.dwgNo || "",
-    //       part.partName || "",
-    //       part.quantity,
-    //       part.productionQuantity,
-    //       part.remainingQuantity,
-    //       `${part.completionRate.toFixed(0)}%`,
-    //       formatTimeDuration(part.totalWorkTime, langCode)
-    //     ];
-
-    //     // Add work details
-    //     for (let i = 0; i < maxWorkDetails; i++) {
-    //       if (i < part.workDetails.length) {
-    //         const workDetail = part.workDetails[i];
-    //         row.push(
-    //           (workDetail.worker as any)?.name || "",
-    //           workDetail.workQuantity,
-    //           formatTimeDuration(workDetail.workTime, langCode)
-    //         );
-    //       } else {
-    //         row.push("", "", "");
-    //       }
-    //     }
-
-    //     row.forEach((val, idx) => {
-    //       const cell = worksheet.getCell(currentRow, idx + 1);
-    //       cell.value = val;
-    //       cell.font = { size: 9 };
-    //       cell.alignment = {
-    //         horizontal: idx < 2 ? "left" : "center",
-    //         vertical: "middle",
-    //         wrapText: true
-    //       };
-    //       cell.border = {
-    //         top: { style: "thin" },
-    //         left: { style: idx === 0 ? "medium" : "thin" },
-    //         bottom: { style: "thin" },
-    //         right: { style: idx === row.length - 1 ? "medium" : "thin" }
-    //       };
-    //       if (
-    //         typeof val === "number" &&
-    //         (idx === 2 || idx === 3 || idx === 4)
-    //       ) {
-    //         cell.numFmt = "#,##0";
-    //       }
-    //     });
-    //     worksheet.getRow(currentRow).height = 25;
-    //     currentRow++;
-    //   }
-    //   currentRow++; // Space after parts section
-    // }
   }
 
   // Set column widths optimized for the new format
