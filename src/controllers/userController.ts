@@ -5,6 +5,7 @@ import { Device } from "../models/Device";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import { hashPassword, sanitizeInput, validateEmail } from "../utils/helpers";
 import { realtimeService } from "../services/realtimeService";
+import { getOnlineCountByRole } from "../services/userOnlineService";
 import mongoose from "mongoose";
 
 /**
@@ -705,6 +706,63 @@ export const getWorkerStatistics = async (
     res.json(response);
   } catch (error) {
     console.error("Get worker statistics error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Get user statistics by role (total and online counts)
+ * GET /api/users/statistics
+ * 
+ * Returns: {
+ *   admin: { total: number, online: number },
+ *   monitor: { total: number, online: number },
+ *   worker: { total: number, online: number }
+ * }
+ */
+export const getUserStatistics = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    // Get total counts from database
+    const [adminTotal, monitorTotal, workerTotal] = await Promise.all([
+      User.countDocuments({ role: "admin", isActive: true, deletedAt: null }),
+      User.countDocuments({ role: "monitor", isActive: true, deletedAt: null }),
+      User.countDocuments({ role: "worker", isActive: true, deletedAt: null })
+    ]);
+
+    // Get online counts from WebSocket tracking
+    const onlineCounts = getOnlineCountByRole();
+
+    const response: APIResponse = {
+      success: true,
+      message: "User statistics retrieved successfully",
+      data: {
+        admin: {
+          total: adminTotal,
+          online: onlineCounts.admin
+        },
+        monitor: {
+          total: monitorTotal,
+          online: onlineCounts.monitor
+        },
+        worker: {
+          total: workerTotal,
+          online: onlineCounts.worker
+        },
+        summary: {
+          totalUsers: adminTotal + monitorTotal + workerTotal,
+          totalOnline: onlineCounts.admin + onlineCounts.monitor + onlineCounts.worker
+        }
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get user statistics error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",
