@@ -3,6 +3,7 @@ import os from "os";
 import * as dotenv from "dotenv";
 import { connectDB, disconnectDB } from "./config/database";
 import { initializeScheduler } from "./services/schedulerService";
+import { loggerService } from "./services/loggerService";
 
 // Load environment variables
 dotenv.config();
@@ -12,8 +13,8 @@ const numWorkers =
 const PORT = process.env.PORT || 3000;
 
 if (cluster.isPrimary) {
-  console.log(`🔄 Master process ${process.pid} is running`);
-  console.log(`👷 Spawning ${numWorkers} worker(s)...`);
+  loggerService.info(`Master process ${process.pid} is running`);
+  loggerService.info(`Spawning ${numWorkers} worker(s)...`);
 
   // Track workers
   const workers: { [key: number]: Worker } = {};
@@ -22,53 +23,61 @@ if (cluster.isPrimary) {
   for (let i = 0; i < numWorkers; i++) {
     const worker = cluster.fork();
     workers[worker.id] = worker;
-    console.log(`✅ Worker ${worker.id} (PID: ${worker.process.pid}) spawned`);
+    loggerService.info(
+      `Worker ${worker.id} (PID: ${worker.process.pid}) spawned`
+    );
   }
 
   // Handle worker online
   cluster.on("online", (worker) => {
-    console.log(
-      `✅ Worker ${worker.id} (PID: ${worker.process.pid}) is online`
+    loggerService.info(
+      `Worker ${worker.id} (PID: ${worker.process.pid}) is online`
     );
   });
 
   // Handle worker exit
   cluster.on("exit", (worker, code, signal) => {
-    console.log(
-      `❌ Worker ${worker.id} (PID: ${worker.process.pid}) died with code ${code} and signal ${signal}`
+    loggerService.warn(
+      `Worker ${worker.id} (PID: ${worker.process.pid}) died with code ${code} and signal ${signal}`,
+      {
+        workerId: worker.id,
+        pid: worker.process.pid,
+        code,
+        signal
+      }
     );
     delete workers[worker.id];
 
     // Restart worker if it crashed (not intentional shutdown)
     if (code !== 0 && signal !== "SIGTERM" && signal !== "SIGINT") {
-      console.log(`🔄 Restarting worker ${worker.id}...`);
+      loggerService.info(`Restarting worker ${worker.id}...`);
       const newWorker = cluster.fork();
       workers[newWorker.id] = newWorker;
-      console.log(
-        `✅ Worker ${newWorker.id} (PID: ${newWorker.process.pid}) restarted`
+      loggerService.info(
+        `Worker ${newWorker.id} (PID: ${newWorker.process.pid}) restarted`
       );
     } else {
-      console.log(`🛑 Worker ${worker.id} shutdown gracefully`);
+      loggerService.info(`Worker ${worker.id} shutdown gracefully`);
     }
 
     // If all workers are dead, exit master
     if (Object.keys(workers).length === 0) {
-      console.log("🛑 All workers stopped. Exiting master process...");
+      loggerService.info("All workers stopped. Exiting master process...");
       process.exit(0);
     }
   });
 
   // Handle messages from workers
   cluster.on("message", (worker, message) => {
-    console.log(`📨 Message from worker ${worker.id}:`, message);
+    loggerService.debug(`Message from worker ${worker.id}`, { message });
   });
 
   // Graceful shutdown for master
   const gracefulShutdown = async (signal: string) => {
-    console.log(
-      `\n📤 ${signal} received on master. Shutting down gracefully...`
+    loggerService.info(
+      `${signal} received on master. Shutting down gracefully...`
     );
-    console.log(`🛑 Stopping ${Object.keys(workers).length} worker(s)...`);
+    loggerService.info(`Stopping ${Object.keys(workers).length} worker(s)...`);
 
     // Disconnect all workers
     for (const id in workers) {
@@ -88,11 +97,13 @@ if (cluster.isPrimary) {
         // Disconnect database before exiting
         disconnectDB()
           .then(() => {
-            console.log("✅ All workers stopped. Master exiting...");
+            loggerService.info("All workers stopped. Master exiting...");
             process.exit(0);
           })
           .catch((error) => {
-            console.error("Error disconnecting database:", error);
+            loggerService.error("Error disconnecting database", {
+              error: (error as Error).message
+            });
             process.exit(0);
           });
       }
@@ -100,7 +111,7 @@ if (cluster.isPrimary) {
 
     // Force exit after timeout
     setTimeout(() => {
-      console.log("⚠️ Force exiting after timeout...");
+      loggerService.warn("Force exiting after timeout...");
       disconnectDB().finally(() => {
         process.exit(1);
       });
@@ -109,20 +120,27 @@ if (cluster.isPrimary) {
 
   process.on("SIGTERM", () => {
     gracefulShutdown("SIGTERM").catch((error) => {
-      console.error("Error during graceful shutdown:", error);
+      loggerService.error("Error during graceful shutdown", {
+        error: (error as Error).message
+      });
       process.exit(1);
     });
   });
   process.on("SIGINT", () => {
     gracefulShutdown("SIGINT").catch((error) => {
-      console.error("Error during graceful shutdown:", error);
+      loggerService.error("Error during graceful shutdown", {
+        error: (error as Error).message
+      });
       process.exit(1);
     });
   });
 
   // Handle uncaught exceptions in master
   process.on("uncaughtException", (error) => {
-    console.error("❌ Master uncaught exception:", error);
+    loggerService.error("Master uncaught exception", {
+      error: error.message,
+      stack: error.stack
+    });
     gracefulShutdown("uncaughtException");
   });
 
@@ -131,12 +149,14 @@ if (cluster.isPrimary) {
     try {
       // Connect to MongoDB for scheduler
       await connectDB();
-      console.log("✅ Master process connected to database");
+      loggerService.info("Master process connected to database");
 
       // Initialize report scheduler
       initializeScheduler();
     } catch (error) {
-      console.error("❌ Failed to initialize master services:", error);
+      loggerService.error("Failed to initialize master services", {
+        error: (error as Error).message
+      });
       // Don't exit - allow workers to start even if scheduler fails
     }
   };
@@ -146,11 +166,15 @@ if (cluster.isPrimary) {
     initializeMasterServices();
   }, 1000);
 
-  console.log(`🚀 Master process ready. Workers will listen on port ${PORT}`);
+  loggerService.info(
+    `Master process ready. Workers will listen on port ${PORT}`
+  );
 } else {
   // Worker process - import and start the server
   import("./index").catch((error) => {
-    console.error("❌ Failed to start worker:", error);
+    loggerService.error("Failed to start worker", {
+      error: (error as Error).message
+    });
     process.exit(1);
   });
 }

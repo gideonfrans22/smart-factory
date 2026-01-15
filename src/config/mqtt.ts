@@ -1,5 +1,6 @@
 import * as mqtt from "mqtt";
 import * as dotenv from "dotenv";
+import { loggerService } from "../services/loggerService";
 
 dotenv.config();
 
@@ -43,21 +44,21 @@ class MQTTService {
         this.client = mqtt.connect(this.config.brokerUrl, options);
 
         this.client.on("connect", () => {
-          console.log("✅ MQTT Connected to broker");
+          loggerService.logMQTTEvent("Connected to broker");
           resolve();
         });
 
         this.client.on("error", (error) => {
-          console.error("❌ MQTT Connection error:", error);
+          loggerService.logMQTTEvent("Connection error", undefined, undefined, error);
           reject(error);
         });
 
         this.client.on("offline", () => {
-          console.log("📴 MQTT Client offline");
+          loggerService.logMQTTEvent("Client offline");
         });
 
         this.client.on("reconnect", () => {
-          console.log("🔄 MQTT Reconnecting...");
+          loggerService.logMQTTEvent("Reconnecting");
         });
       } catch (error) {
         reject(error);
@@ -68,13 +69,13 @@ class MQTTService {
   public disconnect(): void {
     if (this.client) {
       this.client.end();
-      console.log("📤 MQTT Disconnected");
+      loggerService.logMQTTEvent("Disconnected");
     }
   }
 
   public publish(topic: string, message: string | object): void {
     if (!this.client || !this.client.connected) {
-      console.error("❌ MQTT Client not connected");
+      loggerService.logMQTTEvent("Publish failed - Client not connected", topic);
       return;
     }
 
@@ -83,12 +84,9 @@ class MQTTService {
 
     this.client.publish(topic, payload, { qos: 1 }, (error) => {
       if (error) {
-        console.error(`❌ MQTT Publish error for topic ${topic}:`, error);
+        loggerService.logMQTTEvent("Publish error", topic, payload, error);
       } else {
-        console.log(
-          `📤 MQTT Published to ${topic}:`,
-          payload.toString().substring(0, 30)
-        );
+        loggerService.logMQTTEvent("Published", topic, payload);
       }
     });
   }
@@ -98,20 +96,23 @@ class MQTTService {
     callback: (topic: string, message: string) => void
   ): void {
     if (!this.client || !this.client.connected) {
-      console.error("❌ MQTT Client not connected");
+      loggerService.logMQTTEvent("Subscribe failed - Client not connected", topic);
       return;
     }
 
     this.client.subscribe(topic, { qos: 1 }, (error) => {
       if (error) {
-        console.error(`❌ MQTT Subscribe error for topic ${topic}:`, error);
+        loggerService.logMQTTEvent("Subscribe error", topic, undefined, error);
       } else {
-        console.log(`📥 MQTT Subscribed to ${topic}`);
+        loggerService.logMQTTEvent("Subscribed", topic);
       }
     });
 
     this.client.on("message", (receivedTopic, message) => {
       if (receivedTopic === topic) {
+        loggerService.debug(`MQTT Message received: ${topic}`, {
+          payload: message.toString().substring(0, 200)
+        });
         callback(receivedTopic, message.toString());
       }
     });

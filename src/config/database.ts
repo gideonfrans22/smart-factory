@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import * as dotenv from 'dotenv';
+import { loggerService } from '../services/loggerService';
 
 dotenv.config();
 
@@ -8,9 +9,9 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/smart_
 export const connectDB = async (): Promise<void> => {
   try {
     const conn = await mongoose.connect(MONGODB_URI);
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    loggerService.logDatabaseEvent('Connected', { host: conn.connection.host });
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
+    loggerService.logDatabaseEvent('Connection error', {}, error as Error);
     process.exit(1);
   }
 };
@@ -18,23 +19,23 @@ export const connectDB = async (): Promise<void> => {
 export const disconnectDB = async (): Promise<void> => {
   try {
     await mongoose.disconnect();
-    console.log('📤 MongoDB Disconnected');
+    loggerService.logDatabaseEvent('Disconnected');
   } catch (error) {
-    console.error('❌ MongoDB disconnection error:', error);
+    loggerService.logDatabaseEvent('Disconnection error', {}, error as Error);
   }
 };
 
 // Handle MongoDB connection events
 mongoose.connection.on('connected', () => {
-  console.log('🔗 Mongoose connected to MongoDB');
+  loggerService.logDatabaseEvent('Mongoose connected to MongoDB');
 });
 
 mongoose.connection.on('error', (error) => {
-  console.error('❌ Mongoose connection error:', error);
+  loggerService.logDatabaseEvent('Mongoose connection error', {}, error);
 });
 
 mongoose.connection.on('disconnected', () => {
-  console.log('📤 Mongoose disconnected from MongoDB');
+  loggerService.logDatabaseEvent('Mongoose disconnected from MongoDB');
 });
 
 // Graceful shutdown
