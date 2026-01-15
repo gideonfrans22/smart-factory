@@ -6,6 +6,7 @@ import { APIResponse, AuthenticatedRequest } from "../types";
 import { hashPassword, sanitizeInput, validateEmail } from "../utils/helpers";
 import { realtimeService } from "../services/realtimeService";
 import { getOnlineCountByRole } from "../services/userOnlineService";
+import { getIO } from "../config/websocket";
 import mongoose from "mongoose";
 
 /**
@@ -223,6 +224,36 @@ export const createUser = async (
     });
 
     await user.save();
+
+    // Broadcast users:total:updated event via WebSocket
+    try {
+      const io = getIO();
+      const onlineCounts = getOnlineCountByRole();
+      
+      // Get total counts per role
+      const [adminTotal, monitorTotal, workerTotal] = await Promise.all([
+        User.countDocuments({ role: "admin", deletedAt: null }),
+        User.countDocuments({ role: "monitor", deletedAt: null }),
+        User.countDocuments({ role: "worker", deletedAt: null })
+      ]);
+
+      const totalData = {
+        admin: { total: adminTotal, online: onlineCounts.admin || 0 },
+        monitor: { total: monitorTotal, online: onlineCounts.monitor || 0 },
+        worker: { total: workerTotal, online: onlineCounts.worker || 0 },
+        summary: {
+          totalUsers: adminTotal + monitorTotal + workerTotal,
+          totalOnline: (onlineCounts.admin || 0) + (onlineCounts.monitor || 0) + (onlineCounts.worker || 0)
+        },
+        action: "created",
+        timestamp: new Date().toISOString()
+      };
+
+      io.to("global").emit("users:total:updated", totalData);
+      console.log("📡 Broadcasted users:total:updated (user created):", totalData);
+    } catch (wsError) {
+      console.error("Failed to broadcast users:total:updated:", wsError);
+    }
 
     const response: APIResponse = {
       success: true,
@@ -460,6 +491,36 @@ export const deleteUser = async (
       role: "admin",
       deletedAt: null
     });
+
+    // Broadcast users:total:updated event via WebSocket
+    try {
+      const io = getIO();
+      const onlineCounts = getOnlineCountByRole();
+      
+      // Get total counts per role
+      const [adminTotal, monitorTotal, workerTotal] = await Promise.all([
+        User.countDocuments({ role: "admin", deletedAt: null }),
+        User.countDocuments({ role: "monitor", deletedAt: null }),
+        User.countDocuments({ role: "worker", deletedAt: null })
+      ]);
+
+      const totalData = {
+        admin: { total: adminTotal, online: onlineCounts.admin || 0 },
+        monitor: { total: monitorTotal, online: onlineCounts.monitor || 0 },
+        worker: { total: workerTotal, online: onlineCounts.worker || 0 },
+        summary: {
+          totalUsers: adminTotal + monitorTotal + workerTotal,
+          totalOnline: (onlineCounts.admin || 0) + (onlineCounts.monitor || 0) + (onlineCounts.worker || 0)
+        },
+        action: "deleted",
+        timestamp: new Date().toISOString()
+      };
+
+      io.to("global").emit("users:total:updated", totalData);
+      console.log("📡 Broadcasted users:total:updated (user deleted):", totalData);
+    } catch (wsError) {
+      console.error("Failed to broadcast users:total:updated:", wsError);
+    }
 
     const response: APIResponse = {
       success: true,
