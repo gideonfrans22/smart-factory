@@ -48,6 +48,8 @@ The server will start on `http://localhost:3000`
 - `npm run build` - Build the project for production
 - `npm run start` - Start the production server with cluster (spawns multiple workers)
 - `npm run start:single` - Start production server as single process (no cluster)
+- `npm run scheduler` - Start report scheduler worker (development)
+- `npm run scheduler:prod` - Start report scheduler worker (production)
 - `npm run build:watch` - Build the project in watch mode
 - `npm run clean` - Remove the dist folder
 
@@ -98,6 +100,56 @@ backend/
 
 ⚠️ **Legacy Documentation** (in `docs/legacy/`):
 Archived documentation from previous versions - contains outdated field names and structures. See `docs/legacy/README.md` for details.
+
+## Report Scheduler
+
+The system includes an automated report scheduler that generates reports on a periodic basis. The scheduler runs automatically in the master process when using cluster mode.
+
+### Scheduled Reports
+
+- **Daily (02:00 every day)**: WORKER_PERFORMANCE_KPI
+- **Weekly (02:00 every Monday)**: PRODUCTION_RATE, EQUIPMENT_PERFORMANCE, WORKER_PERFORMANCE_KPI
+- **Monthly (02:00 on 1st of month)**: PRODUCTION_RATE, EQUIPMENT_PERFORMANCE, WORKER_PERFORMANCE_KPI
+
+### Running the Scheduler
+
+The scheduler is automatically initialized when running in cluster mode (`npm run dev:cluster` or `npm run start`). It runs in the master process alongside the API workers.
+
+For standalone scheduler (if needed for testing or separate deployment):
+
+```bash
+# Development
+npm run scheduler
+
+# Production (after build)
+npm run scheduler:prod
+```
+
+### Environment Variables
+
+Add these to your `.env` file:
+
+```env
+# Report Scheduler Configuration
+ENABLE_SCHEDULER=true              # Enable/disable scheduler (default: true)
+SCHEDULER_TIMEZONE=Asia/Seoul       # Timezone for scheduling (default: Asia/Seoul)
+SCHEDULER_RETRY_ATTEMPTS=3         # Number of retry attempts on failure (default: 3)
+```
+
+### Deployment
+
+When using cluster mode, the scheduler runs automatically in the master process. No separate process is needed. The scheduler will start automatically when you run:
+
+```bash
+npm run start  # Production cluster mode
+```
+
+Or with PM2:
+```bash
+pm2 start dist/cluster.js --name "smart-factory-api"
+```
+
+The scheduler runs in the same process as the cluster master, ensuring only one instance runs even with multiple API workers.
 
 ## Development
 
