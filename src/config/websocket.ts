@@ -9,6 +9,11 @@ import {
   releaseDevice,
   releaseDeviceBySocketId
 } from "../services/deviceOccupationService";
+import {
+  registerUserOnline,
+  unregisterUserOnline,
+  getOnlineCountByRole
+} from "../services/userOnlineService";
 // import jwt from "jsonwebtoken";
 
 let io: SocketIOServer;
@@ -248,16 +253,43 @@ export const initializeWebSocket = async (
       socket.emit("joined", { room: "user", id: userId });
     });
 
+    // Register user as online (called after successful login)
+    socket.on("user:register", (data: { userId: string; role: string; name: string }) => {
+      if (!data.userId || !data.role || !data.name) {
+        console.log(`⚠️ Invalid user:register data from socket ${socket.id}`);
+        return;
+      }
+      
+      registerUserOnline(socket.id, data.userId, data.role, data.name);
+      socket.data.userId = data.userId;
+      socket.data.userRole = data.role;
+      socket.data.userName = data.name;
+      
+      // Broadcast updated counts to admin dashboards
+      const counts = getOnlineCountByRole();
+      io.to("global").emit("users:online:updated", counts);
+      
+      socket.emit("user:registered", { success: true });
+    });
+
     // Ping/pong for connection health check
     socket.on("ping", () => {
       socket.emit("pong");
     });
 
-    // Disconnect handler (release device occupation)
+    // Disconnect handler (release device occupation and user online status)
     socket.on("disconnect", async (reason) => {
       console.log(
         `❌ WebSocket client disconnected: ${socket.id} - Reason: ${reason}`
       );
+
+      // Unregister user online status
+      const disconnectedUser = unregisterUserOnline(socket.id);
+      if (disconnectedUser) {
+        // Broadcast updated counts to admin dashboards
+        const counts = getOnlineCountByRole();
+        io.to("global").emit("users:online:updated", counts);
+      }
 
       // Release device occupation if socket was connected to a device
       if (socket.data.deviceId) {
