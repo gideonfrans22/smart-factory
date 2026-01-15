@@ -5,6 +5,7 @@ import { Device } from "../models/Device";
 import { User } from "../models/User";
 import { Project } from "../models/Project";
 import { APIResponse } from "../types";
+import * as userOnlineService from "../services/userOnlineService";
 
 /**
  * GET /api/dashboard/monitor-overview
@@ -176,15 +177,9 @@ export const getMonitorOverview = async (
       Device.countDocuments({ status: "ERROR" }),
 
       // === Workers - role="worker"인 사용자만 ===
-      User.countDocuments({ role: "worker", isActive: true, deletedAt: null }),
-      // 현재 접속중인 작업자 (ONLINE 장비에 currentUser가 있고, 그 user의 role이 "worker"인 경우)
-      Device.aggregate([
-        { $match: { status: "ONLINE", currentUser: { $exists: true, $ne: null } } },
-        { $lookup: { from: "users", localField: "currentUser", foreignField: "_id", as: "user" } },
-        { $unwind: "$user" },
-        { $match: { "user.role": "worker" } },
-        { $count: "count" }
-      ]).then((result: any) => result[0]?.count || 0),
+      User.countDocuments({ role: "worker", deletedAt: null }),
+      // 현재 접속중인 작업자 (Redis-based online tracking)
+      userOnlineService.getOnlineCountByRole().then(counts => counts.worker),
 
       // === Alert Summary - 24h 기준 ===
       // 활성 알림: 24시간 내 신고된 알림 중 해결/읽음 안 된 것
@@ -382,7 +377,7 @@ export const getMonitorOverview = async (
         },
         // === 작업인원 (role="worker"만) ===
         workers: {
-          current: activeWorkers,       // 현재 접속중인 작업자 수
+          online: activeWorkers,        // 현재 접속중인 작업자 수 (Redis-based)
           total: totalWorkers,          // 사용자 마스터의 "작업자" 분류 인원
           percentage: workerPercentage,
           active: activeWorkers,
