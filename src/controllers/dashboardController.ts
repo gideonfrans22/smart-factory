@@ -427,7 +427,23 @@ export const getTaskStatusDistribution = async (
   res: Response
 ): Promise<void> => {
   try {
+    // 일간: 현재 날짜 기준 (KST AM00:00~PM11:59)
+    const KST_OFFSET = 9 * 60 * 60 * 1000; // UTC+9
+    const now = new Date();
+    const nowKST = new Date(now.getTime() + KST_OFFSET);
+    
+    // Today start at AM00:00 KST
+    const todayStartKST = new Date(Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), nowKST.getUTCDate(), 0, 0, 0) - KST_OFFSET);
+    // Today end at PM11:59:59 KST
+    const todayEndKST = new Date(Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), nowKST.getUTCDate(), 23, 59, 59, 999) - KST_OFFSET);
+
     const distribution = await Task.aggregate([
+      {
+        // Filter by 일간: tasks created today (KST)
+        $match: {
+          createdAt: { $gte: todayStartKST, $lte: todayEndKST }
+        }
+      },
       {
         $group: {
           _id: "$status",
