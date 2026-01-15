@@ -228,7 +228,7 @@ export const createUser = async (
     // Broadcast users:total:updated event via WebSocket
     try {
       const io = getIO();
-      const onlineCounts = getOnlineCountByRole();
+      const onlineCounts = await getOnlineCountByRole();
       
       // Get total counts per role
       const [adminTotal, monitorTotal, workerTotal] = await Promise.all([
@@ -495,7 +495,7 @@ export const deleteUser = async (
     // Broadcast users:total:updated event via WebSocket
     try {
       const io = getIO();
-      const onlineCounts = getOnlineCountByRole();
+      const onlineCounts = await getOnlineCountByRole();
       
       // Get total counts per role
       const [adminTotal, monitorTotal, workerTotal] = await Promise.all([
@@ -796,7 +796,7 @@ export const getUserStatistics = async (_req: Request, res: Response): Promise<v
     ]);
 
     // Get online counts from WebSocket tracking
-    const onlineCounts = getOnlineCountByRole();
+    const onlineCounts = await getOnlineCountByRole();
 
     const response: APIResponse = {
       success: true,

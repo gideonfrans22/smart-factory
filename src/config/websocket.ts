@@ -10,6 +10,7 @@ import {
   releaseDeviceBySocketId
 } from "../services/deviceOccupationService";
 import {
+  initializeUserOnlineService,
   registerUserOnline,
   unregisterUserOnline,
   getOnlineCountByRole
@@ -60,6 +61,14 @@ export const initializeWebSocket = async (
   } catch (error) {
     console.error("❌ Failed to initialize device occupation service:", error);
     console.warn("⚠️ Device occupation checks will be disabled");
+  }
+
+  // Initialize user online tracking service
+  try {
+    await initializeUserOnlineService();
+  } catch (error) {
+    console.error("❌ Failed to initialize user online service:", error);
+    console.warn("⚠️ Using in-memory fallback for online user tracking");
   }
 
   // Authentication middleware (currently disabled to match REST API auth state)
@@ -254,19 +263,19 @@ export const initializeWebSocket = async (
     });
 
     // Register user as online (called after successful login)
-    socket.on("user:register", (data: { userId: string; role: string; name: string }) => {
+    socket.on("user:register", async (data: { userId: string; role: string; name: string }) => {
       if (!data.userId || !data.role || !data.name) {
         console.log(`⚠️ Invalid user:register data from socket ${socket.id}`);
         return;
       }
       
-      registerUserOnline(socket.id, data.userId, data.role, data.name);
+      await registerUserOnline(socket.id, data.userId, data.role, data.name);
       socket.data.userId = data.userId;
       socket.data.userRole = data.role;
       socket.data.userName = data.name;
       
       // Broadcast updated counts to admin dashboards
-      const counts = getOnlineCountByRole();
+      const counts = await getOnlineCountByRole();
       io.to("global").emit("users:online:updated", counts);
       
       socket.emit("user:registered", { success: true });
@@ -284,10 +293,10 @@ export const initializeWebSocket = async (
       );
 
       // Unregister user online status
-      const disconnectedUser = unregisterUserOnline(socket.id);
+      const disconnectedUser = await unregisterUserOnline(socket.id);
       if (disconnectedUser) {
         // Broadcast updated counts to admin dashboards
-        const counts = getOnlineCountByRole();
+        const counts = await getOnlineCountByRole();
         io.to("global").emit("users:online:updated", counts);
       }
 
