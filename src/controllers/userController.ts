@@ -788,11 +788,12 @@ export const getWorkerStatistics = async (
  */
 export const getUserStatistics = async (_req: Request, res: Response): Promise<void> => {
   try {
-    // Get total counts from database
+    // Get total counts from database (all registered users, not just active)
+    // deletedAt: null means not soft-deleted
     const [adminTotal, monitorTotal, workerTotal] = await Promise.all([
-      User.countDocuments({ role: "admin", isActive: true, deletedAt: null }),
-      User.countDocuments({ role: "monitor", isActive: true, deletedAt: null }),
-      User.countDocuments({ role: "worker", isActive: true, deletedAt: null })
+      User.countDocuments({ role: "admin", deletedAt: null }),
+      User.countDocuments({ role: "monitor", deletedAt: null }),
+      User.countDocuments({ role: "worker", deletedAt: null })
     ]);
 
     // Get online counts from WebSocket tracking
