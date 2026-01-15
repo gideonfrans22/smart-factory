@@ -666,7 +666,7 @@ export const getMonitorTasks = async (
           }
         }
       },
-      // Stage 9: Add computed step name and total steps
+      // Stage 9: Add computed step name, total steps, and device type name from step
       {
         $addFields: {
           stepName: {
@@ -689,13 +689,58 @@ export const getMonitorTasks = async (
             }
           },
           // Total steps in recipe
-          totalSteps: { $size: { $ifNull: ["$recipeSteps", []] } }
+          totalSteps: { $size: { $ifNull: ["$recipeSteps", []] } },
+          // Get deviceTypeId from recipe step if not on task
+          stepDeviceTypeId: {
+            $let: {
+              vars: {
+                matchedStep: {
+                  $arrayElemAt: [
+                    {
+                      $filter: {
+                        input: { $ifNull: ["$recipeSteps", []] },
+                        as: "step",
+                        cond: { $eq: ["$$step.order", "$stepOrder"] }
+                      }
+                    },
+                    0
+                  ]
+                }
+              },
+              in: "$$matchedStep.deviceTypeId"
+            }
+          }
         }
       },
-      // Stage 10: Remove recipeSteps from final output
+      // Stage 9.5: Lookup device type from step's deviceTypeId as additional fallback
+      {
+        $lookup: {
+          from: "devicetypes",
+          localField: "stepDeviceTypeId",
+          foreignField: "_id",
+          as: "stepDeviceType",
+          pipeline: [
+            { $project: { name: 1 } }
+          ]
+        }
+      },
+      // Stage 9.6: Final deviceName - try device, then task's deviceType, then step's deviceType
+      {
+        $addFields: {
+          deviceName: {
+            $ifNull: [
+              "$deviceName",  // Already computed from device or task's deviceType
+              { $arrayElemAt: ["$stepDeviceType.name", 0] }  // Fallback to step's deviceType
+            ]
+          }
+        }
+      },
+      // Stage 10: Remove temporary fields from final output
       {
         $project: {
-          recipeSteps: 0
+          recipeSteps: 0,
+          stepDeviceTypeId: 0,
+          stepDeviceType: 0
         }
       }
     ]);
