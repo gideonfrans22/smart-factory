@@ -23,26 +23,32 @@ export const getMonitorOverview = async (
   res: Response
 ): Promise<void> => {
   try {
+    // Use Korea Standard Time (KST = UTC+9)
     const now = new Date();
+    const KST_OFFSET = 9 * 60 * 60 * 1000; // 9 hours in milliseconds
+    const nowKST = new Date(now.getTime() + KST_OFFSET);
     
     // Time boundaries
     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const sixHoursFromNow = new Date(now.getTime() + 6 * 60 * 60 * 1000);
     
-    // 일간: 오늘 자정 (AM 00:00) ~ 현재
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    // 일간: 오늘 자정 (AM 00:00) ~ PM 11:59 (KST 기준)
+    const todayStartKST = new Date(Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), nowKST.getUTCDate(), 0, 0, 0) - KST_OFFSET);
+    const todayStart = todayStartKST;
     
-    // 주간: 이번 주 월요일 ~ 현재
-    const dayOfWeekNum = now.getDay(); // 0 = Sunday
+    // 주간: 이번 주 월요일 ~ 현재 (KST 기준)
+    const dayOfWeekNum = nowKST.getUTCDay(); // 0 = Sunday
     const mondayOffset = dayOfWeekNum === 0 ? 6 : dayOfWeekNum - 1;
-    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset, 0, 0, 0);
+    const weekStartKST = new Date(Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), nowKST.getUTCDate() - mondayOffset, 0, 0, 0) - KST_OFFSET);
+    const weekStart = weekStartKST;
     
-    // 월간: 이번 달 1일 ~ 현재
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+    // 월간: 이번 달 1일 ~ 현재 (KST 기준)
+    const monthStartKST = new Date(Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), 1, 0, 0, 0) - KST_OFFSET);
+    const monthStart = monthStartKST;
     
     // Get days in current month for context
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(nowKST.getUTCFullYear(), nowKST.getUTCMonth() + 1, 0).getDate();
+    const dayOfMonth = nowKST.getUTCDate();
     const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); // Sunday = 7
 
     // Get active project IDs for filtering tasks
@@ -131,42 +137,39 @@ export const getMonitorOverview = async (
       }),
 
       // === 생산성 일간: 오늘 (AM00:00 ~ 현재) ===
+      // 완료: 오늘 생성되고 오늘 완료된 작업만 카운트
       Task.countDocuments({
         status: "COMPLETED",
+        createdAt: { $gte: todayStart, $lte: now },
         completedAt: { $gte: todayStart, $lte: now }
       }),
+      // 목표: 오늘 생성된 작업 수
       Task.countDocuments({
-        createdAt: { $lte: now },
-        $or: [
-          { createdAt: { $gte: todayStart } },
-          { status: { $nin: ["COMPLETED", "CANCELLED"] } }
-        ]
+        createdAt: { $gte: todayStart, $lte: now }
       }),
 
       // === 생산성 주간: 월요일 ~ 현재 ===
+      // 완료: 이번 주에 생성되고 이번 주에 완료된 작업만 카운트
       Task.countDocuments({
         status: "COMPLETED",
+        createdAt: { $gte: weekStart, $lte: now },
         completedAt: { $gte: weekStart, $lte: now }
       }),
+      // 목표: 이번 주에 생성된 작업 수
       Task.countDocuments({
-        createdAt: { $lte: now },
-        $or: [
-          { createdAt: { $gte: weekStart } },
-          { status: { $nin: ["COMPLETED", "CANCELLED"] } }
-        ]
+        createdAt: { $gte: weekStart, $lte: now }
       }),
 
       // === 생산성 월간: 월초 ~ 현재 ===
+      // 완료: 이번 달에 생성되고 이번 달에 완료된 작업만 카운트
       Task.countDocuments({
         status: "COMPLETED",
+        createdAt: { $gte: monthStart, $lte: now },
         completedAt: { $gte: monthStart, $lte: now }
       }),
+      // 목표: 이번 달에 생성된 작업 수
       Task.countDocuments({
-        createdAt: { $lte: now },
-        $or: [
-          { createdAt: { $gte: monthStart } },
-          { status: { $nin: ["COMPLETED", "CANCELLED"] } }
-        ]
+        createdAt: { $gte: monthStart, $lte: now }
       }),
 
       // === Equipment Utilization (real-time) ===
@@ -264,9 +267,10 @@ export const getMonitorOverview = async (
     const weeklyTotal = Math.max(1, weeklyTotalTasks);
     const monthlyTotal = Math.max(1, monthlyTotalTasks);
     
-    const dailyPercentage = Math.round((dailyCompletedTasks / dailyTotal) * 100);
-    const weeklyPercentage = Math.round((weeklyCompletedTasks / weeklyTotal) * 100);
-    const monthlyPercentage = Math.round((monthlyCompletedTasks / monthlyTotal) * 100);
+    // 생산성 퍼센트 계산 - 100% 상한
+    const dailyPercentage = Math.min(100, Math.round((dailyCompletedTasks / dailyTotal) * 100));
+    const weeklyPercentage = Math.min(100, Math.round((weeklyCompletedTasks / weeklyTotal) * 100));
+    const monthlyPercentage = Math.min(100, Math.round((monthlyCompletedTasks / monthlyTotal) * 100));
 
     // === Equipment utilization ===
     const equipmentUtilizationPercentage =
