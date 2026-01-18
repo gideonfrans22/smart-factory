@@ -518,11 +518,13 @@ export const updateTaskStatus = async (
     if (endTime) task.completedAt = new Date(endTime);
     if (progress !== undefined) task.progress = progress;
 
-    // Calculate actual duration if completed
+    // Calculate actual duration if completed (subtract paused time!)
     if (status === "COMPLETED" && task.startedAt && task.completedAt) {
-      task.actualDuration = Math.floor(
+      const totalDuration = Math.floor(
         (task.completedAt.getTime() - task.startedAt.getTime()) / 60000
       );
+      // ⭐ CRITICAL: Subtract pausedDuration from total time!
+      task.actualDuration = Math.max(0, totalDuration - (task.pausedDuration || 0));
     }
 
     await task.save();
@@ -633,11 +635,13 @@ export const updateTask = async (
       task.progress = progress;
     }
 
-    // Recalculate actual duration if both start and complete times are set
+    // Recalculate actual duration if both start and complete times are set (subtract paused time!)
     if (task.startedAt && task.completedAt) {
-      task.actualDuration = Math.floor(
+      const totalDuration = Math.floor(
         (task.completedAt.getTime() - task.startedAt.getTime()) / 60000
       );
+      // ⭐ CRITICAL: Subtract pausedDuration from total time!
+      task.actualDuration = Math.max(0, totalDuration - (task.pausedDuration || 0));
     }
 
     await task.save();
@@ -1347,11 +1351,13 @@ export const completeTask = async (
     if (qualityData) task.qualityData = qualityData;
     if (actualDuration) task.actualDuration = actualDuration;
 
-    // Calculate actual duration if not provided
+    // Calculate actual duration if not provided (subtract paused time!)
     if (!actualDuration && task.startedAt) {
-      task.actualDuration = Math.floor(
+      const totalDuration = Math.floor(
         (task.completedAt.getTime() - task.startedAt.getTime()) / 60000
       );
+      // ⭐ CRITICAL: Subtract pausedDuration from total time!
+      task.actualDuration = Math.max(0, totalDuration - (task.pausedDuration || 0));
     }
 
     await task.save();
