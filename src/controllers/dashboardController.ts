@@ -591,7 +591,7 @@ export const getMonitorTasks = async (
           ]
         }
       },
-      // Stage 7: Lookup recipe snapshot for step name
+      // Stage 7: Lookup recipe snapshot for step name and dwgNo
       {
         $lookup: {
           from: "recipesnapshots",
@@ -599,7 +599,7 @@ export const getMonitorTasks = async (
           foreignField: "_id",
           as: "recipeSnapshot",
           pipeline: [
-            { $project: { name: 1, steps: 1 } }
+            { $project: { name: 1, steps: 1, dwgNo: 1 } }
           ]
         }
       },
@@ -680,9 +680,12 @@ export const getMonitorTasks = async (
               { $arrayElemAt: ["$product.personInCharge", 0] }
             ]
           },
-          // Recipe snapshot for step name
+          // Recipe snapshot for step name and dwgNo
           recipeName: { $arrayElemAt: ["$recipeSnapshot.name", 0] },
           recipeSteps: { $arrayElemAt: ["$recipeSnapshot.steps", 0] },
+          dwgNo: { $arrayElemAt: ["$recipeSnapshot.dwgNo", 0] },
+          // Device type name (for display in 공정단계)
+          deviceTypeName: { $arrayElemAt: ["$deviceType.name", 0] },
           // Device/Equipment name (device name or device type name as fallback)
           deviceName: {
             $ifNull: [
