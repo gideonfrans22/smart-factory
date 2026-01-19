@@ -491,6 +491,8 @@ export const getTaskStatusDistribution = async (
   }
 };
 
+// ...existing code...
+
 /**
  * GET /api/dashboard/monitor-tasks
  * Get optimized task list for Monitor TV display
@@ -615,7 +617,7 @@ export const getMonitorTasks = async (
           ]
         }
       },
-      // Stage 7.6: Lookup device type data (fallback if no device assigned)
+      // Stage 7.6: Lookup device type data (for deviceTypeName - separate from deviceName)
       {
         $lookup: {
           from: "devicetypes",
@@ -684,15 +686,10 @@ export const getMonitorTasks = async (
           recipeName: { $arrayElemAt: ["$recipeSnapshot.name", 0] },
           recipeSteps: { $arrayElemAt: ["$recipeSnapshot.steps", 0] },
           dwgNo: { $arrayElemAt: ["$recipeSnapshot.dwgNo", 0] },
-          // Device type name (for display in 공정단계)
+          // Device type name (ONLY from deviceType lookup - NO fallback to avoid duplication)
           deviceTypeName: { $arrayElemAt: ["$deviceType.name", 0] },
-          // Device/Equipment name (device name or device type name as fallback)
-          deviceName: {
-            $ifNull: [
-              { $arrayElemAt: ["$device.name", 0] },
-              { $arrayElemAt: ["$deviceType.name", 0] }
-            ]
-          }
+          // Device/Equipment name (ONLY from device lookup - NO fallback to deviceType)
+          deviceName: { $arrayElemAt: ["$device.name", 0] }
         }
       },
       // Stage 9: Add computed step name, total steps, and device type name from step
@@ -719,7 +716,7 @@ export const getMonitorTasks = async (
           },
           // Total steps in recipe
           totalSteps: { $size: { $ifNull: ["$recipeSteps", []] } },
-          // Get deviceTypeId from recipe step if not on task
+          // Get deviceTypeId from recipe step if task doesn't have deviceTypeId
           stepDeviceTypeId: {
             $let: {
               vars: {
@@ -741,7 +738,7 @@ export const getMonitorTasks = async (
           }
         }
       },
-      // Stage 9.5: Lookup device type from step's deviceTypeId as additional fallback
+      // Stage 9.5: Lookup device type from step's deviceTypeId as fallback for deviceTypeName only
       {
         $lookup: {
           from: "devicetypes",
@@ -753,15 +750,17 @@ export const getMonitorTasks = async (
           ]
         }
       },
-      // Stage 9.6: Final deviceName - try device, then task's deviceType, then step's deviceType
+      // Stage 9.6: Final deviceTypeName fallback - use step's deviceType if task doesn't have one
+      // deviceName stays as-is (null if no device assigned - no fallback to avoid duplication)
       {
         $addFields: {
-          deviceName: {
+          deviceTypeName: {
             $ifNull: [
-              "$deviceName",  // Already computed from device or task's deviceType
+              "$deviceTypeName",  // From task's deviceType
               { $arrayElemAt: ["$stepDeviceType.name", 0] }  // Fallback to step's deviceType
             ]
           }
+          // deviceName: NOT modified - stays null if no device assigned
         }
       },
       // Stage 10: Remove temporary fields from final output
