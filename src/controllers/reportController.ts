@@ -178,6 +178,15 @@ export const generateReport = async (
             lang
           );
         break;
+      case "SUMMARY_REPORT":
+        result = await ReportGenerationService.generateSummaryReport(
+          start,
+          end,
+          userId ? userId.toString() : "",
+          reportIdStr,
+          lang
+        );
+        break;
       default:
         const response: APIResponse = {
           success: false,
