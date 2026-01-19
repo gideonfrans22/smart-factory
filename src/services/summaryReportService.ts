@@ -5,7 +5,8 @@ import { Project } from "../models/Project";
 import { Task } from "../models/Task";
 import { User } from "../models/User";
 import * as ExcelFormatService from "./excelFormatService";
-import { formatDateKorean } from "./excelFormatService";
+
+import { formatDateKorean, formatDateMM } from "./excelFormatService";
 
 /**
  * Summary Report Service
@@ -26,7 +27,7 @@ interface ProductionStatus {
 }
 
 interface MonthlyProductionStatus {
-  month: string;
+  month: Date;
   progressRate: number;
   totalWorkCount: number;
   completedWorkCount: number;
@@ -321,7 +322,7 @@ export async function getProductionStatusData(
       monthTotal > 0 ? Math.round((monthCompleted / monthTotal) * 100) : 0;
 
     monthlyData.push({
-      month: monthDate.toLocaleString("en-US", { month: "long" }),
+      month: monthDate,
       progressRate: monthProgressRate,
       totalWorkCount: monthTotal,
       completedWorkCount: monthCompleted
@@ -921,7 +922,7 @@ export async function generateSummaryReportSheet(
 
   // Monthly Production Status - headers - right side
   const monthlyRows = [
-    { label: getTranslation("summaryReport.month", langCode), value: productionStatus.monthly.map((month) => month.month) },
+    { label: getTranslation("summaryReport.month", langCode), value: productionStatus.monthly.map((month) => formatDateMM(month.month, langCode)) },
     { label: getTranslation("summaryReport.progressRate", langCode), value: productionStatus.monthly.map((month) => `${month.progressRate}%`) },
     { label: getTranslation("summaryReport.totalWorkCount", langCode), value: productionStatus.monthly.map((month) => month.totalWorkCount) },
     { label: getTranslation("summaryReport.completedWorkCount", langCode), value: productionStatus.monthly.map((month) => month.completedWorkCount) },
