@@ -17,6 +17,8 @@ export interface IDeviceType extends Document {
     [key: string]: any; // Allow flexible specifications
   };
   modifiedBy?: mongoose.Types.ObjectId;
+  isActive?: boolean;
+  validRecipeStepNames?: string[]; // Array of recipe step names that can use this device type. If undefined, device type can be used by any step.
   createdAt: Date;
   updatedAt: Date;
 }
@@ -43,6 +45,33 @@ const DeviceTypeSchema: Schema = new Schema(
     modifiedBy: {
       type: Schema.Types.ObjectId,
       ref: "User"
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+      comment: "Whether the device type is active"
+    },
+    validRecipeStepNames: {
+      type: [String],
+      default: undefined,
+      validate: {
+        validator: function (value: string[] | undefined) {
+          if (value === undefined || value === null) {
+            return true; // Optional field
+          }
+          if (!Array.isArray(value)) {
+            return false;
+          }
+          // Ensure all items are non-empty strings
+          return value.every(
+            (stepName) =>
+              typeof stepName === "string" && stepName.trim().length > 0
+          );
+        },
+        message: "validRecipeStepNames must be an array of non-empty strings"
+      },
+      comment:
+        "Array of recipe step names that can use this device type. If undefined, device type can be used by any step."
     }
   },
   {
@@ -67,14 +96,53 @@ DeviceTypeSchema.virtual("devices", {
   }
 });
 
+// Pre-find hook to exclude soft-deleted device types
+DeviceTypeSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
+  const options = this.getOptions();
+  const includeDeleted =
+    (options as any).includeDeleted === false ? false : true;
+  if (!includeDeleted) {
+    this.where({
+      isActive: {
+        $ne: false
+      }
+    });
+  }
+  next();
+});
+
+// Pre-save hook for auto-rename on soft delete and trim recipe step names
+DeviceTypeSchema.pre("save", function (next) {
+  if (this.isModified("isActive") && this.isActive === false) {
+    // Check if name already has deleted suffix to avoid double-renaming
+    if (!(this.name as string).includes("_deleted_")) {
+      const timestamp = Date.now();
+      this.name = `${this.name}_deleted_${timestamp}`;
+    }
+  }
+
+  // Trim recipe step names to avoid whitespace issues
+  if (this.isModified("validRecipeStepNames") && this.validRecipeStepNames) {
+    this.validRecipeStepNames = (this.validRecipeStepNames as string[])
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+  }
+
+  next();
+});
+
 // Pre-remove hook to check for dependent devices, recipe steps, and tasks
+// Note: This hook still runs for findOneAndDelete, but we'll use soft delete in controller
 DeviceTypeSchema.pre("findOneAndDelete", async function (next) {
   try {
     const deviceTypeId = this.getQuery()._id;
 
-    // Check if any device references this device type
+    // Check if any active device references this device type
     const Device = mongoose.model("Device");
-    const devicesWithType = await Device.findOne({ deviceTypeId });
+    const devicesWithType = await Device.findOne({
+      deviceTypeId,
+      isActive: { $ne: false }
+    });
 
     if (devicesWithType) {
       return next(

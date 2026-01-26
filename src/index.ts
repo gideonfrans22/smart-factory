@@ -11,6 +11,8 @@ import { connectDB } from "./config/database";
 import { mqttService } from "./config/mqtt";
 import { initializeWebSocket } from "./config/websocket";
 import { realtimeService } from "./services/realtimeService";
+import { requestLoggingMiddleware, errorLoggingMiddleware } from "./middleware/logging";
+import { loggerService } from "./services/loggerService";
 
 // Import routes
 import authRoutes from "./routes/auth";
@@ -59,6 +61,9 @@ app.use(limiter);
 // Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Request logging middleware (after body parsing, before routes)
+app.use(requestLoggingMiddleware);
 
 // Serve static files from uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
@@ -110,9 +115,9 @@ app.get("/api/health", (_req: Request, res: Response) => {
   });
 });
 
-// Global error handler
+// Global error handler (with logging)
+app.use(errorLoggingMiddleware);
 app.use((error: any, _req: Request, res: Response, _next: any) => {
-  console.error("Global error handler:", error);
   res.status(error.status || 500).json({
     success: false,
     message:
@@ -137,24 +142,25 @@ const startServer = async (): Promise<void> => {
 
     // Initialize WebSocket server
     await initializeWebSocket(httpServer);
-    console.log("🔌 WebSocket server ready");
+    loggerService.info("WebSocket server ready");
 
     // Initialize MQTT message handlers (bridges MQTT → WebSocket)
     realtimeService.initializeMQTTHandlers();
-    console.log("📡 Real-time service initialized");
+    loggerService.info("Real-time service initialized");
 
     // Start HTTP server (with WebSocket attached)
     httpServer.listen(PORT, () => {
       const workerId = process.env.NODE_APP_INSTANCE || "standalone";
-      console.log(`🚀 Smart Factory Backend Server Started`);
-      console.log(`👷 Worker ID: ${workerId} | PID: ${process.pid}`);
-      console.log(`📱 REST API: http://localhost:${PORT}`);
-      console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
-      console.log(
-        `📡 MQTT: ${mqttService.isConnected() ? "Connected" : "Disconnected"}`
-      );
-      console.log(`🏭 Environment: ${process.env.NODE_ENV || "development"}`);
-      console.log("✅ All services initialized successfully");
+      loggerService.info(`Smart Factory Backend Server Started`, {
+        workerId,
+        pid: process.pid,
+        port: PORT,
+        environment: process.env.NODE_ENV || "development",
+        mqtt: mqttService.isConnected() ? "Connected" : "Disconnected"
+      });
+      loggerService.info(`REST API: http://localhost:${PORT}`);
+      loggerService.info(`WebSocket: ws://localhost:${PORT}`);
+      loggerService.info("All services initialized successfully");
     });
 
     // Handle server errors
@@ -167,11 +173,11 @@ const startServer = async (): Promise<void> => {
 
       switch (error.code) {
         case "EACCES":
-          console.error(`❌ ${bind} requires elevated privileges`);
+          loggerService.error(`${bind} requires elevated privileges`);
           process.exit(1);
           break;
         case "EADDRINUSE":
-          console.error(`❌ ${bind} is already in use`);
+          loggerService.error(`${bind} is already in use`);
           process.exit(1);
           break;
         default:
@@ -179,29 +185,27 @@ const startServer = async (): Promise<void> => {
       }
     });
   } catch (error) {
-    console.error("❌ Failed to start server:", error);
+    loggerService.error("Failed to start server", { error: (error as Error).message });
     process.exit(1);
   }
 };
 
 // Handle graceful shutdown for worker processes
 const gracefulShutdown = async (signal: string) => {
-  console.log(
-    `\n📤 ${signal} received on worker ${process.pid}, shutting down gracefully...`
-  );
+  loggerService.info(`${signal} received on worker ${process.pid}, shutting down gracefully...`);
 
   try {
     // Disconnect MQTT
     mqttService.disconnect();
-    console.log("✅ MQTT disconnected");
+    loggerService.info("MQTT disconnected");
 
     // Give time for ongoing requests to complete
     setTimeout(() => {
-      console.log("✅ Worker shutdown complete");
+      loggerService.info("Worker shutdown complete");
       process.exit(0);
     }, 2000);
   } catch (error) {
-    console.error("❌ Error during graceful shutdown:", error);
+    loggerService.error("Error during graceful shutdown", { error: (error as Error).message });
     process.exit(1);
   }
 };
@@ -211,18 +215,13 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 // Handle uncaught exceptions
 process.on("uncaughtException", (error) => {
-  console.error("❌ Worker uncaught exception:", error);
+  loggerService.error("Worker uncaught exception", { error: error.message, stack: error.stack });
   gracefulShutdown("uncaughtException");
 });
 
 // Handle unhandled promise rejections
-process.on("unhandledRejection", (reason, promise) => {
-  console.error(
-    "❌ Worker unhandled rejection at:",
-    promise,
-    "reason:",
-    reason
-  );
+process.on("unhandledRejection", (reason) => {
+  loggerService.error("Worker unhandled rejection", { reason: String(reason) });
   gracefulShutdown("unhandledRejection");
 });
 

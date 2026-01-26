@@ -623,8 +623,8 @@ export function addTrendIndicator(
     percentChange > 0
       ? COLORS.SUCCESS
       : percentChange < 0
-      ? COLORS.DANGER
-      : COLORS.INFO;
+        ? COLORS.DANGER
+        : COLORS.INFO;
 
   cell.value = `${arrow} ${Math.abs(percentChange).toFixed(1)}%`;
   cell.font = { color: { argb: color }, bold: true };
@@ -708,4 +708,26 @@ export function createSummaryBox(
     worksheet.getRow(currentRow).height = 18;
     currentRow++;
   });
+}
+
+/**
+ * Format date to YYYY.MM.DD format
+ */
+export function formatDateKorean(date: Date | null): string {
+  if (!date) return "";
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}.${month}.${day}`;
+}
+
+/**
+ * Format date to MM format
+ */
+export function formatDateMM(date: Date | null, lang: string): string {
+  if (!date) return "";
+  const d = new Date(date);
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return lang === "en" ? `${d.toLocaleString("en-US", { month: "long" })}` : `${month}월`;
 }

@@ -3,6 +3,7 @@ import { Alert } from "../models/Alert";
 import { Device } from "../models/Device";
 import { Task } from "../models/Task";
 import * as ExcelFormatService from "./excelFormatService";
+import { formatDateKorean } from "./excelFormatService";
 
 /**
  * Equipment Performance Report Data Aggregation Service
@@ -12,7 +13,65 @@ import * as ExcelFormatService from "./excelFormatService";
 // ==================== TRANSLATIONS ====================
 
 const TRANSLATIONS = {
-  // Equipment KPI Report
+  // Equipment Report
+  equipmentReport: {
+    title: {
+      en: "Equipment Report",
+      ko: "설비 보고서"
+    },
+    period: {
+      en: "Period",
+      ko: "기간"
+    },
+    to: {
+      en: "to",
+      ko: "~"
+    },
+    equipmentNo: {
+      en: "Equipment No",
+      ko: "장비번호"
+    },
+    equipmentName: {
+      en: "Equipment Name",
+      ko: "장비명"
+    },
+    operationTime: {
+      en: "Operation Time",
+      ko: "가동 시간"
+    },
+    downtime: {
+      en: "Downtime",
+      ko: "비가동 시간"
+    },
+    operationRate: {
+      en: "Operation Rate",
+      ko: "가동률"
+    },
+    errorCount: {
+      en: "Error Count",
+      ko: "에러발생횟수"
+    },
+    productionQuantity: {
+      en: "Production Quantity",
+      ko: "생산량"
+    }
+  },
+  // Approval workflow
+  approval: {
+    created: {
+      en: "Created",
+      ko: "작성"
+    },
+    reviewed: {
+      en: "Reviewed",
+      ko: "검토"
+    },
+    approved: {
+      en: "Approved",
+      ko: "승인"
+    }
+  },
+  // Legacy Equipment KPI Report (keeping for backward compatibility)
   equipmentKPI: {
     title: {
       en: "EQUIPMENT PERFORMANCE KPI REPORT",
@@ -462,8 +521,8 @@ export async function calculateEquipmentProductionCount(
 // ==================== SHEET GENERATION FUNCTION ====================
 
 /**
- * Generate comprehensive Equipment Performance KPI Sheet
- * Single sheet containing all equipment KPI calculations in A4 portrait format
+ * Generate comprehensive Equipment Performance Report Sheet
+ * Single sheet with table format matching the specified layout
  */
 export async function generateEquipmentPerformanceKPISheet(
   workbook: ExcelJS.Workbook,
@@ -471,7 +530,7 @@ export async function generateEquipmentPerformanceKPISheet(
   period?: "daily" | "weekly" | "monthly",
   lang?: string
 ): Promise<void> {
-  console.log("Generating Equipment Performance KPI Sheet...");
+  console.log("Generating Equipment Performance Report Sheet...");
 
   // Adjust date range based on period
   const adjustedDateRange = adjustDateRangeForPeriod(
@@ -482,7 +541,7 @@ export async function generateEquipmentPerformanceKPISheet(
 
   const worksheet = workbook.addWorksheet("Equipment Performance KPIs");
 
-  // Configure page for A4 portrait and fit-to-width (7 columns max)
+  // Configure page for A4 portrait
   worksheet.pageSetup = {
     paperSize: 9, // A4
     orientation: "portrait",
@@ -500,148 +559,89 @@ export async function generateEquipmentPerformanceKPISheet(
   };
 
   let currentRow = 1;
+  const langCode = lang || "ko";
 
-  const formatDate = (date: Date) => date.toISOString().split("T")[0];
-  const periodLabel = period
-    ? period.charAt(0).toUpperCase() + period.slice(1)
-    : "All Time";
-
-  // ===== COMPACT 7-COLUMN HEADER + APPROVAL BLOCK =====
-  // Layout (7 columns A-G total):
-  // Row 1: [A-C] REPORT_TITLE | [D-E] 관리자 (MANAGER) | [F-G] 대표 (CEO)
-  // Row 2: [A-C] REPORT_PERIOD | [D-E] 작업자 (WORKER) | [F-G] blank
-
-  // ===== ROW 1: Title + Manager + CEO =====
-  worksheet.mergeCells(currentRow, 1, currentRow, 3); // A-C
+  // ===== TITLE SECTION =====
+  // Row 1: Centered title "설비 보고서"
+  worksheet.mergeCells(currentRow, 1, currentRow, 7); // Merge all 7 columns
   const titleCell = worksheet.getCell(currentRow, 1);
-  titleCell.value = `${getTranslation(
-    "equipmentKPI.title",
-    lang
-  )} - ${periodLabel}`;
-  titleCell.font = { size: 14, bold: true };
+  titleCell.value = getTranslation("equipmentReport.title", langCode);
+  titleCell.font = { size: 16, bold: true };
   titleCell.alignment = {
-    horizontal: "left",
-    vertical: "middle",
-    wrapText: true
-  };
-  titleCell.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
-
-  // Manager approval (D-E)
-  worksheet.mergeCells(currentRow, 4, currentRow, 5);
-  const managerCell = worksheet.getCell(currentRow, 4);
-  managerCell.value = `${getTranslation(
-    "roles.manager",
-    lang
-  )}\n____년  __월  __일`;
-  managerCell.font = { bold: true, size: 10 };
-  managerCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
-  };
-  managerCell.alignment = {
     horizontal: "center",
-    vertical: "top",
-    wrapText: true
+    vertical: "middle"
   };
-  managerCell.border = {
-    top: { style: "medium" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
+  worksheet.getRow(currentRow).height = 30;
+  currentRow += 2; // Skip one row for spacing
 
-  // CEO approval (F-G)
-  worksheet.mergeCells(currentRow, 6, currentRow, 7);
-  const ceoCell = worksheet.getCell(currentRow, 6);
-  ceoCell.value = `${getTranslation("roles.ceo", lang)}\n____년  __월  __일`;
-  ceoCell.font = { bold: true, size: 10 };
-  ceoCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
-  };
-  ceoCell.alignment = {
-    horizontal: "center",
-    vertical: "top",
-    wrapText: true
-  };
-  ceoCell.border = {
-    top: { style: "medium" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "medium" }
-  };
-
-  worksheet.getRow(currentRow).height = 100; // Tall for signature space
-  currentRow++;
-
-  // ===== ROW 2: Period + Worker =====
-  worksheet.mergeCells(currentRow, 1, currentRow, 3); // A-C
+  // ===== HEADER SECTION =====
+  // Row 2: Period (left) + Approval Box (right)
+  // Period on left (columns A-D)
+  worksheet.mergeCells(currentRow, 1, currentRow, 4);
   const periodCell = worksheet.getCell(currentRow, 1);
-  periodCell.value = `${getTranslation(
-    "equipmentKPI.period",
-    lang
-  )}: ${formatDate(adjustedDateRange.startDate)} ${getTranslation(
-    "equipmentKPI.to",
-    lang
-  )} ${formatDate(adjustedDateRange.endDate)}`;
-  periodCell.font = { size: 10, bold: true };
+  const periodText = `${getTranslation(
+    "equipmentReport.period",
+    langCode
+  )}: ${formatDateKorean(adjustedDateRange.startDate)}${getTranslation(
+    "equipmentReport.to",
+    langCode
+  )}${formatDateKorean(adjustedDateRange.endDate)}`;
+  periodCell.value = periodText;
+  periodCell.font = { size: 11, bold: true };
   periodCell.alignment = {
     horizontal: "left",
-    vertical: "middle",
-    wrapText: true
-  };
-  periodCell.border = {
-    top: { style: "thin" },
-    left: { style: "medium" },
-    bottom: { style: "medium" },
-    right: { style: "thin" }
+    vertical: "middle"
   };
 
-  // Worker approval (D-E)
-  worksheet.mergeCells(currentRow, 4, currentRow, 5);
-  const workerCell = worksheet.getCell(currentRow, 4);
-  workerCell.value = `${getTranslation(
-    "roles.worker",
-    lang
-  )}\n____년  __월  __일`;
-  workerCell.font = { bold: true, size: 10 };
-  workerCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
-  };
-  workerCell.alignment = {
-    horizontal: "center",
-    vertical: "top",
-    wrapText: true
-  };
-  workerCell.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "medium" },
-    right: { style: "thin" }
-  };
+  // Approval section (작성/검토/승인) - right side
+  const approvalCols = [
+    { col: 5, label: "approval.created" },
+    { col: 6, label: "approval.reviewed" },
+    { col: 7, label: "approval.approved" }
+  ];
 
-  // Blank space (F-G)
-  worksheet.mergeCells(currentRow, 6, currentRow, 7);
-  const blankCell = worksheet.getCell(currentRow, 6);
-  blankCell.value = "";
-  blankCell.border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "medium" },
-    right: { style: "medium" }
-  };
+  approvalCols.forEach((col) => {
+    const cell = worksheet.getCell(currentRow, col.col);
+    cell.value = `${getTranslation(col.label, lang)}`;
+    cell.font = { size: 14 };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+  worksheet.getRow(currentRow).height = 24;
+  currentRow++;
 
-  worksheet.getRow(currentRow).height = 100; // Tall for signature space
-  currentRow += 2;
+  // Row 4: Blank Signature cells
+  // Blank Signature cells
+  approvalCols.forEach((col) => {
+    worksheet.mergeCells(currentRow, col.col, currentRow + 3, col.col);
+    const cell = worksheet.getCell(currentRow, col.col);
+    cell.value = "";
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+    // Date Row
+    worksheet.mergeCells(currentRow + 4, col.col, currentRow + 4, col.col);
+    const dateCell = worksheet.getCell(currentRow + 4, col.col);
+    dateCell.value = formatDateKorean(new Date());
+    dateCell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+    dateCell.font = { size: 14 };
+    dateCell.alignment = { horizontal: "center", vertical: "middle" };
+    worksheet.getRow(currentRow + 4).height = 24;
+  });
+  currentRow += 6;
 
   // Calculate all KPIs in parallel
   const [equipmentUtilization, equipmentErrorCount, equipmentProductionCount] =
@@ -661,6 +661,7 @@ export async function generateEquipmentPerformanceKPISheet(
       utilization?: number;
       actualUptimeHours?: number;
       operationalHours?: number;
+      downtime?: number; // Calculated: operationalHours - actualUptimeHours
       errorCount?: number;
       productionCount?: number;
     }
@@ -668,13 +669,15 @@ export async function generateEquipmentPerformanceKPISheet(
 
   // Combine utilization data
   equipmentUtilization.forEach((equipment) => {
+    const downtime = equipment.operationalHours - equipment.actualUptimeHours;
     deviceMap.set(equipment.deviceId, {
       deviceId: equipment.deviceId,
       deviceName: equipment.deviceName,
       deviceTypeName: equipment.deviceTypeName,
       utilization: equipment.utilization,
       actualUptimeHours: equipment.actualUptimeHours,
-      operationalHours: equipment.operationalHours
+      operationalHours: equipment.operationalHours,
+      downtime: Math.max(0, downtime) // Ensure non-negative
     });
   });
 
@@ -688,7 +691,8 @@ export async function generateEquipmentPerformanceKPISheet(
         deviceId: equipment.deviceId,
         deviceName: equipment.deviceName,
         deviceTypeName: equipment.deviceTypeName,
-        errorCount: equipment.errorCount
+        errorCount: equipment.errorCount,
+        downtime: 0
       });
     }
   });
@@ -703,247 +707,221 @@ export async function generateEquipmentPerformanceKPISheet(
         deviceId: equipment.deviceId,
         deviceName: equipment.deviceName,
         deviceTypeName: equipment.deviceTypeName,
-        productionCount: equipment.productionCount
+        productionCount: equipment.productionCount,
+        downtime: 0
       });
     }
   });
 
-  // ===== KPI DATA SECTION - VERTICAL LABEL-VALUE FORMAT =====
-  // Format: 4 columns for label (A-D), 3 columns for value (E-G)
-  // KPI DATA HEADER
-  worksheet.mergeCells(currentRow, 1, currentRow, 4);
-  const kpiHeaderCell = worksheet.getCell(currentRow, 1);
-  kpiHeaderCell.value = getTranslation("titles.kpi", lang);
-  kpiHeaderCell.font = { bold: true, size: 12, color: { argb: "FFFFFF" } };
-  kpiHeaderCell.alignment = { horizontal: "center", vertical: "top" };
-  kpiHeaderCell.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "medium" },
-    right: { style: "medium" }
-  };
-  kpiHeaderCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-  };
-  // KPI DATA HEADER VALUES
-  worksheet.mergeCells(currentRow, 5, currentRow, 7);
-  const kpiHeaderValuesCell = worksheet.getCell(currentRow, 5);
-  kpiHeaderValuesCell.value = getTranslation("titles.kpiValue", lang);
-  kpiHeaderValuesCell.font = {
-    bold: true,
-    size: 12,
-    color: { argb: "FFFFFF" }
-  };
-  kpiHeaderValuesCell.alignment = {
-    horizontal: "center",
-    vertical: "top"
-  };
-  kpiHeaderValuesCell.border = {
-    top: { style: "medium" },
-    left: { style: "medium" },
-    bottom: { style: "medium" },
-    right: { style: "medium" }
-  };
-  kpiHeaderValuesCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
-  };
-  worksheet.getRow(currentRow).height = 30;
-  currentRow++;
-
-  // Process each device
+  // Convert to array and sort by device name
   const devices = Array.from(deviceMap.values()).sort((a, b) =>
-    (b.deviceName || "").localeCompare(a.deviceName || "")
+    (a.deviceName || "").localeCompare(b.deviceName || "")
   );
 
+  // ===== TABLE SECTION =====
+  // Table with 7 columns: 장비번호, 장비명, 가동 시간, 비가동 시간, 가동률, 에러발생횟수, 생산량
+
+  // Table header row
+  const tableHeaders = [
+    getTranslation("equipmentReport.equipmentNo", langCode),
+    getTranslation("equipmentReport.equipmentName", langCode),
+    getTranslation("equipmentReport.operationTime", langCode),
+    getTranslation("equipmentReport.downtime", langCode),
+    getTranslation("equipmentReport.operationRate", langCode),
+    getTranslation("equipmentReport.errorCount", langCode),
+    getTranslation("equipmentReport.productionQuantity", langCode)
+  ];
+
+  tableHeaders.forEach((header, colIndex) => {
+    const col = colIndex + 1; // Columns A-G (1-7)
+    const headerCell = worksheet.getCell(currentRow, col);
+    headerCell.value = header;
+    headerCell.font = { bold: true, size: 11 };
+    headerCell.alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    headerCell.border = {
+      top: { style: "medium" },
+      left: { style: "thin" },
+      bottom: { style: "medium" },
+      right: { style: "thin" }
+    };
+    headerCell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    headerCell.font.color = { argb: ExcelFormatService.COLORS.HEADER_TEXT };
+  });
+
+  worksheet.getRow(currentRow).height = 25;
+  currentRow++;
+
+  // Table data rows
   devices.forEach((device) => {
-    // Device header row (optional - can be merged with first KPI)
-    // For now, we'll add device info in the first KPI row
+    // Column 1: Equipment Name
+    const nameCell = worksheet.getCell(currentRow, 1);
+    nameCell.value = device.deviceName || "";
+    nameCell.font = { size: 10 };
+    nameCell.alignment = {
+      horizontal: "left",
+      vertical: "middle"
+    };
+    nameCell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
 
-    // Build KPI rows for this device
-    const kpiRows: Array<{
-      label: string;
-      value: string | number;
-      type: "utilization" | "number" | "flag";
-      flagValue?: number;
-    }> = [];
+    // Column 2: Equipment Type Name
+    const typeNameCell = worksheet.getCell(currentRow, 2);
+    typeNameCell.value = device.deviceTypeName || "";
+    typeNameCell.font = { size: 10 };
+    typeNameCell.alignment = {
+      horizontal: "left",
+      vertical: "middle"
+    };
+    typeNameCell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
 
-    if (device.utilization !== undefined) {
-      kpiRows.push({
-        label: getTranslation("equipmentKPI.utilization", lang),
-        value: device.utilization.toFixed(2) + "%",
-        type: "utilization",
-        flagValue: device.utilization
-      });
-    }
+    // Column 3: Operation Time (가동 시간) - actualUptimeHours
+    const operationTimeCell = worksheet.getCell(currentRow, 3);
+    operationTimeCell.value =
+      device.actualUptimeHours !== undefined
+        ? device.actualUptimeHours.toFixed(2)
+        : "0.00";
+    operationTimeCell.font = { size: 10 };
+    operationTimeCell.alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    operationTimeCell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
 
-    if (device.actualUptimeHours !== undefined) {
-      kpiRows.push({
-        label: getTranslation("equipmentKPI.actualUptimeHours", lang),
-        value: device.actualUptimeHours.toFixed(2),
-        type: "number"
-      });
-    }
+    // Column 4: Downtime (비가동 시간) - calculated
+    const downtimeCell = worksheet.getCell(currentRow, 4);
+    downtimeCell.value =
+      device.downtime !== undefined ? device.downtime.toFixed(2) : "0.00";
+    downtimeCell.font = { size: 10 };
+    downtimeCell.alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    downtimeCell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
 
-    if (device.operationalHours !== undefined) {
-      kpiRows.push({
-        label: getTranslation("equipmentKPI.operationalHours", lang),
-        value: device.operationalHours.toFixed(2),
-        type: "number"
-      });
-    }
+    // Column 5: Operation Rate (가동률) - utilization percentage
+    const operationRateCell = worksheet.getCell(currentRow, 5);
+    const utilization =
+      device.utilization !== undefined ? device.utilization : 0;
+    operationRateCell.value = utilization.toFixed(2) + "%";
+    operationRateCell.font = { size: 10 };
+    operationRateCell.alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    operationRateCell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
 
-    if (device.errorCount !== undefined) {
-      kpiRows.push({
-        label: getTranslation("equipmentKPI.errorCount", lang),
-        value: device.errorCount,
-        type: "flag",
-        flagValue: device.errorCount
-      });
-    }
-
-    if (device.productionCount !== undefined) {
-      kpiRows.push({
-        label: getTranslation("equipmentKPI.productionCount", lang),
-        value: device.productionCount,
-        type: "number"
-      });
-    }
-
-    // Add device name and type as first row (merged with label)
-    if (kpiRows.length > 0) {
-      // Device info row
-      worksheet.mergeCells(currentRow, 1, currentRow, 7);
-      const deviceInfoCell = worksheet.getCell(currentRow, 1);
-      deviceInfoCell.value = `${device.deviceTypeName} - ${device.deviceName}`;
-      deviceInfoCell.font = { bold: true, size: 11 };
-      deviceInfoCell.fill = {
+    // Apply conditional formatting for operation rate
+    if (utilization >= 80) {
+      operationRateCell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: "E0E0E0" }
+        fgColor: { argb: ExcelFormatService.COLORS.SUCCESS }
       };
-      deviceInfoCell.alignment = {
-        horizontal: "center",
-        vertical: "middle",
-        wrapText: true,
-        indent: 1
+      operationRateCell.font.color = { argb: "FFFFFF" };
+      operationRateCell.font.bold = true;
+    } else if (utilization >= 50) {
+      operationRateCell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: ExcelFormatService.COLORS.WARNING }
       };
-      deviceInfoCell.border = {
-        top: { style: "medium" },
-        left: { style: "medium" },
-        bottom: { style: "thin" },
-        right: { style: "thin" }
+      operationRateCell.font.bold = true;
+    } else if (utilization > 0) {
+      operationRateCell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: ExcelFormatService.COLORS.DANGER }
       };
-
-      worksheet.getRow(currentRow).height = 30;
-      currentRow++;
-
-      // KPI rows for this device
-      kpiRows.forEach((kpiRow) => {
-        // Label cells (A-D)
-        worksheet.mergeCells(currentRow, 1, currentRow, 4);
-        const labelCell = worksheet.getCell(currentRow, 1);
-        labelCell.value = kpiRow.label;
-        labelCell.font = { bold: true, size: 11 };
-        labelCell.alignment = {
-          horizontal: "left",
-          vertical: "middle",
-          indent: 1
-        };
-        labelCell.border = {
-          top: { style: "thin" },
-          left: { style: "medium" },
-          bottom: { style: "thin" },
-          right: { style: "thin" }
-        };
-
-        // Value cells (E-G)
-        worksheet.mergeCells(currentRow, 5, currentRow, 7);
-        const valueCell = worksheet.getCell(currentRow, 5);
-        valueCell.value = kpiRow.value;
-        valueCell.font = { size: 11 };
-        valueCell.alignment = {
-          horizontal: "center",
-          vertical: "middle"
-        };
-        valueCell.border = {
-          top: { style: "thin" },
-          left: { style: "thin" },
-          bottom: { style: "thin" },
-          right: { style: "medium" }
-        };
-
-        // Apply conditional formatting
-        if (kpiRow.type === "utilization" && kpiRow.flagValue !== undefined) {
-          const utilization = kpiRow.flagValue;
-          if (utilization >= 80) {
-            valueCell.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: ExcelFormatService.COLORS.SUCCESS }
-            };
-            valueCell.font = {
-              bold: true,
-              color: { argb: "FFFFFF" },
-              size: 11
-            };
-          } else if (utilization >= 50) {
-            valueCell.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: ExcelFormatService.COLORS.WARNING }
-            };
-            valueCell.font = {
-              bold: true,
-              color: { argb: "000000" },
-              size: 11
-            };
-          } else {
-            valueCell.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: ExcelFormatService.COLORS.DANGER }
-            };
-            valueCell.font = {
-              bold: true,
-              color: { argb: "FFFFFF" },
-              size: 11
-            };
-          }
-        } else if (
-          kpiRow.type === "flag" &&
-          kpiRow.flagValue !== undefined &&
-          kpiRow.flagValue > 0
-        ) {
-          // Red flag for errors
-          valueCell.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: ExcelFormatService.COLORS.DANGER }
-          };
-          valueCell.font = { bold: true, color: { argb: "FFFFFF" }, size: 11 };
-        }
-
-        worksheet.getRow(currentRow).height = 25;
-        currentRow++;
-      });
-
-      // Add spacing between devices
-      currentRow++;
+      operationRateCell.font.color = { argb: "FFFFFF" };
+      operationRateCell.font.bold = true;
     }
+
+    // Column 6: Error Count (에러발생횟수)
+    const errorCountCell = worksheet.getCell(currentRow, 6);
+    errorCountCell.value =
+      device.errorCount !== undefined ? device.errorCount : 0;
+    errorCountCell.font = { size: 10 };
+    errorCountCell.alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    errorCountCell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    // Apply red background if errors exist
+    if (device.errorCount && device.errorCount > 0) {
+      errorCountCell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: ExcelFormatService.COLORS.DANGER }
+      };
+      errorCountCell.font.color = { argb: "FFFFFF" };
+      errorCountCell.font.bold = true;
+    }
+
+    // Column 7: Production Quantity (생산량)
+    const productionCell = worksheet.getCell(currentRow, 7);
+    productionCell.value =
+      device.productionCount !== undefined ? device.productionCount : 0;
+    productionCell.font = { size: 10 };
+    productionCell.alignment = {
+      horizontal: "center",
+      vertical: "middle"
+    };
+    productionCell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+
+    worksheet.getRow(currentRow).height = 20;
+    currentRow++;
   });
 
   // Column widths optimized for 7 columns on A4 portrait
-  worksheet.getColumn(1).width = 12; // Label start
-  worksheet.getColumn(2).width = 12; // Label middle
-  worksheet.getColumn(3).width = 12; // Label middle
-  worksheet.getColumn(4).width = 12; // Label end
-  worksheet.getColumn(5).width = 12; // Value start
-  worksheet.getColumn(6).width = 12; // Value middle
-  worksheet.getColumn(7).width = 12; // Value end
+  worksheet.getColumn(1).width = 12; // Equipment No
+  worksheet.getColumn(2).width = 18; // Equipment Name
+  worksheet.getColumn(3).width = 14; // Operation Time
+  worksheet.getColumn(4).width = 14; // Downtime
+  worksheet.getColumn(5).width = 16; // Operation Rate
+  worksheet.getColumn(6).width = 16; // Error Count
+  worksheet.getColumn(7).width = 16; // Production Quantity
 
-  console.log("✓ Equipment Performance KPI Sheet generated successfully");
+  console.log("✓ Equipment Performance Report Sheet generated successfully");
 }

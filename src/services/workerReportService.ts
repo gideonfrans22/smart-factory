@@ -1,8 +1,9 @@
-import mongoose from "mongoose";
 import ExcelJS from "exceljs";
+import mongoose from "mongoose";
 import { Task } from "../models/Task";
 import { User } from "../models/User";
 import * as ExcelFormatService from "./excelFormatService";
+import { formatDateKorean } from "./excelFormatService";
 
 /**
  * Worker Performance Report Data Aggregation Service
@@ -13,6 +14,10 @@ import * as ExcelFormatService from "./excelFormatService";
 const TRANSLATIONS = {
   // Main Report Titles
   titles: {
+    workerPerformanceReport: {
+      en: "WORKER PERFORMANCE SUMMARY REPORT",
+      ko: "작업자별 성과보고서"
+    },
     workerPerformanceRankings: {
       en: "WORKER PERFORMANCE RANKINGS",
       ko: "작업자 성과 순위"
@@ -252,6 +257,9 @@ const TRANSLATIONS = {
       en: "WORKER PERFORMANCE KPI REPORT",
       ko: "작업자 성과 KPI 보고서"
     },
+    prepared: { en: "Prepared", ko: "작성" },
+    reviewed: { en: "Reviewed", ko: "검토" },
+    approved: { en: "Approved", ko: "승인" },
     workerName: { en: "Worker Name", ko: "작업자 이름" },
     department: { en: "Department", ko: "부서" },
     workProficiency: { en: "Work Proficiency", ko: "작업 숙련도" },
@@ -3113,4 +3121,374 @@ export async function generateWorkerKPISheet(
   worksheet.getColumn(7).width = 12; // Blank space
 
   console.log(`✓ Worker KPI Sheet generated for worker: ${kpiData.workerName}`);
+}
+
+/**
+ * Interface for Worker Performance Summary Data
+ */
+export interface WorkerPerformanceSummaryData {
+  sequence: number;
+  workerId: string;
+  workerName: string;
+  department: string;
+  totalWorkHours: number; // in hours
+  overtimeHours: number; // in hours
+  productionVolume: number; // count of completed tasks
+  defectCount: number; // count of failed tasks
+  workDelayRate: number; // percentage (0-100)
+  remarks?: string;
+}
+
+/**
+ * Get Worker Performance Summary Data for all workers
+ */
+export async function getWorkerPerformanceSummaryData(
+  dateRange: DateRangeFilter
+): Promise<WorkerPerformanceSummaryData[]> {
+  const { startDate, endDate } = dateRange;
+
+  // Calculate number of weeks in the period for overtime calculation
+  const daysInPeriod =
+    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) + 1;
+  const weeksInPeriod = daysInPeriod / 7;
+  const standardHoursPerPeriod = weeksInPeriod * 40; // 40 hours per week
+
+  // Get all tasks in the date range with worker assignments
+  const tasks = await Task.find({
+    workerId: { $ne: null },
+    $or: [
+      { createdAt: { $gte: startDate, $lte: endDate } },
+      { startedAt: { $gte: startDate, $lte: endDate } },
+      { completedAt: { $gte: startDate, $lte: endDate } }
+    ]
+  })
+    .populate("workerId", "name department")
+    .lean();
+
+  // Group tasks by worker
+  const workerMap = new Map<
+    string,
+    {
+      workerId: string;
+      workerName: string;
+      department: string;
+      tasks: any[];
+    }
+  >();
+
+  tasks.forEach((task) => {
+    const worker = task.workerId as any;
+    if (!worker || !worker._id) return;
+
+    const workerId = worker._id.toString();
+    if (!workerMap.has(workerId)) {
+      workerMap.set(workerId, {
+        workerId,
+        workerName: worker.name || "Unknown",
+        department: worker.department || "N/A",
+        tasks: []
+      });
+    }
+    workerMap.get(workerId)!.tasks.push(task);
+  });
+
+  // Calculate metrics for each worker
+  const summaryData: WorkerPerformanceSummaryData[] = [];
+
+  workerMap.forEach((workerData) => {
+    const workerTasks = workerData.tasks;
+    const completedTasks = workerTasks.filter((t) => t.status === "COMPLETED");
+    const failedTasks = workerTasks.filter((t) => t.status === "FAILED");
+
+    // Total Work Hours: Sum of actual durations (convert minutes to hours)
+    const totalWorkHours =
+      completedTasks.reduce((sum, task) => {
+        return sum + (task.actualDuration || 0);
+      }, 0) / 60; // Convert minutes to hours
+
+    // Overtime: max(0, Total Hours - Standard Hours)
+    const overtimeHours = Math.max(0, totalWorkHours - standardHoursPerPeriod);
+
+    // Production Volume: Count of completed tasks
+    const productionVolume = completedTasks.length;
+
+    // Defect Count: Count of failed tasks
+    const defectCount = failedTasks.length;
+
+    // Work Delay Rate: (Delayed Tasks / Total Tasks) * 100%
+    // Delayed Task: CompletedAt > Deadline OR ActualDuration > EstimatedDuration
+    const totalTasks = workerTasks.length;
+    let delayedTasks = 0;
+
+    workerTasks.forEach((task) => {
+      let isDelayed = false;
+
+      // Check if missed deadline
+      if (task.deadline && task.completedAt) {
+        if (new Date(task.completedAt) > new Date(task.deadline)) {
+          isDelayed = true;
+        }
+      }
+
+      // Check if exceeded estimated duration
+      if (
+        !isDelayed &&
+        task.estimatedDuration &&
+        task.actualDuration &&
+        task.actualDuration > task.estimatedDuration
+      ) {
+        isDelayed = true;
+      }
+
+      if (isDelayed) {
+        delayedTasks++;
+      }
+    });
+
+    const workDelayRate =
+      totalTasks > 0 ? (delayedTasks / totalTasks) * 100 : 0;
+
+    summaryData.push({
+      sequence: 0, // Will be set when sorting
+      workerId: workerData.workerId,
+      workerName: workerData.workerName,
+      department: workerData.department,
+      totalWorkHours,
+      overtimeHours,
+      productionVolume,
+      defectCount,
+      workDelayRate
+    });
+  });
+
+  // Sort by worker name and assign sequence numbers
+  summaryData.sort((a, b) => {
+    if (a.department !== b.department) {
+      return a.department.localeCompare(b.department);
+    }
+    return a.workerName.localeCompare(b.workerName);
+  });
+
+  summaryData.forEach((data, index) => {
+    data.sequence = index + 1;
+  });
+
+  return summaryData;
+}
+
+/**
+ * Format hours and minutes from decimal hours
+ * Example: 52.5 hours -> "52시간30분"
+ */
+function formatHoursMinutes(hours: number): string {
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
+  if (minutes === 0) {
+    return `${wholeHours}시간`;
+  }
+  return `${wholeHours}시간${minutes}분`;
+}
+
+/**
+ * Generate Worker Performance Summary Sheet
+ * New format: List of all workers with performance metrics
+ */
+export async function generateWorkerPerformanceSummarySheet(
+  workbook: ExcelJS.Workbook,
+  dateRange: DateRangeFilter,
+  lang: string = "ko"
+): Promise<void> {
+  console.log("Generating Worker Performance Summary Sheet...");
+
+  const worksheet = workbook.addWorksheet("Worker Performance Summary");
+
+  // Configure page for A4 landscape
+  worksheet.pageSetup = {
+    paperSize: 9, // A4
+    orientation: "landscape",
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: {
+      left: 0.7,
+      right: 0.7,
+      top: 0.75,
+      bottom: 0.75,
+      header: 0.3,
+      footer: 0.3
+    }
+  };
+
+  let currentRow = 1;
+
+  // Get summary data for all workers
+  const summaryData = await getWorkerPerformanceSummaryData(dateRange);
+
+  const periodText = `${formatDateKorean(
+    dateRange.startDate
+  )}~${formatDateKorean(dateRange.endDate)}`;
+
+  // ===== TITLE ROW =====
+  worksheet.mergeCells(currentRow, 1, currentRow, 9);
+  const titleCell = worksheet.getCell(currentRow, 1);
+  titleCell.value = getTranslation("titles.workerPerformanceReport", lang);
+  titleCell.font = { size: 18, bold: true };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  worksheet.getRow(currentRow).height = 35;
+  currentRow++;
+
+  // ===== PERIOD AND SIGNATURE BLOCK ROW =====
+  // Left side: Period
+  worksheet.mergeCells(currentRow, 1, currentRow, 3);
+  const periodCell = worksheet.getCell(currentRow, 1);
+  periodCell.value = `${getTranslation(
+    "workerKPI.period",
+    lang
+  )}: ${periodText}`;
+  periodCell.font = { size: 11, bold: true };
+  periodCell.alignment = { horizontal: "left", vertical: "middle", indent: 1 };
+
+  // Approval section (작성/검토/승인) - right side
+  const approvalCols = [
+    { col: 7, label: "workerKPI.prepared" },
+    { col: 8, label: "workerKPI.reviewed" },
+    { col: 9, label: "workerKPI.approved" }
+  ];
+
+  approvalCols.forEach((col) => {
+    const cell = worksheet.getCell(currentRow, col.col);
+    cell.value = `${getTranslation(col.label, lang)}`;
+    cell.font = { size: 14 };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+  worksheet.getRow(currentRow).height = 24;
+  currentRow++;
+
+  // Row 4: Blank Signature cells
+  // Blank Signature cells
+  approvalCols.forEach((col) => {
+    worksheet.mergeCells(currentRow, col.col, currentRow + 3, col.col);
+    const cell = worksheet.getCell(currentRow, col.col);
+    cell.value = "";
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+    // Date Row
+    worksheet.mergeCells(currentRow + 4, col.col, currentRow + 4, col.col);
+    const dateCell = worksheet.getCell(currentRow + 4, col.col);
+    dateCell.value = formatDateKorean(new Date());
+    dateCell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+    dateCell.font = { size: 14 };
+    dateCell.alignment = { horizontal: "center", vertical: "middle" };
+    worksheet.getRow(currentRow + 4).height = 24;
+  });
+  currentRow += 6;
+
+  // ===== TABLE HEADERS =====
+  const headers = [
+    "순번", // Sequence
+    "이름", // Name
+    "소속", // Department
+    "총 작업시간", // Total Work Hours
+    "초과 근무시간", // Overtime
+    "생산량", // Production Volume
+    "불량 발생건 수", // Defect Count
+    "작업 지연률", // Work Delay Rate
+    "비고" // Remarks
+  ];
+
+  headers.forEach((header, idx) => {
+    const cell = worksheet.getCell(currentRow, idx + 1);
+    cell.value = header;
+    cell.font = { bold: true, size: 11, color: { argb: "FFFFFF" } };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: ExcelFormatService.COLORS.HEADER_BG }
+    };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
+    };
+  });
+
+  worksheet.getRow(currentRow).height = 25;
+  currentRow++;
+
+  // ===== DATA ROWS =====
+  summaryData.forEach((worker, index) => {
+    const row = [
+      worker.sequence,
+      worker.workerName,
+      worker.department,
+      formatHoursMinutes(worker.totalWorkHours),
+      formatHoursMinutes(worker.overtimeHours),
+      worker.productionVolume,
+      worker.defectCount,
+      `${worker.workDelayRate.toFixed(0)}%`,
+      worker.remarks || ""
+    ];
+
+    row.forEach((val, idx) => {
+      const cell = worksheet.getCell(currentRow, idx + 1);
+      cell.value = val;
+      cell.alignment = {
+        horizontal:
+          idx === 0 || idx === 4 || idx === 5 || idx === 6 || idx === 7
+            ? "center"
+            : "left",
+        vertical: "middle"
+      };
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" }
+      };
+
+      // Alternating row colors
+      if (index % 2 === 1) {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: ExcelFormatService.COLORS.LIGHT_GRAY }
+        };
+      }
+    });
+
+    worksheet.getRow(currentRow).height = 20;
+    currentRow++;
+  });
+
+  // Column widths
+  worksheet.getColumn(1).width = 8; // 순번
+  worksheet.getColumn(2).width = 15; // 이름
+  worksheet.getColumn(3).width = 15; // 소속
+  worksheet.getColumn(4).width = 18; // 총 작업시간
+  worksheet.getColumn(5).width = 18; // 초과 근무시간
+  worksheet.getColumn(6).width = 12; // 생산량
+  worksheet.getColumn(7).width = 15; // 불량 발생건 수
+  worksheet.getColumn(8).width = 15; // 작업 지연률
+  worksheet.getColumn(9).width = 15; // 비고
+
+  console.log(
+    `✓ Worker Performance Summary Sheet generated with ${summaryData.length} workers`
+  );
 }

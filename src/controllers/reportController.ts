@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import { Report } from "../models/Report";
-import { User } from "../models/User";
 import { APIResponse, AuthenticatedRequest } from "../types";
 import * as ReportGenerationService from "../services/reportGenerationService";
 
@@ -25,24 +24,10 @@ export const generateReport = async (
 
     // For WORKER_PERFORMANCE_KPI, title is auto-generated
     let reportTitle = title;
-    let workerId: string | null = null;
 
     if (type === "WORKER_PERFORMANCE_KPI") {
-      // Validate workerId is provided
-      const { workerId: paramWorkerId, startDate, endDate } = parameters || {};
-      if (!paramWorkerId) {
-        const response: APIResponse = {
-          success: false,
-          error: "VALIDATION_ERROR",
-          message:
-            "workerId is required in parameters for WORKER_PERFORMANCE_KPI report"
-        };
-        res.status(400).json(response);
-        return;
-      }
-      workerId = paramWorkerId;
-
       // Validate date range
+      const { startDate, endDate } = parameters || {};
       if (!startDate || !endDate) {
         const response: APIResponse = {
           success: false,
@@ -53,26 +38,13 @@ export const generateReport = async (
         return;
       }
 
-      // Get worker info for title generation
-      const worker = await User.findById(workerId);
-      if (!worker) {
-        const response: APIResponse = {
-          success: false,
-          error: "VALIDATION_ERROR",
-          message: "Worker not found"
-        };
-        res.status(404).json(response);
-        return;
-      }
-
-      // Auto-generate title: WORKER_PERFORMANCE_KPI-20250101-20250131-John_Doe.xlsx
+      // Auto-generate title: WORKER_PERFORMANCE_KPI-20250101-20250131.xlsx
       const formatDate = (date: string) => {
         return new Date(date).toISOString().split("T")[0].replace(/-/g, "");
       };
-      const workerName = worker.name.replace(/\s+/g, "_");
       const timePeriod = `${formatDate(startDate)}-${formatDate(endDate)}`;
       const fileExtension = format === "EXCEL" ? "xlsx" : format.toLowerCase();
-      reportTitle = `WORKER_PERFORMANCE_KPI-${timePeriod}-${workerName}.${fileExtension}`;
+      reportTitle = `WORKER_PERFORMANCE_KPI-${timePeriod}.${fileExtension}`;
     } else {
       // For other report types, title is required
       if (!title || !type || !format) {
@@ -197,24 +169,23 @@ export const generateReport = async (
           );
         break;
       case "WORKER_PERFORMANCE_KPI":
-        if (!workerId) {
-          const response: APIResponse = {
-            success: false,
-            error: "VALIDATION_ERROR",
-            message: "workerId is required for WORKER_PERFORMANCE_KPI report"
-          };
-          res.status(400).json(response);
-          return;
-        }
         result =
           await ReportGenerationService.generateWorkerPerformanceKPIReport(
             start,
             end,
             userId ? userId.toString() : "",
-            workerId,
             reportIdStr,
             lang
           );
+        break;
+      case "SUMMARY_REPORT":
+        result = await ReportGenerationService.generateSummaryReport(
+          start,
+          end,
+          userId ? userId.toString() : "",
+          reportIdStr,
+          lang
+        );
         break;
       default:
         const response: APIResponse = {
