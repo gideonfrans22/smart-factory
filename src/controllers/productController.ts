@@ -190,6 +190,19 @@ export const createProduct = async (
       return;
     }
 
+    // Validate design number format: 00000-00-000 (5 chars - 2 digits - 3 digits)
+    // 설계번호 형식 검증: 대문자+숫자 5자리 - 숫자 2자리 - 숫자 3자리
+    const DESIGN_NUMBER_REGEX = /^[A-Z0-9]{5}-[0-9]{2}-[0-9]{3}$/;
+    if (!DESIGN_NUMBER_REGEX.test(designNumber)) {
+      const response: APIResponse = {
+        success: false,
+        error: "INVALID_FORMAT",
+        message: "설계번호 형식이 올바르지 않습니다. 00000-00-000 형식으로 입력해주세요 (예: LKH25-09-001)"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     // Check if design number already exists
     const existingProduct = await Product.findOne({ designNumber });
     if (existingProduct) {
@@ -264,6 +277,19 @@ export const updateProduct = async (
         message: "Product not found"
       };
       res.status(404).json(response);
+      return;
+    }
+
+    // Validate design number format if being updated
+    // 설계번호 형식 검증: 대문자+숫자 5자리 - 숫자 2자리 - 숫자 3자리
+    const DESIGN_NUMBER_REGEX = /^[A-Z0-9]{5}-[0-9]{2}-[0-9]{3}$/;
+    if (designNumber && !DESIGN_NUMBER_REGEX.test(designNumber)) {
+      const response: APIResponse = {
+        success: false,
+        error: "INVALID_FORMAT",
+        message: "설계번호 형식이 올바르지 않습니다. 00000-00-000 형식으로 입력해주세요 (예: LKH25-09-001)"
+      };
+      res.status(400).json(response);
       return;
     }
 
@@ -415,6 +441,18 @@ export const duplicateProduct = async (
         success: false,
         error: "VALIDATION_ERROR",
         message: "New design number is required for duplication"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Validate design number format: 00000-00-000 (5 chars - 2 digits - 3 digits)
+    const DESIGN_NUMBER_REGEX_DUP = /^[A-Z0-9]{5}-[0-9]{2}-[0-9]{3}$/;
+    if (!DESIGN_NUMBER_REGEX_DUP.test(newDesignNumber)) {
+      const response: APIResponse = {
+        success: false,
+        error: "INVALID_FORMAT",
+        message: "설계번호 형식이 올바르지 않습니다. 00000-00-000 형식으로 입력해주세요 (예: LKH25-09-001)"
       };
       res.status(400).json(response);
       return;
