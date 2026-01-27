@@ -352,20 +352,43 @@ export const getMonitorOverview = async (
     const weeklyWorkMinutes = weeklyWorkTimeResult[0]?.totalMinutes || 0;
     const monthlyWorkMinutes = monthlyWorkTimeResult[0]?.totalMinutes || 0;
     
-    // Calculate available minutes
-    const dailyAvailableMinutes = totalDevices * WORK_HOURS_PER_DAY * MINUTES_PER_HOUR; // 1 hari
-    const weeklyAvailableMinutes = totalDevices * WORK_HOURS_PER_DAY * MINUTES_PER_HOUR * dayOfWeek; // hari dalam minggu ini
-    const monthlyAvailableMinutes = totalDevices * WORK_HOURS_PER_DAY * MINUTES_PER_HOUR * dayOfMonth; // hari dalam bulan ini
+    // Calculate working days in current month (excluding weekends)
+    const getWorkingDaysInMonth = (year: number, month: number): number => {
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      let workingDays = 0;
+      
+      for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
+        const dayOfWeek = d.getDay();
+        // 0 = Sunday, 6 = Saturday
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          workingDays++;
+        }
+      }
+      return workingDays;
+    };
+    
+    const workingDaysInMonth = getWorkingDaysInMonth(nowKST.getUTCFullYear(), nowKST.getUTCMonth());
+    
+    // Calculate available minutes (per device basis)
+    // 일간: 8시간 × 1일
+    const dailyAvailableMinutes = WORK_HOURS_PER_DAY * MINUTES_PER_HOUR; // 8 jam = 480 menit
+    // 주간: 8시간 × 5일 (senin~jumat = 5 hari kerja)
+    const WORK_DAYS_PER_WEEK = 5;
+    const weeklyAvailableMinutes = WORK_HOURS_PER_DAY * MINUTES_PER_HOUR * WORK_DAYS_PER_WEEK; // 40 jam = 2400 menit
+    // 월간: 8시간 × hari kerja dalam bulan (excluding weekend, setiap bulan beda)
+    const monthlyAvailableMinutes = WORK_HOURS_PER_DAY * MINUTES_PER_HOUR * workingDaysInMonth;
     
     // Calculate utilization percentages (actual work time / available time)
-    const dailyUtilization = dailyAvailableMinutes > 0 
-      ? Math.min(100, Math.round((dailyWorkMinutes / dailyAvailableMinutes) * 100)) 
+    // Note: Divide by totalDevices to get average per-device utilization
+    const dailyUtilization = (dailyAvailableMinutes > 0 && totalDevices > 0)
+      ? Math.min(100, Math.round((dailyWorkMinutes / totalDevices / dailyAvailableMinutes) * 100)) 
       : 0;
-    const weeklyUtilization = weeklyAvailableMinutes > 0 
-      ? Math.min(100, Math.round((weeklyWorkMinutes / weeklyAvailableMinutes) * 100)) 
+    const weeklyUtilization = (weeklyAvailableMinutes > 0 && totalDevices > 0)
+      ? Math.min(100, Math.round((weeklyWorkMinutes / totalDevices / weeklyAvailableMinutes) * 100)) 
       : 0;
-    const monthlyUtilization = monthlyAvailableMinutes > 0 
-      ? Math.min(100, Math.round((monthlyWorkMinutes / monthlyAvailableMinutes) * 100)) 
+    const monthlyUtilization = (monthlyAvailableMinutes > 0 && totalDevices > 0)
+      ? Math.min(100, Math.round((monthlyWorkMinutes / totalDevices / monthlyAvailableMinutes) * 100)) 
       : 0;
 
     // === Worker metrics (작업자 role만) ===
