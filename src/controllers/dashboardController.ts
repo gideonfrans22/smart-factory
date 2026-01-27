@@ -86,6 +86,11 @@ export const getMonitorOverview = async (
       maintenanceDevices,
       errorDevices,
 
+      // Equipment Utilization - Actual Work Time (분)
+      dailyWorkTimeResult,   // 일간 총 작업시간 (분)
+      weeklyWorkTimeResult,  // 주간 총 작업시간 (분)
+      monthlyWorkTimeResult, // 월간 총 작업시간 (분)
+
       // Workers - only role="worker" (사용자 마스터에서 "작업자"로 분류된 수만)
       totalWorkers,
       activeWorkers,
@@ -179,6 +184,56 @@ export const getMonitorOverview = async (
       Device.countDocuments({ status: "OFFLINE" }),
       Device.countDocuments({ status: "MAINTENANCE" }),
       Device.countDocuments({ status: "ERROR" }),
+
+      // === Equipment Utilization - Actual Work Time (from completed tasks) ===
+      // 일간: 오늘 완료된 작업의 actualDuration 합계 (분)
+      Task.aggregate([
+        {
+          $match: {
+            status: "COMPLETED",
+            deviceId: { $exists: true, $ne: null },
+            completedAt: { $gte: todayStart }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalMinutes: { $sum: { $ifNull: ["$actualDuration", 0] } }
+          }
+        }
+      ]),
+      // 주간: 이번 주 완료된 작업의 actualDuration 합계 (분)
+      Task.aggregate([
+        {
+          $match: {
+            status: "COMPLETED",
+            deviceId: { $exists: true, $ne: null },
+            completedAt: { $gte: weekStart }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalMinutes: { $sum: { $ifNull: ["$actualDuration", 0] } }
+          }
+        }
+      ]),
+      // 월간: 이번 달 완료된 작업의 actualDuration 합계 (분)
+      Task.aggregate([
+        {
+          $match: {
+            status: "COMPLETED",
+            deviceId: { $exists: true, $ne: null },
+            completedAt: { $gte: monthStart }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalMinutes: { $sum: { $ifNull: ["$actualDuration", 0] } }
+          }
+        }
+      ]),
 
       // === Workers - role="worker"인 사용자만 ===
       User.countDocuments({ role: "worker", deletedAt: null }),
@@ -281,9 +336,37 @@ export const getMonitorOverview = async (
     const weeklyPercentage = Math.min(100, Math.round((weeklyCompletedTasks / weeklyTotal) * 100));
     const monthlyPercentage = Math.min(100, Math.round((monthlyCompletedTasks / monthlyTotal) * 100));
 
-    // === Equipment utilization ===
+    // === Equipment utilization (real-time) ===
     const equipmentUtilizationPercentage =
       totalDevices > 0 ? Math.round((onlineDevices / totalDevices) * 100) : 0;
+
+    // === Equipment utilization - Actual Work Time Based ===
+    // Formula: (Total jam mesin bekerja) / (Total jam tersedia) × 100%
+    // Total jam tersedia = jumlah mesin × jam kerja per hari × jumlah hari
+    // Asumsi: 8 jam kerja per hari per mesin
+    const WORK_HOURS_PER_DAY = 8;
+    const MINUTES_PER_HOUR = 60;
+    
+    // Extract work time from aggregation results (default to 0 if no data)
+    const dailyWorkMinutes = dailyWorkTimeResult[0]?.totalMinutes || 0;
+    const weeklyWorkMinutes = weeklyWorkTimeResult[0]?.totalMinutes || 0;
+    const monthlyWorkMinutes = monthlyWorkTimeResult[0]?.totalMinutes || 0;
+    
+    // Calculate available minutes
+    const dailyAvailableMinutes = totalDevices * WORK_HOURS_PER_DAY * MINUTES_PER_HOUR; // 1 hari
+    const weeklyAvailableMinutes = totalDevices * WORK_HOURS_PER_DAY * MINUTES_PER_HOUR * dayOfWeek; // hari dalam minggu ini
+    const monthlyAvailableMinutes = totalDevices * WORK_HOURS_PER_DAY * MINUTES_PER_HOUR * dayOfMonth; // hari dalam bulan ini
+    
+    // Calculate utilization percentages (actual work time / available time)
+    const dailyUtilization = dailyAvailableMinutes > 0 
+      ? Math.min(100, Math.round((dailyWorkMinutes / dailyAvailableMinutes) * 100)) 
+      : 0;
+    const weeklyUtilization = weeklyAvailableMinutes > 0 
+      ? Math.min(100, Math.round((weeklyWorkMinutes / weeklyAvailableMinutes) * 100)) 
+      : 0;
+    const monthlyUtilization = monthlyAvailableMinutes > 0 
+      ? Math.min(100, Math.round((monthlyWorkMinutes / monthlyAvailableMinutes) * 100)) 
+      : 0;
 
     // === Worker metrics (작업자 role만) ===
     const workerPercentage = totalWorkers > 0 ? Math.round((activeWorkers / totalWorkers) * 100) : 0;
@@ -382,9 +465,20 @@ export const getMonitorOverview = async (
         deviceErrorFrequency: topDeviceErrors,
         // === 에러 유형 Top 5 (항상 5가지 표시, 0건이어도) ===
         errorTypeFrequency: topErrorTypesList,
-        // === 장비 가동률 (real-time) ===
+        // === 장비 가동률 ===
+        // 계산 기준: (총 작업시간) / (가용시간) × 100%
+        // 가용시간 = 설비 수 × 8시간/일 × 일수
         equipmentUtilization: {
-          percentage: equipmentUtilizationPercentage,
+          percentage: equipmentUtilizationPercentage, // Legacy: real-time percentage (online/total)
+          // Work-time based utilization
+          daily: dailyUtilization,                    // 일간: 오늘 완료 작업시간 / 가용시간
+          weekly: weeklyUtilization,                  // 주간: 이번주 완료 작업시간 / 가용시간
+          monthly: monthlyUtilization,                // 월간: 이번달 완료 작업시간 / 가용시간
+          // Raw work time (minutes) for debugging
+          dailyWorkMinutes: dailyWorkMinutes,
+          weeklyWorkMinutes: weeklyWorkMinutes,
+          monthlyWorkMinutes: monthlyWorkMinutes,
+          // Device counts
           online: onlineDevices,
           offline: offlineDevices,
           maintenance: maintenanceDevices,
