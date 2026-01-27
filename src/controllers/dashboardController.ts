@@ -94,6 +94,7 @@ export const getMonitorOverview = async (
       // Workers - only role="worker" (사용자 마스터에서 "작업자"로 분류된 수만)
       totalWorkers,
       activeWorkers,
+      pausedWorkers,
 
       // Alert Summary
       newAlerts24h,        // 24시간 내 생성된 알림
@@ -239,6 +240,11 @@ export const getMonitorOverview = async (
       User.countDocuments({ role: "worker", deletedAt: null }),
       // 현재 접속중인 작업자 (Redis-based online tracking)
       userOnlineService.getOnlineCountByRole().then(counts => counts.worker),
+      // 일시정지 상태인 작업자 수 (unique workerId from PAUSED tasks)
+      Task.distinct("workerId", {
+        status: { $in: ["PAUSED", "PAUSED_EMERGENCY"] },
+        workerId: { $exists: true, $ne: null }
+      }).then(ids => ids.length),
 
       // === Alert Summary ===
       // 1. 신규 알림 24시간: 24시간 내 생성된 알림
@@ -393,7 +399,7 @@ export const getMonitorOverview = async (
 
     // === Worker metrics (작업자 role만) ===
     const workerPercentage = totalWorkers > 0 ? Math.round((activeWorkers / totalWorkers) * 100) : 0;
-    const idleWorkers = totalWorkers - activeWorkers;
+    const idleWorkers = Math.max(0, totalWorkers - activeWorkers - pausedWorkers);
 
     // === Alert summary ===
     const avgResponseTimeMinutes = 12; // TODO: Calculate from actual alert response times
@@ -514,6 +520,7 @@ export const getMonitorOverview = async (
           total: totalWorkers,          // 사용자 마스터의 "작업자" 분류 인원
           percentage: workerPercentage,
           active: activeWorkers,
+          paused: pausedWorkers,        // 일시정지 중인 작업자 수
           idle: idleWorkers
         },
         // === 알림 요약 ===
