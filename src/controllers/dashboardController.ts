@@ -190,9 +190,10 @@ export const getMonitorOverview = async (
         createdAt: { $gte: last24Hours },
         status: { $in: ["UNREAD", "PENDING"] }
       }),
+      // 해결된 알림: 24시간 내 생성된 알림 중 해결된 것 (동일 기준)
       Alert.countDocuments({ 
-        status: "RESOLVED", 
-        resolvedAt: { $gte: last24Hours } 
+        createdAt: { $gte: last24Hours },
+        status: "RESOLVED"
       }),
       Alert.countDocuments({ 
         level: { $in: ["HIGH", "CRITICAL"] }, 
@@ -282,8 +283,10 @@ export const getMonitorOverview = async (
 
     // === Alert summary - 24h 기준 ===
     const avgResponseTimeMinutes = 12; // TODO: Calculate from actual alert response times
+    // Resolution rate: 해결된 알림 / 전체 알림 (24시간 내 생성된 것만)
+    // Cap at 100% to prevent display issues
     const resolutionRate = totalAlerts24h > 0 
-      ? Math.round((resolvedAlerts24h / totalAlerts24h) * 100) 
+      ? Math.min(100, Math.round((resolvedAlerts24h / totalAlerts24h) * 100))
       : 100;
 
     // === Top 5 devices with alerts (for 설비 현황 page) ===
