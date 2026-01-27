@@ -90,11 +90,12 @@ export const getMonitorOverview = async (
       totalWorkers,
       activeWorkers,
 
-      // Alert Summary (24h filtered) - 활성알림: 24시간 내 신고, 해결/읽음 시 카운트다운
-      activeAlerts24h,
-      resolvedAlerts24h,
-      highPriorityAlerts24h,
-      totalAlerts24h,
+      // Alert Summary
+      newAlerts24h,        // 24시간 내 생성된 알림
+      overdueAlerts,       // 24시간 이전 생성, 미해결
+      resolvedToday,       // 오늘 해결된 알림
+      pendingAlerts,       // 전체 미해결 알림
+      highPriorityAlerts,  // 긴급 미해결 알림
       
       // Top 5 Devices with Most Alerts (for 설비 현황 page - 3페이지)
       topDevicesWithAlerts,
@@ -184,23 +185,30 @@ export const getMonitorOverview = async (
       // 현재 접속중인 작업자 (Redis-based online tracking)
       userOnlineService.getOnlineCountByRole().then(counts => counts.worker),
 
-      // === Alert Summary - 24h 기준 ===
-      // 활성 알림: 24시간 내 신고된 알림 중 해결/읽음 안 된 것
+      // === Alert Summary ===
+      // 1. 신규 알림 24시간: 24시간 내 생성된 알림
       Alert.countDocuments({ 
-        createdAt: { $gte: last24Hours },
+        createdAt: { $gte: last24Hours }
+      }),
+      // 2. 오래된 미해결 알림: 24시간 이전에 생성되었는데 아직 미해결
+      Alert.countDocuments({ 
+        createdAt: { $lt: last24Hours },
         status: { $in: ["UNREAD", "PENDING"] }
       }),
-      // 해결된 알림: 24시간 내 생성된 알림 중 해결된 것 (동일 기준)
+      // 3. 오늘 해결된 알림: resolvedAt이 오늘인 알림 (생성일 무관)
       Alert.countDocuments({ 
-        createdAt: { $gte: last24Hours },
-        status: "RESOLVED"
+        status: "RESOLVED",
+        resolvedAt: { $gte: todayStart }
       }),
+      // 4. 전체 미해결 알림: 현재 pending인 모든 알림 (시간 무관)
+      Alert.countDocuments({ 
+        status: { $in: ["UNREAD", "PENDING"] }
+      }),
+      // 5. 긴급 알림: HIGH/CRITICAL 미해결
       Alert.countDocuments({ 
         level: { $in: ["HIGH", "CRITICAL"] }, 
-        status: { $nin: ["RESOLVED", "READ"] }, 
-        createdAt: { $gte: last24Hours } 
+        status: { $nin: ["RESOLVED", "READ"] }
       }),
-      Alert.countDocuments({ createdAt: { $gte: last24Hours } }),
 
       // === Top 5 Devices with Most Alerts in Last 24 Hours ===
       Alert.aggregate([
@@ -281,12 +289,13 @@ export const getMonitorOverview = async (
     const workerPercentage = totalWorkers > 0 ? Math.round((activeWorkers / totalWorkers) * 100) : 0;
     const idleWorkers = totalWorkers - activeWorkers;
 
-    // === Alert summary - 24h 기준 ===
+    // === Alert summary ===
     const avgResponseTimeMinutes = 12; // TODO: Calculate from actual alert response times
-    // Resolution rate: 해결된 알림 / 전체 알림 (24시간 내 생성된 것만)
-    // Cap at 100% to prevent display issues
-    const resolutionRate = totalAlerts24h > 0 
-      ? Math.min(100, Math.round((resolvedAlerts24h / totalAlerts24h) * 100))
+    // Resolution rate: 오늘 해결된 알림 / (오늘 해결 + 미해결) × 100
+    // 오늘 얼마나 처리했는지 보여주는 지표
+    const totalWorkableAlerts = resolvedToday + pendingAlerts;
+    const resolutionRate = totalWorkableAlerts > 0 
+      ? Math.min(100, Math.round((resolvedToday / totalWorkableAlerts) * 100))
       : 100;
 
     // === Top 5 devices with alerts (for 설비 현황 page) ===
@@ -390,14 +399,19 @@ export const getMonitorOverview = async (
           active: activeWorkers,
           idle: idleWorkers
         },
-        // === 알림 요약 (24시간 기준) ===
+        // === 알림 요약 ===
         alerts: {
-          total: activeAlerts24h,           // 활성 알림 (24h 내 신고, 미해결)
-          highPriority: highPriorityAlerts24h,
-          resolved: resolvedAlerts24h,
-          averageResponseTime: avgResponseTimeMinutes,
+          newAlerts24h: newAlerts24h,       // 24시간 내 신규 알림
+          overdueAlerts: overdueAlerts,     // 24시간 이전 생성, 미해결 (백로그)
+          resolvedToday: resolvedToday,     // 오늘 해결된 알림
+          pending: pendingAlerts,           // 전체 미해결 알림
+          highPriority: highPriorityAlerts, // 긴급 미해결 알림
+          resolutionRate: resolutionRate,   // 해결률 (오늘 해결 / 전체 workable)
           avgResponseTime: avgResponseTimeMinutes,
-          resolutionRate: resolutionRate
+          // Legacy fields for backward compatibility
+          total: pendingAlerts,
+          resolved: resolvedToday,
+          averageResponseTime: avgResponseTimeMinutes
         },
         // === Context info ===
         periodInfo: {
