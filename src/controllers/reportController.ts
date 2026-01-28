@@ -95,24 +95,6 @@ export const generateReport = async (
 
     let result;
     switch (type) {
-      case "TASK_COMPLETION":
-        result = await ReportGenerationService.generateTaskReport(
-          start,
-          end,
-          userId ? userId.toString() : "",
-          reportIdStr,
-          lang
-        );
-        break;
-      case "WORKER_PERFORMANCE":
-        result = await ReportGenerationService.generateWorkerPerformanceReport(
-          start,
-          end,
-          userId ? userId.toString() : "",
-          reportIdStr,
-          lang
-        );
-        break;
       case "PRODUCTION_RATE":
         // Extract period parameter (optional: "daily" | "weekly" | "monthly")
         const period = parameters?.period;
