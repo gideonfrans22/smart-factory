@@ -4,6 +4,7 @@ import { Device } from "../models/Device";
 import { Task } from "../models/Task";
 import * as ExcelFormatService from "./excelFormatService";
 import { formatDateKorean } from "./excelFormatService";
+import loggerService from "./loggerService";
 
 /**
  * Equipment Performance Report Data Aggregation Service
@@ -530,7 +531,7 @@ export async function generateEquipmentPerformanceKPISheet(
   period?: "daily" | "weekly" | "monthly",
   lang?: string
 ): Promise<void> {
-  console.log("Generating Equipment Performance Report Sheet...");
+  loggerService.info("Generating Equipment Performance Report Sheet...");
 
   // Adjust date range based on period
   const adjustedDateRange = adjustDateRangeForPeriod(
@@ -923,5 +924,5 @@ export async function generateEquipmentPerformanceKPISheet(
   worksheet.getColumn(6).width = 16; // Error Count
   worksheet.getColumn(7).width = 16; // Production Quantity
 
-  console.log("✓ Equipment Performance Report Sheet generated successfully");
+  loggerService.info("✓ Equipment Performance Report Sheet generated successfully");
 }

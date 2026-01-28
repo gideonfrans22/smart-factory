@@ -7,6 +7,7 @@ import * as ProductionReportService from "./productionReportService";
 import * as SummaryReportService from "./summaryReportService";
 import * as TaskReportService from "./taskReportService";
 import * as WorkerReportService from "./workerReportService";
+import { loggerService } from "./loggerService";
 
 /**
  * Main Report Generation Service
@@ -57,7 +58,7 @@ export async function generateTaskReport(
   const startTime = Date.now();
 
   try {
-    console.log(
+    loggerService.info(
       `[TaskReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}`
     );
 
@@ -112,7 +113,7 @@ export async function generateTaskReport(
     const filePath = await saveWorkbook(workbook, fileName);
 
     const generationTime = Date.now() - startTime;
-    console.log(
+    loggerService.info(
       `[TaskReport] Generation complete in ${generationTime}ms. File: ${filePath}`
     );
 
@@ -175,7 +176,7 @@ export async function generateWorkerPerformanceReport(
   const startTime = Date.now();
 
   try {
-    console.log(
+    loggerService.info(
       `[WorkerReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}`
     );
 
@@ -242,7 +243,7 @@ export async function generateWorkerPerformanceReport(
     const filePath = await saveWorkbook(workbook, fileName);
 
     const generationTime = Date.now() - startTime;
-    console.log(
+    loggerService.info(
       `[WorkerReport] Generation complete in ${generationTime}ms. File: ${filePath}`
     );
 
@@ -305,7 +306,7 @@ export async function generateWorkerPerformanceKPIReport(
   const startTime = Date.now();
 
   try {
-    console.log(
+    loggerService.info(
       `[WorkerKPIReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}`
     );
 
@@ -340,7 +341,7 @@ export async function generateWorkerPerformanceKPIReport(
     const filePath = await saveWorkbook(workbook, fileName);
 
     const generationTime = Date.now() - startTime;
-    console.log(
+    loggerService.info(
       `[WorkerKPIReport] Generation complete in ${generationTime}ms. File: ${filePath}`
     );
 
@@ -402,12 +403,10 @@ export async function generateProductionRateReport(
   period?: "daily" | "weekly" | "monthly"
 ): Promise<ReportGenerationResult> {
   const startTime = Date.now();
-  console.log(lang);
 
   try {
-    console.log(
-      `[ProductionReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}${
-        period ? ` (${period})` : ""
+    loggerService.info(
+      `[ProductionReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}${period ? ` (${period})` : ""
       }`
     );
 
@@ -437,14 +436,14 @@ export async function generateProductionRateReport(
     // Save workbook to file
     const periodSuffix = period ? `_${period.toUpperCase()}` : "";
     const fileName = generateReportFileName(
-      `ProductionRateReport${periodSuffix}`,
+      `생산율 리포트 ${periodSuffix}`,
       startDate,
       endDate
     );
     const filePath = await saveWorkbook(workbook, fileName);
 
     const generationTime = Date.now() - startTime;
-    console.log(
+    loggerService.info(
       `[ProductionReport] Generation complete in ${generationTime}ms. File: ${filePath}`
     );
 
@@ -508,12 +507,10 @@ export async function generateEquipmentPerformanceReport(
   period?: "daily" | "weekly" | "monthly"
 ): Promise<ReportGenerationResult> {
   const startTime = Date.now();
-  console.log(lang);
 
   try {
-    console.log(
-      `[EquipmentReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}${
-        period ? ` (${period})` : ""
+    loggerService.info(
+      `[EquipmentReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}${period ? ` (${period})` : ""
       }`
     );
 
@@ -550,7 +547,7 @@ export async function generateEquipmentPerformanceReport(
     const filePath = await saveWorkbook(workbook, fileName);
 
     const generationTime = Date.now() - startTime;
-    console.log(
+    loggerService.info(
       `[EquipmentReport] Generation complete in ${generationTime}ms. File: ${filePath}`
     );
 
@@ -615,7 +612,7 @@ export async function generateSummaryReport(
   const startTime = Date.now();
 
   try {
-    console.log(
+    loggerService.info(
       `[SummaryReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}`
     );
 
@@ -649,7 +646,7 @@ export async function generateSummaryReport(
     const filePath = await saveWorkbook(workbook, fileName);
 
     const generationTime = Date.now() - startTime;
-    console.log(
+    loggerService.info(
       `[SummaryReport] Generation complete in ${generationTime}ms. File: ${filePath}`
     );
 
@@ -733,7 +730,7 @@ async function saveWorkbook(
 
   if (!fs.existsSync(reportsDir)) {
     fs.mkdirSync(reportsDir, { recursive: true });
-    console.log(`[ReportGeneration] Created reports directory: ${reportsDir}`);
+    loggerService.info(`[ReportGeneration] Created reports directory: ${reportsDir}`);
   }
 
   // Generate full file path
@@ -742,7 +739,7 @@ async function saveWorkbook(
   // Write workbook to file
   await workbook.xlsx.writeFile(filePath);
 
-  console.log(`[ReportGeneration] Saved workbook to: ${filePath}`);
+  loggerService.info(`[ReportGeneration] Saved workbook to: ${filePath}`);
 
   return filePath;
 }
@@ -795,7 +792,7 @@ export async function cleanupExpiredReports(daysOld: number = 7): Promise<{
     const expirationDate = new Date();
     expirationDate.setDate(expirationDate.getDate() - daysOld);
 
-    console.log(
+    loggerService.info(
       `[ReportCleanup] Cleaning up reports older than ${expirationDate.toISOString()}`
     );
 
@@ -812,7 +809,7 @@ export async function cleanupExpiredReports(daysOld: number = 7): Promise<{
         try {
           fs.unlinkSync(report.filePath);
           filesDeleted++;
-          console.log(`[ReportCleanup] Deleted file: ${report.filePath}`);
+          loggerService.info(`[ReportCleanup] Deleted file: ${report.filePath}`);
         } catch (error) {
           console.error(
             `[ReportCleanup] Failed to delete file: ${report.filePath}`,
@@ -829,7 +826,7 @@ export async function cleanupExpiredReports(daysOld: number = 7): Promise<{
 
     const recordsDeleted = deleteResult.deletedCount || 0;
 
-    console.log(
+    loggerService.info(
       `[ReportCleanup] Cleanup complete. Files deleted: ${filesDeleted}, Records deleted: ${recordsDeleted}`
     );
 

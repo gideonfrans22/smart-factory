@@ -8,6 +8,7 @@ import { APIResponse, AuthenticatedRequest } from "../types";
 import { Device, IRecipeSnapshot, ProductSnapshot } from "../models";
 import { realtimeService } from "../services/realtimeService";
 import { roundToTwoDecimals } from "../utils/helpers";
+import loggerService from "../services/loggerService";
 
 export const getTasks = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -819,13 +820,12 @@ export const deleteTask = async (
 
     const response: APIResponse = {
       success: true,
-      message: `Task deleted successfully${
-        deletedDependentTasks.length > 0
-          ? `. ${deletedDependentTasks.length} dependent task(s) also deleted.`
-          : dependentTasks.length > 0
+      message: `Task deleted successfully${deletedDependentTasks.length > 0
+        ? `. ${deletedDependentTasks.length} dependent task(s) also deleted.`
+        : dependentTasks.length > 0
           ? `. ${dependentTasks.length} dependent task(s) dependency removed.`
           : ""
-      }`,
+        }`,
       data: {
         deletedTask: {
           _id: taskData._id,
@@ -836,11 +836,11 @@ export const deleteTask = async (
         deletedDependentTasksCount: deletedDependentTasks.length,
         project: updatedProject
           ? {
-              _id: updatedProject._id,
-              progress: updatedProject.progress,
-              producedQuantity: updatedProject.producedQuantity,
-              status: updatedProject.status
-            }
+            _id: updatedProject._id,
+            progress: updatedProject.progress,
+            producedQuantity: updatedProject.producedQuantity,
+            status: updatedProject.status
+          }
           : null
       }
     };
@@ -1026,7 +1026,7 @@ export const resumeTask = async (
         // Calculate paused duration
         const pauseDuration = Math.floor(
           (lastPause.resumedAt.getTime() - lastPause.pausedAt.getTime()) /
-            (1000 * 60)
+          (1000 * 60)
         );
         task.pausedDuration = (task.pausedDuration || 0) + pauseDuration;
       }
@@ -1260,18 +1260,17 @@ export const failTask = async (
 
     const response: APIResponse = {
       success: true,
-      message: `Task marked as failed. ${
-        failedTaskIds.length - 1
-      } dependent task(s) also marked as failed.`,
+      message: `Task marked as failed. ${failedTaskIds.length - 1
+        } dependent task(s) also marked as failed.`,
       data: {
         failedTask: task,
         totalFailedTasks: failedTaskIds.length,
         project: project
           ? {
-              _id: project._id,
-              status: project.status,
-              progress: project.progress
-            }
+            _id: project._id,
+            status: project.status,
+            progress: project.progress
+          }
           : null
       }
     };
@@ -1411,7 +1410,7 @@ export const completeTask = async (
           totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
         );
 
-        console.log(`📊 Project Progress Updated:`, {
+        loggerService.info(`📊 Project Progress Updated:`, {
           projectId: project._id,
           projectName: project.name,
           completedTasks,
@@ -1527,8 +1526,8 @@ export const completeTask = async (
       message: nextTask
         ? `Task completed. Next step ready for execution ${task.recipeExecutionNumber}.`
         : task.isLastStepInRecipe
-        ? `Recipe execution ${task.recipeExecutionNumber}/${task.totalRecipeExecutions} completed!`
-        : "Task completed",
+          ? `Recipe execution ${task.recipeExecutionNumber}/${task.totalRecipeExecutions} completed!`
+          : "Task completed",
       data: responseData
     };
 
@@ -1869,10 +1868,10 @@ export const getTaskStatistics = async (
     const executionCompletionRate =
       executionStats.totalExecutions > 0
         ? (
-            (executionStats.completedExecutions /
-              executionStats.totalExecutions) *
-            100
-          ).toFixed(2)
+          (executionStats.completedExecutions /
+            executionStats.totalExecutions) *
+          100
+        ).toFixed(2)
         : "0";
 
     const response: APIResponse = {
@@ -2716,7 +2715,7 @@ export const batchUpdateTasks = async (
     if (startedAt && completedAt) {
       updateFields.actualDuration = Math.floor(
         (new Date(completedAt).getTime() - new Date(startedAt).getTime()) /
-          60000
+        60000
       );
     }
 

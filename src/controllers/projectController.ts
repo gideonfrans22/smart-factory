@@ -11,6 +11,7 @@ import {
 } from "../services/taskService";
 import { realtimeService } from "../services/realtimeService";
 import { ProductSnapshot, RecipeSnapshot, Task } from "../models";
+import loggerService from "../services/loggerService";
 
 /**
  * Get all projects with optional filtering and pagination
@@ -444,7 +445,7 @@ export const updateProject = async (
     if (isDeactivating) {
       // Delete all tasks
       const deletedCount = await deleteProjectTasks(project._id as any);
-      console.log(`Deleted ${deletedCount} tasks for project ${project._id}`);
+      loggerService.info(`Deleted ${deletedCount} tasks for project ${project._id}`);
 
       // Clear snapshots
       project.productSnapshot = undefined;
@@ -708,8 +709,8 @@ export const updateProject = async (
       message: isActivating
         ? `Project activated successfully. ${createdTasks.length} initial task(s) created.`
         : isDeactivating
-        ? "Project deactivated successfully. All tasks deleted."
-        : "Project updated successfully",
+          ? "Project deactivated successfully. All tasks deleted."
+          : "Project updated successfully",
       data: {
         project,
         ...(isActivating && { tasksCreated: createdTasks.length }),
@@ -818,11 +819,11 @@ export const getActiveProjectMonitorData = async (
       // Products have multiple recipes, standalone recipes have one
       const recipes = project.productSnapshot
         ? // For products: extract recipe snapshot IDs from the product's recipes array
-          (project.productSnapshot as any).recipes.map((r: any) =>
-            r.recipeSnapshotId._id.toString()
-          )
+        (project.productSnapshot as any).recipes.map((r: any) =>
+          r.recipeSnapshotId._id.toString()
+        )
         : // For standalone recipes: just the single recipe snapshot ID
-          [project.recipeSnapshot?._id.toString()];
+        [project.recipeSnapshot?._id.toString()];
 
       // Get all tasks that belong to this specific project
       const projectTaskList = tasks.filter(
@@ -835,11 +836,11 @@ export const getActiveProjectMonitorData = async (
         // Get recipe information (name, etc.) for display
         const recipeInfo = project.productSnapshot
           ? // For products: find this recipe in the product's recipe list
-            (project.productSnapshot as any).recipes.find(
-              (r: any) => r.recipeSnapshotId._id.toString() === recipe
-            ).recipeSnapshotId
+          (project.productSnapshot as any).recipes.find(
+            (r: any) => r.recipeSnapshotId._id.toString() === recipe
+          ).recipeSnapshotId
           : // For standalone recipes: use the recipe snapshot directly
-            project.recipeSnapshot;
+          project.recipeSnapshot;
 
         // Get all tasks that belong to this specific recipe
         const tasksForThisRecipe = projectTaskList.filter(

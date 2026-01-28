@@ -3,6 +3,7 @@ import * as jwt from "jsonwebtoken";
 import { User } from "../models/User";
 import { AuthenticatedRequest } from "../types";
 import { JWTPayload, APIResponse } from "../types";
+import loggerService from "../services/loggerService";
 
 export const authenticateToken = async (
   req: AuthenticatedRequest,
@@ -65,7 +66,7 @@ export const requireRole = (roles: string[]) => {
     next: NextFunction
   ): void => {
     // TEMPORARY BYPASS: Skip all role checks
-    console.log(
+    loggerService.info(
       `⚠️  WARNING: Role check for [${roles.join(
         ", "
       )}] is temporarily disabled`

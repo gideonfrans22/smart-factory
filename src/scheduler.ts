@@ -13,18 +13,18 @@ dotenv.config();
 
 const startScheduler = async (): Promise<void> => {
   try {
-    console.log("🕐 Starting Report Scheduler Worker...");
-    console.log(`👷 Process ID: ${process.pid}`);
+    loggerService.info("🕐 Starting Report Scheduler Worker...");
+    loggerService.info(`👷 Process ID: ${process.pid}`);
 
     // Connect to MongoDB
     await connectDB();
-    console.log("✅ Database connected");
+    loggerService.info("✅ Database connected");
 
     // Initialize scheduler
     initializeScheduler();
 
-    console.log("✅ Scheduler worker started successfully");
-    console.log("⏰ Waiting for scheduled jobs...");
+    loggerService.info("✅ Scheduler worker started successfully");
+    loggerService.info("⏰ Waiting for scheduled jobs...");
   } catch (error) {
     console.error("❌ Failed to start scheduler worker:", error);
     process.exit(1);
