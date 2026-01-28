@@ -3065,7 +3065,7 @@ export async function aggregateProductStatusData(
     projectId: { $in: projectIds },
     status: "COMPLETED"
   })
-    .populate("workerId")
+    .populate({ path: "workerId", options: { includeDeleted: true } })
     .populate("recipeSnapshotId")
     .lean();
 
