@@ -92,27 +92,22 @@ export const generateReport = async (
     const start = new Date(startDate);
     const end = new Date(endDate);
     const reportIdStr = String(report._id);
+    const period = parameters?.period;
+
+    // Validate period parameter
+    if (period && period !== "daily" && period !== "weekly" && period !== "monthly") {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Period parameter must be 'daily', 'weekly', 'monthly', or omitted"
+      };
+      res.status(400).json(response);
+      return;
+    }
 
     let result;
     switch (type) {
       case "PRODUCTION_RATE":
-        // Extract period parameter (optional: "daily" | "weekly" | "monthly")
-        const period = parameters?.period;
-        if (
-          period &&
-          period !== "daily" &&
-          period !== "weekly" &&
-          period !== "monthly"
-        ) {
-          const response: APIResponse = {
-            success: false,
-            error: "VALIDATION_ERROR",
-            message:
-              "Period parameter must be 'daily', 'weekly', 'monthly', or omitted"
-          };
-          res.status(400).json(response);
-          return;
-        }
         result = await ReportGenerationService.generateProductionRateReport(
           start,
           end,
@@ -123,23 +118,6 @@ export const generateReport = async (
         );
         break;
       case "EQUIPMENT_PERFORMANCE":
-        // Extract period parameter (optional: "daily" | "weekly" | "monthly")
-        const equipmentPeriod = parameters?.period;
-        if (
-          equipmentPeriod &&
-          equipmentPeriod !== "daily" &&
-          equipmentPeriod !== "weekly" &&
-          equipmentPeriod !== "monthly"
-        ) {
-          const response: APIResponse = {
-            success: false,
-            error: "VALIDATION_ERROR",
-            message:
-              "Period parameter must be 'daily', 'weekly', 'monthly', or omitted"
-          };
-          res.status(400).json(response);
-          return;
-        }
         result =
           await ReportGenerationService.generateEquipmentPerformanceReport(
             start,
@@ -147,7 +125,7 @@ export const generateReport = async (
             userId ? userId.toString() : "",
             reportIdStr,
             lang,
-            equipmentPeriod as "daily" | "weekly" | "monthly" | undefined
+            period as "daily" | "weekly" | "monthly" | undefined
           );
         break;
       case "WORKER_PERFORMANCE_KPI":
@@ -157,7 +135,8 @@ export const generateReport = async (
             end,
             userId ? userId.toString() : "",
             reportIdStr,
-            lang
+            lang,
+            period as "daily" | "weekly" | "monthly" | undefined
           );
         break;
       case "SUMMARY_REPORT":
@@ -166,7 +145,8 @@ export const generateReport = async (
           end,
           userId ? userId.toString() : "",
           reportIdStr,
-          lang
+          lang,
+          period as "daily" | "weekly" | "monthly" | undefined
         );
         break;
       default:
