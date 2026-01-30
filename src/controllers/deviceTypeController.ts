@@ -14,6 +14,7 @@ export const getAllDeviceTypes = async (
   try {
     const deviceTypes = await DeviceType.find()
       .populate("devices")
+      .setOptions({ includeDeleted: false })
       .sort({ name: 1 });
 
     const response: APIResponse = {
