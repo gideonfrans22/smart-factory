@@ -22,52 +22,27 @@ export const generateReport = async (
 
     const userId = req.user?._id || null;
 
-    // For WORKER_PERFORMANCE_KPI, title is auto-generated
-    let reportTitle = title;
-
-    if (type === "WORKER_PERFORMANCE_KPI") {
-      // Validate date range
-      const { startDate, endDate } = parameters || {};
-      if (!startDate || !endDate) {
-        const response: APIResponse = {
-          success: false,
-          error: "VALIDATION_ERROR",
-          message: "Start date and end date are required in parameters"
-        };
-        res.status(400).json(response);
-        return;
-      }
-
-      // Auto-generate title: WORKER_PERFORMANCE_KPI-20250101-20250131.xlsx
-      const formatDate = (date: string) => {
-        return new Date(date).toISOString().split("T")[0].replace(/-/g, "");
+    // Validate required fields
+    if (!title || !type || !format) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Title, type, and format are required"
       };
-      const timePeriod = `${formatDate(startDate)}-${formatDate(endDate)}`;
-      const fileExtension = format === "EXCEL" ? "xlsx" : format.toLowerCase();
-      reportTitle = `WORKER_PERFORMANCE_KPI-${timePeriod}.${fileExtension}`;
-    } else {
-      // For other report types, title is required
-      if (!title || !type || !format) {
-        const response: APIResponse = {
-          success: false,
-          error: "VALIDATION_ERROR",
-          message: "Title, type, and format are required"
-        };
-        res.status(400).json(response);
-        return;
-      }
+      res.status(400).json(response);
+      return;
+    }
 
-      // Validate date range
-      const { startDate, endDate } = parameters || {};
-      if (!startDate || !endDate) {
-        const response: APIResponse = {
-          success: false,
-          error: "VALIDATION_ERROR",
-          message: "Start date and end date are required in parameters"
-        };
-        res.status(400).json(response);
-        return;
-      }
+    // Validate date range
+    const { startDate, endDate } = parameters || {};
+    if (!startDate || !endDate) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Start date and end date are required in parameters"
+      };
+      res.status(400).json(response);
+      return;
     }
 
     // Set expiration to 7 days from now
@@ -75,7 +50,7 @@ export const generateReport = async (
     expiresAt.setDate(expiresAt.getDate() + 7);
 
     const report = new Report({
-      title: reportTitle,
+      title,
       type,
       format,
       status: "PENDING",
@@ -88,7 +63,6 @@ export const generateReport = async (
     await report.populate("generatedBy", "name username");
 
     // Trigger async report generation
-    const { startDate, endDate } = parameters || {};
     const start = new Date(startDate);
     const end = new Date(endDate);
     const reportIdStr = String(report._id);
