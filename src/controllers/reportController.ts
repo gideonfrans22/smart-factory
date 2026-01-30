@@ -172,11 +172,14 @@ export const getReports = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { type, status, page = 1, limit = 10 } = req.query;
+    const { type, status, page = 1, limit = 10, search, startDate, endDate } = req.query;
 
     const query: any = {};
     if (type) query.type = type;
     if (status) query.status = status;
+    if (search) query.title = { $regex: search, $options: "i" };
+    if (startDate) query.createdAt = { $gte: new Date(startDate as string) };
+    if (endDate) query.createdAt = { $lte: new Date(endDate as string) };
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
