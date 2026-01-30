@@ -13,6 +13,69 @@ import * as WorkerReportService from "./workerReportService";
  * Orchestrates the generation of all report types
  */
 
+// Translations
+const TRANSLATIONS = {
+  workerPerformanceSummary: {
+    en: "Worker Performance Summary",
+    ko: "작업자 성과 KPI 리포트"
+  },
+  productionRate: {
+    en: "Production Rate",
+    ko: "생산율 리포트"
+  },
+  equipmentPerformance: {
+    en: "Equipment Performance",
+    ko: "장비 성능 리포트"
+  },
+  summary: {
+    en: "Summary",
+    ko: "요약 보고서"
+  },
+  periods: {
+    daily: {
+      en: "Daily",
+      ko: "일간"
+    },
+    weekly: {
+      en: "Weekly",
+      ko: "주간"
+    },
+    monthly: {
+      en: "Monthly",
+      ko: "월간"
+    }
+  }
+};
+
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Get translation value from TRANSLATIONS object
+ * @param path Dot notation path to translation (e.g., "titles.workerPerformanceRankings")
+ * @param lang Language code ("en" or "ko"), defaults to "en"
+ * @returns Translated string value
+ */
+function getTranslation(path: string, lang: string = "en"): string {
+  const keys = path.split(".");
+  let value: any = TRANSLATIONS;
+
+  for (const key of keys) {
+    if (value && typeof value === "object" && key in value) {
+      value = value[key];
+    } else {
+      console.warn(`Translation not found for path: ${path}`);
+      return path;
+    }
+  }
+
+  if (typeof value === "object" && value !== null && lang in value) {
+    return value[lang];
+  }
+
+  console.warn(`Language "${lang}" not found for path: ${path}`);
+  return path;
+}
+
 // ==================== INTERFACES ====================
 
 export interface ReportGenerationOptions {
@@ -52,7 +115,8 @@ export async function generateWorkerPerformanceKPIReport(
   endDate: Date,
   _userId: string,
   reportId?: string,
-  lang?: string
+  lang: "en" | "ko" = "ko",
+  period?: "daily" | "weekly" | "monthly"
 ): Promise<ReportGenerationResult> {
   const startTime = Date.now();
 
@@ -85,7 +149,10 @@ export async function generateWorkerPerformanceKPIReport(
 
     // Save workbook to file
     const fileName = generateReportFileName(
-      "WorkerPerformanceKPI",
+      `${getTranslation("workerPerformanceSummary", lang)}_${getTranslation(
+        `periods.${period}`,
+        lang
+      )}`,
       startDate,
       endDate
     );
@@ -150,7 +217,7 @@ export async function generateProductionRateReport(
   endDate: Date,
   _userId: string,
   reportId?: string,
-  lang?: string,
+  lang: "en" | "ko" = "ko",
   period?: "daily" | "weekly" | "monthly"
 ): Promise<ReportGenerationResult> {
   const startTime = Date.now();
@@ -185,9 +252,11 @@ export async function generateProductionRateReport(
     const totalRecords = kpiSheet ? kpiSheet.rowCount - 10 : 0;
 
     // Save workbook to file
-    const periodSuffix = period ? `_${period.toUpperCase()}` : "";
     const fileName = generateReportFileName(
-      `생산율 리포트 ${periodSuffix}`,
+      `${getTranslation("productionRate", lang)}_${getTranslation(
+        `periods.${period}`,
+        lang
+      )}`,
       startDate,
       endDate
     );
@@ -254,7 +323,7 @@ export async function generateEquipmentPerformanceReport(
   endDate: Date,
   _userId: string,
   reportId?: string,
-  lang?: string,
+  lang: "en" | "ko" = "ko",
   period?: "daily" | "weekly" | "monthly"
 ): Promise<ReportGenerationResult> {
   const startTime = Date.now();
@@ -289,9 +358,11 @@ export async function generateEquipmentPerformanceReport(
     const totalRecords = kpiSheet ? kpiSheet.rowCount - 10 : 0;
 
     // Save workbook to file
-    const periodSuffix = period ? `_${period.toUpperCase()}` : "";
     const fileName = generateReportFileName(
-      `EquipmentPerformanceReport${periodSuffix}`,
+      `${getTranslation("equipmentPerformance", lang)}_${getTranslation(
+        `periods.${period}`,
+        lang
+      )}`,
       startDate,
       endDate
     );
@@ -358,7 +429,8 @@ export async function generateSummaryReport(
   endDate: Date,
   _userId: string,
   reportId?: string,
-  lang?: string
+  lang: "en" | "ko" = "ko",
+  period?: "daily" | "weekly" | "monthly"
 ): Promise<ReportGenerationResult> {
   const startTime = Date.now();
 
@@ -390,7 +462,7 @@ export async function generateSummaryReport(
 
     // Save workbook to file
     const fileName = generateReportFileName(
-      "SummaryReport",
+      `${getTranslation("summary", lang)}_${getTranslation(`periods.${period}`, lang)}`,
       startDate,
       endDate
     );
@@ -461,11 +533,10 @@ function generateReportFileName(
     return date.toISOString().split("T")[0]; // YYYY-MM-DD
   };
 
-  const timestamp = Date.now();
   const start = formatDate(startDate);
   const end = formatDate(endDate);
 
-  return `${reportType}_${start}_${end}_${timestamp}.xlsx`;
+  return `${reportType}_${start}_${end}.xlsx`;
 }
 
 /**
@@ -481,7 +552,9 @@ async function saveWorkbook(
 
   if (!fs.existsSync(reportsDir)) {
     fs.mkdirSync(reportsDir, { recursive: true });
-    loggerService.info(`[ReportGeneration] Created reports directory: ${reportsDir}`);
+    loggerService.info(
+      `[ReportGeneration] Created reports directory: ${reportsDir}`
+    );
   }
 
   // Generate full file path
@@ -560,7 +633,9 @@ export async function cleanupExpiredReports(daysOld: number = 7): Promise<{
         try {
           fs.unlinkSync(report.filePath);
           filesDeleted++;
-          loggerService.info(`[ReportCleanup] Deleted file: ${report.filePath}`);
+          loggerService.info(
+            `[ReportCleanup] Deleted file: ${report.filePath}`
+          );
         } catch (error) {
           console.error(
             `[ReportCleanup] Failed to delete file: ${report.filePath}`,
