@@ -19,6 +19,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
       projectId,
       recipeId,
       productId,
+      priority,
       workerId,
       search,
       includePendingAndPartial, // ⭐ NEW: Support partial completion queries
@@ -47,6 +48,7 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     if (recipeId) query.recipeId = recipeId;
     if (productId) query.productId = productId;
     if (workerId) query.workerId = workerId;
+    if (priority) query.priority = priority;
 
     // Text search support for recipe/product names
     let recipeIds: any[] = [];
