@@ -69,11 +69,17 @@ export const generateReport = async (
     const period = parameters?.period;
 
     // Validate period parameter
-    if (period && period !== "daily" && period !== "weekly" && period !== "monthly") {
+    if (
+      period &&
+      period !== "daily" &&
+      period !== "weekly" &&
+      period !== "monthly"
+    ) {
       const response: APIResponse = {
         success: false,
         error: "VALIDATION_ERROR",
-        message: "Period parameter must be 'daily', 'weekly', 'monthly', or omitted"
+        message:
+          "Period parameter must be 'daily', 'weekly', 'monthly', or omitted"
       };
       res.status(400).json(response);
       return;
@@ -172,7 +178,15 @@ export const getReports = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { type, status, page = 1, limit = 10, search, startDate, endDate } = req.query;
+    const {
+      type,
+      status,
+      page = 1,
+      limit = 10,
+      search,
+      startDate,
+      endDate
+    } = req.query;
 
     const query: any = {};
     if (type) query.type = type;
@@ -311,9 +325,13 @@ export const downloadReport = async (
     }
 
     const fileName = path.basename(report.filePath);
-    res.setHeader("Content-Type", "application/octet-stream");
-    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    const encodedFileName = encodeURIComponent(fileName);
 
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${encodedFileName}"; filename*=UTF-8''${encodedFileName}`
+    );
     const fileStream = fs.createReadStream(report.filePath);
     fileStream.pipe(res);
   } catch (error) {
