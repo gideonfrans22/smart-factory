@@ -2006,9 +2006,27 @@ export const getGroupedTasks = async (
 
     // Date range filter
     if (startDate || endDate) {
-      taskQuery.createdAt = {};
-      if (startDate) taskQuery.createdAt.$gte = new Date(startDate as string);
-      if (endDate) taskQuery.createdAt.$lte = new Date(endDate as string);
+      taskQuery.$and = [];
+      if (startDate) {
+        taskQuery.$and.push({
+          $or: [
+            { createdAt: { $gte: new Date(startDate as string) } },
+            { startedAt: { $gte: new Date(startDate as string) } },
+            { completedAt: { $gte: new Date(startDate as string) } },
+            { completedAt: { $exists: false } }
+          ]
+        });
+      }
+      if (endDate) {
+        taskQuery.$and.push({
+          $or: [
+            { createdAt: { $lte: new Date(endDate as string) } },
+            { startedAt: { $lte: new Date(endDate as string) } },
+            { completedAt: { $lte: new Date(endDate as string) } },
+            { completedAt: { $exists: false } }
+          ]
+        });
+      }
     }
 
     // Text search support for project/recipe/product names
