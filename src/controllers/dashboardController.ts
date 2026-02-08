@@ -3,7 +3,6 @@ import { Task } from "../models/Task";
 import { Alert } from "../models/Alert";
 import { Device } from "../models/Device";
 import { User } from "../models/User";
-import { Project } from "../models/Project";
 import { APIResponse } from "../types";
 import * as userOnlineService from "../services/userOnlineService";
 
@@ -12,7 +11,7 @@ import * as userOnlineService from "../services/userOnlineService";
  * Get aggregated metrics for Monitor TV display
  * 
  * 수정 기준:
- * - 전체 작업 진행률: ACTIVE 프로젝트의 작업만 (실시간)
+ * - 전체 작업 진행률: 금일 완료 + 미완료(ONGOING/PENDING/PAUSED) 기준
  * - 납품일 기준 현황: 납기 임박(6시간 이내) + 납기 지연(납기일 지남)
  * - 작업인원: role="worker"인 사용자만
  * - 에러유형 Top 5: 항상 5가지 유형 표시 (0건이어도)
@@ -51,17 +50,13 @@ export const getMonitorOverview = async (
     const dayOfMonth = nowKST.getUTCDate();
     const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); // Sunday = 7
 
-    // Get active project IDs for filtering tasks
-    const activeProjects = await Project.find({ status: "ACTIVE" }).select("_id");
-    const activeProjectIds = activeProjects.map(p => p._id);
-
     // Run all queries in parallel
     const [
-      // 전체 작업 진행률 (ACTIVE 프로젝트 기준, 실시간)
-      completedTasksActiveProjects,
-      ongoingTasksActiveProjects,
-      pendingTasksActiveProjects,
-      pausedTasksActiveProjects,
+      // 전체 작업 진행률 (금일 완료 + 미완료 기준)
+      completedTasksToday,
+      ongoingTasks,
+      pendingTasks,
+      pausedTasks,
       
       // 납품일 기준 현황 (납기 임박 6시간 + 납기 지연)
       deadlineImminentTasks, // 납기 6시간 이내
@@ -109,25 +104,22 @@ export const getMonitorOverview = async (
       // Error Types Counts (for 전체 현황 page - 1페이지) - 모든 유형 각각 카운트
       errorTypeCounts
     ] = await Promise.all([
-      // === 전체 작업 진행률 (ACTIVE 프로젝트의 작업만, 실시간) ===
-      // 완료 작업 수
+      // === 전체 작업 진행률 (금일 완료 + 현재 미완료 작업) ===
+      // 오늘 완료된 작업 수 (completedAt >= todayStart)
       Task.countDocuments({
-        projectId: { $in: activeProjectIds },
-        status: "COMPLETED"
+        status: "COMPLETED",
+        completedAt: { $gte: todayStart }
       }),
-      // 진행 작업 수
+      // 현재 진행 중인 모든 작업
       Task.countDocuments({
-        projectId: { $in: activeProjectIds },
         status: "ONGOING"
       }),
-      // 대기 작업 수
+      // 현재 대기 중인 모든 작업
       Task.countDocuments({
-        projectId: { $in: activeProjectIds },
         status: "PENDING"
       }),
-      // 일시정지 작업 수
+      // 현재 일시정지된 모든 작업
       Task.countDocuments({
-        projectId: { $in: activeProjectIds },
         status: { $in: ["PAUSED", "PAUSED_EMERGENCY"] }
       }),
 
@@ -325,11 +317,11 @@ export const getMonitorOverview = async (
       ])
     ]);
 
-    // === 전체 작업 진행률 계산 (ACTIVE 프로젝트 기준) ===
-    // 전체작업수 = 완료 + 진행 + 대기 + 일시정지
-    const totalTasksActiveProjects = completedTasksActiveProjects + ongoingTasksActiveProjects + pendingTasksActiveProjects + pausedTasksActiveProjects;
-    const taskProgressPercentage = totalTasksActiveProjects > 0 
-      ? Math.round((completedTasksActiveProjects / totalTasksActiveProjects) * 100) 
+    // === 전체 작업 진행률 계산 (금일 완료 + 미완료 기준) ===
+    // 전체작업수 = 금일완료 + 진행 + 대기 + 일시정지
+    const totalTaskProgress = completedTasksToday + ongoingTasks + pendingTasks + pausedTasks;
+    const taskProgressPercentage = totalTaskProgress > 0 
+      ? Math.round((completedTasksToday / totalTaskProgress) * 100) 
       : 0;
 
     // === 생산성 계산 ===
@@ -458,14 +450,14 @@ export const getMonitorOverview = async (
       success: true,
       message: "Monitor overview data retrieved successfully",
       data: {
-        // === 전체 작업 진행률 (ACTIVE 프로젝트 기준) ===
+        // === 전체 작업 진행률 (금일 완료 + 미완료 기준) ===
         taskProgress: {
           percentage: taskProgressPercentage,
-          completed: completedTasksActiveProjects,
-          ongoing: ongoingTasksActiveProjects,
-          pending: pendingTasksActiveProjects,
-          paused: pausedTasksActiveProjects,
-          total: totalTasksActiveProjects
+          completed: completedTasksToday,
+          ongoing: ongoingTasks,
+          pending: pendingTasks,
+          paused: pausedTasks,
+          total: totalTaskProgress
         },
         // === 납품일 기준 현황 (납기준수율 삭제) ===
         deadlineStatus: {
