@@ -1596,28 +1596,15 @@ export const getTaskStatistics = async (
     if (deviceTypeId) baseQuery.deviceTypeId = deviceTypeId;
     if (workerId) baseQuery.workerId = workerId;
 
-    // Date range filter
+    // Date range filter - createdAt 기준으로 통일
+    // 모니터링 화면과 동일하게 task 생성일 기준으로 필터링
     if (startDate || endDate) {
-      baseQuery.$and = [];
+      baseQuery.createdAt = {};
       if (startDate) {
-        baseQuery.$and.push({
-          $or: [
-            { createdAt: { $gte: new Date(startDate as string) } },
-            { startedAt: { $gte: new Date(startDate as string) } },
-            { completedAt: { $gte: new Date(startDate as string) } },
-            { completedAt: { $exists: false } }
-          ]
-        });
+        baseQuery.createdAt.$gte = new Date(startDate as string);
       }
       if (endDate) {
-        baseQuery.$and.push({
-          $or: [
-            { createdAt: { $lte: new Date(endDate as string) } },
-            { startedAt: { $lte: new Date(endDate as string) } },
-            { completedAt: { $lte: new Date(endDate as string) } },
-            { completedAt: { $exists: false } }
-          ]
-        });
+        baseQuery.createdAt.$lte = new Date(endDate as string);
       }
     }
 
