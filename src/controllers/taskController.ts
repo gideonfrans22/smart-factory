@@ -604,6 +604,16 @@ export const updateTask = async (
       return;
     }
 
+    if (task.status === "ONGOING") {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "작업이 이미 진행 중입니다, 업데이트 불가!"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     if (status === "ONGOING" && !workerId && !task.workerId) {
       const response: APIResponse = {
         success: false,
@@ -2694,6 +2704,21 @@ export const batchUpdateTasks = async (
         success: false,
         error: "VALIDATION_ERROR",
         message: "updates must be an object"
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    // Check if any selected tasks status is ONGOING
+    const OngoingTasks = await Task.find({
+      _id: { $in: taskIds },
+      status: "ONGOING"
+    });
+    if (OngoingTasks.length > 0) {
+      const response: APIResponse = {
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "일부 선택된 작업이 현재 진행 중입니다, 업데이트 불가!"
       };
       res.status(400).json(response);
       return;
