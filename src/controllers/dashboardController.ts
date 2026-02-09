@@ -104,21 +104,21 @@ export const getMonitorOverview = async (
       // Error Types Counts (for 전체 현황 page - 1페이지) - 모든 유형 각각 카운트
       errorTypeCounts
     ] = await Promise.all([
-      // === 전체 작업 진행률 (금일 완료 + 현재 미완료 작업) ===
-      // 오늘 완료된 작업 수 (completedAt >= todayStart)
+      // === 전체 작업 진행률 (하이브리드 기준) ===
+      // 오늘 완료된 작업 수 (completedAt 기준 - 어제 생성되어 오늘 완료된 것도 포함)
       Task.countDocuments({
         status: "COMPLETED",
         completedAt: { $gte: todayStart }
       }),
-      // 현재 진행 중인 모든 작업
+      // 현재 진행 중인 모든 작업 (날짜 무관 - 어제 시작해서 아직 진행 중인 것 포함)
       Task.countDocuments({
         status: "ONGOING"
       }),
-      // 현재 대기 중인 모든 작업
+      // 대기 중인 모든 작업 (날짜 무관 - 아직 시작 안 된 모든 작업)
       Task.countDocuments({
         status: "PENDING"
       }),
-      // 현재 일시정지된 모든 작업
+      // 현재 일시정지된 모든 작업 (날짜 무관)
       Task.countDocuments({
         status: { $in: ["PAUSED", "PAUSED_EMERGENCY"] }
       }),
@@ -230,8 +230,23 @@ export const getMonitorOverview = async (
 
       // === Workers - role="worker"인 사용자만 ===
       User.countDocuments({ role: "worker", deletedAt: null }),
-      // 현재 접속중인 작업자 (Redis-based online tracking)
-      userOnlineService.getOnlineCountByRole().then(counts => counts.worker),
+      // 활동 작업자 수 (WebSocket 접속 OR ONGOING 작업 보유 - union)
+      (async () => {
+        // 1. WebSocket/Redis 접속 중인 worker userId 목록
+        const onlineWorkers = await userOnlineService.getOnlineUsersByRole("worker");
+        const onlineWorkerIds = new Set(onlineWorkers.map(w => w.userId));
+        
+        // 2. ONGOING 작업의 고유 workerId 목록
+        const ongoingWorkerIds: string[] = await Task.distinct("workerId", {
+          status: "ONGOING",
+          workerId: { $exists: true, $ne: null }
+        });
+        
+        // 3. Union: 둘 중 하나라도 해당되면 활동 작업자
+        ongoingWorkerIds.forEach(id => onlineWorkerIds.add(id.toString()));
+        
+        return onlineWorkerIds.size;
+      })(),
       // 일시정지 상태인 작업자 수 (unique workerId from PAUSED tasks)
       Task.distinct("workerId", {
         status: { $in: ["PAUSED", "PAUSED_EMERGENCY"] },
@@ -317,8 +332,8 @@ export const getMonitorOverview = async (
       ])
     ]);
 
-    // === 전체 작업 진행률 계산 (금일 완료 + 미완료 기준) ===
-    // 전체작업수 = 금일완료 + 진행 + 대기 + 일시정지
+    // === 전체 작업 진행률 계산 (하이브리드 기준) ===
+    // 완료 = 오늘 completedAt 기준, ONGOING/PENDING/PAUSED = 현재 진행/대기/정지 중(날짜 무관)
     const totalTaskProgress = completedTasksToday + ongoingTasks + pendingTasks + pausedTasks;
     const taskProgressPercentage = totalTaskProgress > 0 
       ? Math.round((completedTasksToday / totalTaskProgress) * 100) 
@@ -450,7 +465,7 @@ export const getMonitorOverview = async (
       success: true,
       message: "Monitor overview data retrieved successfully",
       data: {
-        // === 전체 작업 진행률 (금일 완료 + 미완료 기준) ===
+        // === 전체 작업 진행률 (하이브리드: 완료=completedAt, 진행/정지=전체, 대기=createdAt) ===
         taskProgress: {
           percentage: taskProgressPercentage,
           completed: completedTasksToday,
@@ -508,7 +523,7 @@ export const getMonitorOverview = async (
         },
         // === 작업인원 (role="worker"만) ===
         workers: {
-          online: activeWorkers,        // 현재 접속중인 작업자 수 (Redis-based)
+          online: activeWorkers,        // 활동 작업자 수 (WebSocket 접속 OR ONGOING 작업 보유)
           total: totalWorkers,          // 사용자 마스터의 "작업자" 분류 인원
           percentage: workerPercentage,
           active: activeWorkers,
