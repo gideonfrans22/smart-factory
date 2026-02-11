@@ -237,10 +237,11 @@ export const getMonitorOverview = async (
         const onlineWorkerIds = new Set(onlineWorkers.map(w => w.userId));
         
         // 2. ONGOING 작업의 고유 workerId 목록
-        const ongoingWorkerIds: string[] = await Task.distinct("workerId", {
+        const ongoingWorkerIdsDocs = await Task.distinct("workerId", {
           status: "ONGOING",
           workerId: { $exists: true, $ne: null }
         });
+        const ongoingWorkerIds: string[] = ongoingWorkerIdsDocs.map((id: any) => id.toString());
         
         // 3. Union: 둘 중 하나라도 해당되면 활동 작업자
         ongoingWorkerIds.forEach(id => onlineWorkerIds.add(id.toString()));
@@ -353,56 +354,17 @@ export const getMonitorOverview = async (
     const equipmentUtilizationPercentage =
       totalDevices > 0 ? Math.round((onlineDevices / totalDevices) * 100) : 0;
 
-    // === Equipment utilization - Actual Work Time Based ===
-    // Formula: (Total jam mesin bekerja) / (Total jam tersedia) × 100%
-    // Total jam tersedia = jumlah mesin × jam kerja per hari × jumlah hari
-    // Asumsi: 8 jam kerja per hari per mesin
-    const WORK_HOURS_PER_DAY = 8;
-    const MINUTES_PER_HOUR = 60;
+    // === Equipment utilization - 가동장비수 ÷ 총장비수 (KPI Card용) ===
+    // 일간/주간/월간 모두 동일 기준: 현재 ONLINE 장비 수 / 전체 장비 수
+    // 요약 보고서의 '장비 가동률' 산출 로직과 동일하게 적용
+    const dailyUtilization = equipmentUtilizationPercentage;   // 가동장비수 / 총장비수
+    const weeklyUtilization = equipmentUtilizationPercentage;  // 가동장비수 / 총장비수
+    const monthlyUtilization = equipmentUtilizationPercentage; // 가동장비수 / 총장비수
     
-    // Extract work time from aggregation results (default to 0 if no data)
+    // Raw work time (분) - 참고용으로 유지
     const dailyWorkMinutes = dailyWorkTimeResult[0]?.totalMinutes || 0;
     const weeklyWorkMinutes = weeklyWorkTimeResult[0]?.totalMinutes || 0;
     const monthlyWorkMinutes = monthlyWorkTimeResult[0]?.totalMinutes || 0;
-    
-    // Calculate working days in current month (excluding weekends)
-    const getWorkingDaysInMonth = (year: number, month: number): number => {
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
-      let workingDays = 0;
-      
-      for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
-        const dayOfWeek = d.getDay();
-        // 0 = Sunday, 6 = Saturday
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-          workingDays++;
-        }
-      }
-      return workingDays;
-    };
-    
-    const workingDaysInMonth = getWorkingDaysInMonth(nowKST.getUTCFullYear(), nowKST.getUTCMonth());
-    
-    // Calculate available minutes (per device basis)
-    // 일간: 8시간 × 1일
-    const dailyAvailableMinutes = WORK_HOURS_PER_DAY * MINUTES_PER_HOUR; // 8 jam = 480 menit
-    // 주간: 8시간 × 5일 (senin~jumat = 5 hari kerja)
-    const WORK_DAYS_PER_WEEK = 5;
-    const weeklyAvailableMinutes = WORK_HOURS_PER_DAY * MINUTES_PER_HOUR * WORK_DAYS_PER_WEEK; // 40 jam = 2400 menit
-    // 월간: 8시간 × hari kerja dalam bulan (excluding weekend, setiap bulan beda)
-    const monthlyAvailableMinutes = WORK_HOURS_PER_DAY * MINUTES_PER_HOUR * workingDaysInMonth;
-    
-    // Calculate utilization percentages (actual work time / available time)
-    // Note: Divide by totalDevices to get average per-device utilization
-    const dailyUtilization = (dailyAvailableMinutes > 0 && totalDevices > 0)
-      ? Math.min(100, Math.round((dailyWorkMinutes / totalDevices / dailyAvailableMinutes) * 100)) 
-      : 0;
-    const weeklyUtilization = (weeklyAvailableMinutes > 0 && totalDevices > 0)
-      ? Math.min(100, Math.round((weeklyWorkMinutes / totalDevices / weeklyAvailableMinutes) * 100)) 
-      : 0;
-    const monthlyUtilization = (monthlyAvailableMinutes > 0 && totalDevices > 0)
-      ? Math.min(100, Math.round((monthlyWorkMinutes / totalDevices / monthlyAvailableMinutes) * 100)) 
-      : 0;
 
     // === Worker metrics (작업자 role만) ===
     const workerPercentage = totalWorkers > 0 ? Math.round((activeWorkers / totalWorkers) * 100) : 0;
@@ -502,15 +464,15 @@ export const getMonitorOverview = async (
         // === 에러 유형 Top 5 (항상 5가지 표시, 0건이어도) ===
         errorTypeFrequency: topErrorTypesList,
         // === 장비 가동률 ===
-        // 계산 기준: (총 작업시간) / (가용시간) × 100%
-        // 가용시간 = 설비 수 × 8시간/일 × 일수
+        // 계산 기준: 가동장비수(ONLINE) ÷ 총장비수 × 100%
+        // 일간·주간·월간 모두 동일 기준으로 산출
         equipmentUtilization: {
-          percentage: equipmentUtilizationPercentage, // Legacy: real-time percentage (online/total)
-          // Work-time based utilization
-          daily: dailyUtilization,                    // 일간: 오늘 완료 작업시간 / 가용시간
-          weekly: weeklyUtilization,                  // 주간: 이번주 완료 작업시간 / 가용시간
-          monthly: monthlyUtilization,                // 월간: 이번달 완료 작업시간 / 가용시간
-          // Raw work time (minutes) for debugging
+          percentage: equipmentUtilizationPercentage, // 가동장비수 / 총장비수
+          // 가동장비수 기반 가동률 (일간·주간·월간 동일)
+          daily: dailyUtilization,                    // 가동장비수 / 총장비수
+          weekly: weeklyUtilization,                  // 가동장비수 / 총장비수
+          monthly: monthlyUtilization,                // 가동장비수 / 총장비수
+          // Raw work time (minutes) - 참고용
           dailyWorkMinutes: dailyWorkMinutes,
           weeklyWorkMinutes: weeklyWorkMinutes,
           monthlyWorkMinutes: monthlyWorkMinutes,
