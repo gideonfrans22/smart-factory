@@ -256,15 +256,23 @@ export function adjustDateRangeForPeriod(
 
 /**
  * Calculate overall device utilization: (Actual uptime/operational hours) x 100
+ * 
+ * endDate가 미래인 경우 (예: 월간 리포트를 월 중에 생성),
+ * 현재 시각까지만 경과 시간으로 분모를 계산하여
+ * 아직 지나지 않은 시간이 분모에 포함되지 않도록 합니다.
  */
 export async function calculateEquipmentUtilization(
   dateRange: DateRangeFilter
 ): Promise<EquipmentUtilization[]> {
   const { startDate, endDate } = dateRange;
 
-  // Calculate operational hours for the date range
+  // endDate가 현재 시각보다 미래이면, 현재 시각까지만 경과 시간으로 계산
+  const now = new Date();
+  const effectiveEndDate = endDate > now ? now : endDate;
+
+  // Calculate operational hours for the date range (경과 시간만)
   const operationalHours =
-    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+    (effectiveEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
 
   // Get all devices to ensure we include devices with no tasks
   const allDevices = await Device.find()
