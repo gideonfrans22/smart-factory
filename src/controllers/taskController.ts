@@ -10,6 +10,35 @@ import { realtimeService } from "../services/realtimeService";
 import { roundToTwoDecimals } from "../utils/helpers";
 import loggerService from "../services/loggerService";
 
+/**
+ * KST 기준으로 날짜 문자열을 파싱하는 헬퍼 함수
+ * dashboardController와 동일한 timezone 기준을 사용하여 데이터 일관성 확보
+ * 
+ * "2026-01-29" → 2026-01-29 00:00:00 KST = 2026-01-28T15:00:00.000Z
+ * "2026-01-29" (end) → 2026-01-29 23:59:59.999 KST = 2026-01-29T14:59:59.999Z
+ */
+const KST_OFFSET = 9 * 60 * 60 * 1000; // 9 hours in milliseconds
+
+function parseDateAsKST(dateStr: string, isEndOfDay: boolean = false): Date {
+  // dateStr format: "YYYY-MM-DD" or full ISO string
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+  
+  if (isDateOnly) {
+    // Parse as KST date: "2026-01-29" → 2026-01-29 00:00:00 KST
+    const [year, month, day] = dateStr.split('-').map(Number);
+    if (isEndOfDay) {
+      // End of day KST: 23:59:59.999 KST
+      return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999) - KST_OFFSET);
+    } else {
+      // Start of day KST: 00:00:00.000 KST
+      return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0) - KST_OFFSET);
+    }
+  }
+  
+  // Full ISO string - parse as-is (already has timezone info)
+  return new Date(dateStr);
+}
+
 export const getTasks = async (req: Request, res: Response): Promise<void> => {
   try {
     const {
@@ -520,6 +549,20 @@ export const updateTaskStatus = async (
     if (startTime) task.startedAt = new Date(startTime);
     if (endTime) task.completedAt = new Date(endTime);
     if (progress !== undefined) task.progress = progress;
+
+    // ⭐ CRITICAL: Close any open pause entry before calculating duration
+    if (status === "COMPLETED" && task.pauseHistory && task.pauseHistory.length > 0) {
+      const lastPause = task.pauseHistory[task.pauseHistory.length - 1];
+      if (lastPause && !lastPause.resumedAt) {
+        const completedAt = task.completedAt || new Date();
+        lastPause.resumedAt = completedAt;
+        lastPause.resolvedBy = req.user?.name || "System";
+        const lastPauseDuration = Math.floor(
+          (new Date(completedAt).getTime() - new Date(lastPause.pausedAt).getTime()) / (1000 * 60)
+        );
+        task.pausedDuration = (task.pausedDuration || 0) + lastPauseDuration;
+      }
+    }
 
     // Calculate actual duration if completed (subtract paused time!)
     if (status === "COMPLETED" && task.startedAt && task.completedAt) {
@@ -1370,6 +1413,20 @@ export const completeTask = async (
     if (qualityData) task.qualityData = qualityData;
     if (actualDuration) task.actualDuration = actualDuration;
 
+    // ⭐ CRITICAL: Close any open pause entry before calculating duration
+    // If task was PAUSED when completed, the last pause period must be counted
+    if (task.pauseHistory && task.pauseHistory.length > 0) {
+      const lastPause = task.pauseHistory[task.pauseHistory.length - 1];
+      if (lastPause && !lastPause.resumedAt) {
+        lastPause.resumedAt = task.completedAt;
+        lastPause.resolvedBy = req.user?.name || "System";
+        const lastPauseDuration = Math.floor(
+          (task.completedAt.getTime() - new Date(lastPause.pausedAt).getTime()) / (1000 * 60)
+        );
+        task.pausedDuration = (task.pausedDuration || 0) + lastPauseDuration;
+      }
+    }
+
     // Calculate actual duration if not provided (subtract paused time!)
     if (!actualDuration && task.startedAt) {
       const totalDuration = Math.floor(
@@ -1597,14 +1654,14 @@ export const getTaskStatistics = async (
     if (workerId) baseQuery.workerId = workerId;
 
     // Date range filter - createdAt 기준으로 통일
-    // 모니터링 화면과 동일하게 task 생성일 기준으로 필터링
+    // dashboardController와 동일하게 KST 기준으로 날짜 파싱
     if (startDate || endDate) {
       baseQuery.createdAt = {};
       if (startDate) {
-        baseQuery.createdAt.$gte = new Date(startDate as string);
+        baseQuery.createdAt.$gte = parseDateAsKST(startDate as string, false);
       }
       if (endDate) {
-        baseQuery.createdAt.$lte = new Date(endDate as string);
+        baseQuery.createdAt.$lte = parseDateAsKST(endDate as string, true);
       }
     }
 
@@ -2001,28 +2058,15 @@ export const getGroupedTasks = async (
 
     if (taskStatus) taskQuery.status = taskStatus;
 
-    // Date range filter
+    // Date range filter - createdAt 기준으로 통일 (getTaskStatistics, dashboardController와 동일)
+    // Monitor TV는 date parameter를 보내지 않으므로 이 블록은 실행되지 않음
     if (startDate || endDate) {
-      taskQuery.$and = [];
+      taskQuery.createdAt = {};
       if (startDate) {
-        taskQuery.$and.push({
-          $or: [
-            { createdAt: { $gte: new Date(startDate as string) } },
-            { startedAt: { $gte: new Date(startDate as string) } },
-            { completedAt: { $gte: new Date(startDate as string) } },
-            { completedAt: { $exists: false } }
-          ]
-        });
+        taskQuery.createdAt.$gte = parseDateAsKST(startDate as string, false);
       }
       if (endDate) {
-        taskQuery.$and.push({
-          $or: [
-            { createdAt: { $lte: new Date(endDate as string) } },
-            { startedAt: { $lte: new Date(endDate as string) } },
-            { completedAt: { $lte: new Date(endDate as string) } },
-            { completedAt: { $exists: false } }
-          ]
-        });
+        taskQuery.createdAt.$lte = parseDateAsKST(endDate as string, true);
       }
     }
 

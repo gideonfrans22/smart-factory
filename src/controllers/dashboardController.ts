@@ -3,6 +3,7 @@ import { Task } from "../models/Task";
 import { Alert } from "../models/Alert";
 import { Device } from "../models/Device";
 import { User } from "../models/User";
+import { Project } from "../models/Project";
 import { APIResponse } from "../types";
 
 /**
@@ -48,6 +49,11 @@ export const getMonitorOverview = async (
     const daysInMonth = new Date(nowKST.getUTCFullYear(), nowKST.getUTCMonth() + 1, 0).getDate();
     const dayOfMonth = nowKST.getUTCDate();
     const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); // Sunday = 7
+
+    // 삭제된 프로젝트의 task 제외 (getTaskStatistics와 동일 기준)
+    const activeProjects = await Project.find().select("_id").lean();
+    const activeProjectIds = activeProjects.map(p => p._id);
+    const projectFilter = { projectId: { $in: activeProjectIds } };
 
     // Run all queries in parallel
     const [
@@ -106,22 +112,26 @@ export const getMonitorOverview = async (
       // === 전체 작업 진행률 (금일 작업지시 기준) ===
       // 오늘 생성되고 오늘 완료된 작업 수 (일간 생산성과 동일 기준)
       Task.countDocuments({
+        ...projectFilter,
         status: "COMPLETED",
         createdAt: { $gte: todayStart },
         completedAt: { $gte: todayStart }
       }),
       // 오늘 생성된 작업 중 진행 중인 작업
       Task.countDocuments({
+        ...projectFilter,
         status: "ONGOING",
         createdAt: { $gte: todayStart }
       }),
       // 오늘 생성된 작업 중 대기 중인 작업
       Task.countDocuments({
+        ...projectFilter,
         status: "PENDING",
         createdAt: { $gte: todayStart }
       }),
       // 오늘 생성된 작업 중 일시정지된 작업
       Task.countDocuments({
+        ...projectFilter,
         status: { $in: ["PAUSED", "PAUSED_EMERGENCY"] },
         createdAt: { $gte: todayStart }
       }),
@@ -129,11 +139,13 @@ export const getMonitorOverview = async (
       // === 납품일 기준 현황 ===
       // 납기 임박: 납기일이 현재~6시간 이내 (미완료 작업)
       Task.countDocuments({
+        ...projectFilter,
         status: { $nin: ["COMPLETED", "CANCELLED"] },
         deadline: { $exists: true, $gte: now, $lte: sixHoursFromNow }
       }),
       // 납기 지연: 납기일이 지났으나 미완료 작업
       Task.countDocuments({
+        ...projectFilter,
         status: { $nin: ["COMPLETED", "CANCELLED"] },
         deadline: { $exists: true, $lt: now }
       }),
@@ -141,36 +153,42 @@ export const getMonitorOverview = async (
       // === 생산성 일간: 오늘 (AM00:00 ~ 현재) ===
       // 완료: 오늘 생성되고 오늘 완료된 작업만 카운트
       Task.countDocuments({
+        ...projectFilter,
         status: "COMPLETED",
         createdAt: { $gte: todayStart, $lte: now },
         completedAt: { $gte: todayStart, $lte: now }
       }),
       // 목표: 오늘 생성된 작업 수
       Task.countDocuments({
+        ...projectFilter,
         createdAt: { $gte: todayStart, $lte: now }
       }),
 
       // === 생산성 주간: 월요일 ~ 현재 ===
       // 완료: 이번 주에 생성되고 이번 주에 완료된 작업만 카운트
       Task.countDocuments({
+        ...projectFilter,
         status: "COMPLETED",
         createdAt: { $gte: weekStart, $lte: now },
         completedAt: { $gte: weekStart, $lte: now }
       }),
       // 목표: 이번 주에 생성된 작업 수
       Task.countDocuments({
+        ...projectFilter,
         createdAt: { $gte: weekStart, $lte: now }
       }),
 
       // === 생산성 월간: 월초 ~ 현재 ===
       // 완료: 이번 달에 생성되고 이번 달에 완료된 작업만 카운트
       Task.countDocuments({
+        ...projectFilter,
         status: "COMPLETED",
         createdAt: { $gte: monthStart, $lte: now },
         completedAt: { $gte: monthStart, $lte: now }
       }),
       // 목표: 이번 달에 생성된 작업 수
       Task.countDocuments({
+        ...projectFilter,
         createdAt: { $gte: monthStart, $lte: now }
       }),
 
@@ -186,6 +204,7 @@ export const getMonitorOverview = async (
       Task.aggregate([
         {
           $match: {
+            ...projectFilter,
             status: "COMPLETED",
             deviceId: { $exists: true, $ne: null },
             completedAt: { $gte: todayStart }
@@ -202,6 +221,7 @@ export const getMonitorOverview = async (
       Task.aggregate([
         {
           $match: {
+            ...projectFilter,
             status: "COMPLETED",
             deviceId: { $exists: true, $ne: null },
             completedAt: { $gte: weekStart }
@@ -218,6 +238,7 @@ export const getMonitorOverview = async (
       Task.aggregate([
         {
           $match: {
+            ...projectFilter,
             status: "COMPLETED",
             deviceId: { $exists: true, $ne: null },
             completedAt: { $gte: monthStart }
@@ -236,11 +257,13 @@ export const getMonitorOverview = async (
       // 활동 작업자 수 (DB 기반: ONGOING 작업을 보유한 고유 작업자 수)
       // WebSocket 의존 제거 → 설비 종류와 무관하게 정확한 집계
       Task.distinct("workerId", {
+        ...projectFilter,
         status: "ONGOING",
         workerId: { $exists: true, $ne: null }
       }).then(ids => ids.length),
       // 일시정지 상태인 작업자 수 (unique workerId from PAUSED tasks)
       Task.distinct("workerId", {
+        ...projectFilter,
         status: { $in: ["PAUSED", "PAUSED_EMERGENCY"] },
         workerId: { $exists: true, $ne: null }
       }).then(ids => ids.length),
@@ -741,6 +764,8 @@ export const getMonitorTasks = async (
           deadline: 1,
           estimatedDuration: 1,
           actualDuration: 1,
+          pausedDuration: 1,
+          startedAt: 1,
           projectNumber: 1,
           stepOrder: 1,
           recipeExecutionNumber: 1,
