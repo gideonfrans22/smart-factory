@@ -1,9 +1,11 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import { Task } from "../models/Task";
 import { Alert } from "../models/Alert";
 import { Device } from "../models/Device";
 import { User } from "../models/User";
 import { Project } from "../models/Project";
+import { GridLayout } from "../models/GridLayout";
 import { APIResponse } from "../types";
 
 /**
@@ -54,6 +56,16 @@ export const getMonitorOverview = async (
     const activeProjects = await Project.find().select("_id").lean();
     const activeProjectIds = activeProjects.map(p => p._id);
     const projectFilter = { projectId: { $in: activeProjectIds } };
+
+    // === 배치도 기반 장비 필터링 ===
+    // isMonitorDisplay=true인 GridLayout에 배치된 장비만 기준으로 설비 상태/가동률 계산
+    const monitorLayouts = await GridLayout.find({ isMonitorDisplay: true }).select("devices.deviceId").lean();
+    const monitorDeviceIds = [...new Set(
+      monitorLayouts.flatMap(layout => layout.devices.map((d: any) => d.deviceId.toString()))
+    )].map(id => new mongoose.Types.ObjectId(id));
+    const monitorDeviceFilter = monitorDeviceIds.length > 0
+      ? { _id: { $in: monitorDeviceIds } }
+      : {}; // fallback: 배치도가 없으면 전체 장비
 
     // Run all queries in parallel
     const [
@@ -192,12 +204,12 @@ export const getMonitorOverview = async (
         createdAt: { $gte: monthStart, $lte: now }
       }),
 
-      // === Equipment Utilization (real-time) ===
-      Device.countDocuments({}),
-      Device.countDocuments({ status: "ONLINE" }),
-      Device.countDocuments({ status: "OFFLINE" }),
-      Device.countDocuments({ status: "MAINTENANCE" }),
-      Device.countDocuments({ status: "ERROR" }),
+      // === Equipment Utilization (real-time) - 배치도 기준 장비만 ===
+      Device.countDocuments(monitorDeviceFilter),
+      Device.countDocuments({ ...monitorDeviceFilter, status: "ONLINE" }),
+      Device.countDocuments({ ...monitorDeviceFilter, status: "OFFLINE" }),
+      Device.countDocuments({ ...monitorDeviceFilter, status: "MAINTENANCE" }),
+      Device.countDocuments({ ...monitorDeviceFilter, status: "ERROR" }),
 
       // === Equipment Utilization - Actual Work Time (from completed tasks) ===
       // 일간: 오늘 완료된 작업의 actualDuration 합계 (분)

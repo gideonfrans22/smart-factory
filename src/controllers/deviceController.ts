@@ -253,7 +253,8 @@ export const updateDevice = async (
     }
 
     // Track status changes with history
-    if (status && status !== device.status) {
+    const statusChanged = !!(status && status !== device.status);
+    if (statusChanged) {
       const previousStatus = device.status;
       device.status = status;
 
@@ -290,6 +291,13 @@ export const updateDevice = async (
     }
 
     await device.save();
+
+    // Broadcast device update via WebSocket when status changes
+    if (statusChanged) {
+      realtimeService.broadcastDeviceUpdate(device).catch((err) =>
+        console.error("Failed to broadcast device update:", err)
+      );
+    }
 
     const response: APIResponse = {
       success: true,
