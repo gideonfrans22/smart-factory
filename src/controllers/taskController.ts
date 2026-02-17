@@ -5,7 +5,7 @@ import { Project } from "../models/Project";
 import { Recipe } from "../models/Recipe";
 import { Product } from "../models/Product";
 import { APIResponse, AuthenticatedRequest } from "../types";
-import { Device, IRecipeSnapshot, ProductSnapshot } from "../models";
+import { Alert, Device, IRecipeSnapshot, ProductSnapshot } from "../models";
 import { realtimeService } from "../services/realtimeService";
 import { roundToTwoDecimals } from "../utils/helpers";
 import loggerService from "../services/loggerService";
@@ -1071,6 +1071,38 @@ export const resumeTask = async (
       };
       res.status(400).json(response);
       return;
+    }
+
+    // ⚠️ Block resume if device has unresolved CRITICAL/HIGH alerts
+    // 장비 결함 신고 후 관리자가 조치(ACKNOWLEDGED/RESOLVED)하지 않으면 재개 불가
+    if (task.deviceId) {
+      const unresolvedAlerts = await Alert.countDocuments({
+        device: task.deviceId,
+        level: { $in: ["CRITICAL", "HIGH"] },
+        status: { $nin: ["ACKNOWLEDGED", "RESOLVED", "READ"] }
+      });
+
+      if (unresolvedAlerts > 0) {
+        const response: APIResponse = {
+          success: false,
+          error: "UNRESOLVED_ALERT",
+          message: "미해결 알림이 있어 작업을 재개할 수 없습니다. 관리자의 확인이 필요합니다. (Unresolved alerts exist for this device. Admin must acknowledge or resolve the alert before resuming.)"
+        };
+        res.status(403).json(response);
+        return;
+      }
+
+      // Also check device status — block if MAINTENANCE or ERROR
+      const device = await Device.findById(task.deviceId);
+      if (device && ["MAINTENANCE", "ERROR"].includes(device.status)) {
+        const response: APIResponse = {
+          success: false,
+          error: "DEVICE_NOT_AVAILABLE",
+          message: `장비가 현재 ${device.status === "MAINTENANCE" ? "점검중" : "에러"} 상태입니다. 관리자의 조치 후 재개 가능합니다. (Device is currently in ${device.status} state. Admin must resolve before resuming.)`
+        };
+        res.status(403).json(response);
+        return;
+      }
     }
 
     // ⭐ CRITICAL: Only update status to ONGOING
