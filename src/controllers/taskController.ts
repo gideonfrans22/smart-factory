@@ -2536,7 +2536,7 @@ export const getDeviceTasks = async (
       Task.countDocuments(query),
       Task.find(query)
         .select(
-          "title description projectId recipeId recipeSnapshotId productSnapshotId workerId deviceId deviceTypeId status priority progress notes createdAt updatedAt startedAt completedAt dependentTask mediaFiles recipeExecutionNumber stepOrder"
+          "title description projectId recipeId recipeSnapshotId productSnapshotId workerId deviceId deviceTypeId status priority progress notes createdAt updatedAt startedAt completedAt dependentTask mediaFiles recipeExecutionNumber totalRecipeExecutions stepOrder isLastStepInRecipe pausedDuration pauseHistory"
         )
         .populate(
           "projectId",
