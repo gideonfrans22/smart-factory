@@ -11,7 +11,7 @@ import { APIResponse } from "../types";
 /**
  * GET /api/dashboard/monitor-overview
  * Get aggregated metrics for Monitor TV display
- * 
+ *
  * 수정 기준:
  * - 전체 작업 진행률: 금일 완료 + 미완료(ONGOING/PENDING/PAUSED) 기준
  * - 납품일 기준 현황: 납기 임박(6시간 이내) + 납기 지연(납기일 지남)
@@ -28,44 +28,74 @@ export const getMonitorOverview = async (
     const now = new Date();
     const KST_OFFSET = 9 * 60 * 60 * 1000; // 9 hours in milliseconds
     const nowKST = new Date(now.getTime() + KST_OFFSET);
-    
+
     // Time boundaries
     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const sixHoursFromNow = new Date(now.getTime() + 6 * 60 * 60 * 1000);
-    
+
     // 일간: 오늘 자정 (AM 00:00) ~ PM 11:59 (KST 기준)
-    const todayStartKST = new Date(Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), nowKST.getUTCDate(), 0, 0, 0) - KST_OFFSET);
+    const todayStartKST = new Date(
+      Date.UTC(
+        nowKST.getUTCFullYear(),
+        nowKST.getUTCMonth(),
+        nowKST.getUTCDate(),
+        0,
+        0,
+        0
+      ) - KST_OFFSET
+    );
     const todayStart = todayStartKST;
-    
+
     // 주간: 이번 주 월요일 ~ 현재 (KST 기준)
     const dayOfWeekNum = nowKST.getUTCDay(); // 0 = Sunday
     const mondayOffset = dayOfWeekNum === 0 ? 6 : dayOfWeekNum - 1;
-    const weekStartKST = new Date(Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), nowKST.getUTCDate() - mondayOffset, 0, 0, 0) - KST_OFFSET);
+    const weekStartKST = new Date(
+      Date.UTC(
+        nowKST.getUTCFullYear(),
+        nowKST.getUTCMonth(),
+        nowKST.getUTCDate() - mondayOffset,
+        0,
+        0,
+        0
+      ) - KST_OFFSET
+    );
     const weekStart = weekStartKST;
-    
+
     // 월간: 이번 달 1일 ~ 현재 (KST 기준)
-    const monthStartKST = new Date(Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), 1, 0, 0, 0) - KST_OFFSET);
+    const monthStartKST = new Date(
+      Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), 1, 0, 0, 0) -
+        KST_OFFSET
+    );
     const monthStart = monthStartKST;
-    
+
     // Get days in current month for context
-    const daysInMonth = new Date(nowKST.getUTCFullYear(), nowKST.getUTCMonth() + 1, 0).getDate();
+    const daysInMonth = new Date(
+      nowKST.getUTCFullYear(),
+      nowKST.getUTCMonth() + 1,
+      0
+    ).getDate();
     const dayOfMonth = nowKST.getUTCDate();
     const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); // Sunday = 7
 
     // 삭제된 프로젝트의 task 제외 (getTaskStatistics와 동일 기준)
     const activeProjects = await Project.find().select("_id").lean();
-    const activeProjectIds = activeProjects.map(p => p._id);
+    const activeProjectIds = activeProjects.map((p) => p._id);
     const projectFilter = { projectId: { $in: activeProjectIds } };
 
     // === 배치도 기반 장비 필터링 ===
     // isMonitorDisplay=true인 GridLayout에 배치된 장비만 기준으로 설비 상태/가동률 계산
-    const monitorLayouts = await GridLayout.find({ isMonitorDisplay: true }).select("devices.deviceId").lean();
-    const monitorDeviceIds = [...new Set(
-      monitorLayouts.flatMap(layout => layout.devices.map((d: any) => d.deviceId.toString()))
-    )].map(id => new mongoose.Types.ObjectId(id));
-    const monitorDeviceFilter = monitorDeviceIds.length > 0
-      ? { _id: { $in: monitorDeviceIds } }
-      : {}; // fallback: 배치도가 없으면 전체 장비
+    const monitorLayouts = await GridLayout.find({ isMonitorDisplay: true })
+      .select("devices.deviceId")
+      .lean();
+    const monitorDeviceIds = [
+      ...new Set(
+        monitorLayouts.flatMap((layout) =>
+          layout.devices.map((d: any) => d.deviceId.toString())
+        )
+      )
+    ].map((id) => new mongoose.Types.ObjectId(id));
+    const monitorDeviceFilter =
+      monitorDeviceIds.length > 0 ? { _id: { $in: monitorDeviceIds } } : {}; // fallback: 배치도가 없으면 전체 장비
 
     // Run all queries in parallel
     const [
@@ -74,19 +104,19 @@ export const getMonitorOverview = async (
       ongoingTasks,
       pendingTasks,
       pausedTasks,
-      
+
       // 납품일 기준 현황 (납기 임박 6시간 + 납기 지연)
       deadlineImminentTasks, // 납기 6시간 이내
       deadlineDelayedTasks, // 납기 지남
-      
+
       // 생산성 현황 - Daily (오늘 AM00:00 ~ 현재)
       dailyCompletedTasks,
       dailyTotalTasks,
-      
+
       // 생산성 현황 - Weekly (월요일 ~ 현재)
       weeklyCompletedTasks,
       weeklyTotalTasks,
-      
+
       // 생산성 현황 - Monthly (월초 ~ 현재)
       monthlyCompletedTasks,
       monthlyTotalTasks,
@@ -99,8 +129,8 @@ export const getMonitorOverview = async (
       errorDevices,
 
       // Equipment Utilization - Actual Work Time (분)
-      dailyWorkTimeResult,   // 일간 총 작업시간 (분)
-      weeklyWorkTimeResult,  // 주간 총 작업시간 (분)
+      dailyWorkTimeResult, // 일간 총 작업시간 (분)
+      weeklyWorkTimeResult, // 주간 총 작업시간 (분)
       monthlyWorkTimeResult, // 월간 총 작업시간 (분)
 
       // Workers - only role="worker" (사용자 마스터에서 "작업자"로 분류된 수만)
@@ -109,15 +139,15 @@ export const getMonitorOverview = async (
       pausedWorkers,
 
       // Alert Summary
-      newAlerts24h,        // 24시간 내 생성된 알림
-      overdueAlerts,       // 24시간 이전 생성, 미해결
-      resolvedToday,       // 오늘 해결된 알림
-      pendingAlerts,       // 전체 미해결 알림
-      highPriorityAlerts,  // 긴급 미해결 알림
-      
+      newAlerts24h, // 24시간 내 생성된 알림
+      overdueAlerts, // 24시간 이전 생성, 미해결
+      resolvedToday, // 오늘 해결된 알림
+      pendingAlerts, // 전체 미해결 알림
+      highPriorityAlerts, // 긴급 미해결 알림
+
       // Top 5 Devices with Most Alerts (for 설비 현황 page - 3페이지)
       topDevicesWithAlerts,
-      
+
       // Error Types Counts (for 전체 현황 page - 1페이지) - 모든 유형 각각 카운트
       errorTypeCounts
     ] = await Promise.all([
@@ -272,36 +302,36 @@ export const getMonitorOverview = async (
         ...projectFilter,
         status: "ONGOING",
         workerId: { $exists: true, $ne: null }
-      }).then(ids => ids.length),
+      }).then((ids) => ids.length),
       // 일시정지 상태인 작업자 수 (unique workerId from PAUSED tasks)
       Task.distinct("workerId", {
         ...projectFilter,
         status: { $in: ["PAUSED", "PAUSED_EMERGENCY"] },
         workerId: { $exists: true, $ne: null }
-      }).then(ids => ids.length),
+      }).then((ids) => ids.length),
 
       // === Alert Summary ===
       // 1. 신규 알림 24시간: 24시간 내 생성된 알림
-      Alert.countDocuments({ 
+      Alert.countDocuments({
         createdAt: { $gte: last24Hours }
       }),
       // 2. 오래된 미해결 알림: 24시간 이전에 생성되었는데 아직 미해결
-      Alert.countDocuments({ 
+      Alert.countDocuments({
         createdAt: { $lt: last24Hours },
         status: { $in: ["UNREAD", "PENDING"] }
       }),
       // 3. 오늘 해결된 알림: resolvedAt이 오늘인 알림 (생성일 무관)
-      Alert.countDocuments({ 
+      Alert.countDocuments({
         status: "RESOLVED",
         resolvedAt: { $gte: todayStart }
       }),
       // 4. 전체 미해결 알림: 현재 pending인 모든 알림 (시간 무관)
-      Alert.countDocuments({ 
+      Alert.countDocuments({
         status: { $in: ["UNREAD", "PENDING"] }
       }),
       // 5. 긴급 알림: HIGH/CRITICAL 미해결
-      Alert.countDocuments({ 
-        level: { $in: ["HIGH", "CRITICAL"] }, 
+      Alert.countDocuments({
+        level: { $in: ["HIGH", "CRITICAL"] },
         status: { $nin: ["RESOLVED", "READ"] }
       }),
 
@@ -342,7 +372,7 @@ export const getMonitorOverview = async (
         { $sort: { alertCount: -1 } },
         { $limit: 5 }
       ]),
-      
+
       // === Error Types - 각 유형별 카운트 (오늘 KST 기준 AM00:00~PM11:59) ===
       Alert.aggregate([
         {
@@ -361,20 +391,31 @@ export const getMonitorOverview = async (
 
     // === 전체 작업 진행률 계산 (금일 작업지시 기준) ===
     // 모든 항목 createdAt ≥ 오늘 기준 → 일간 생산성과 동일 집계 기준
-    const totalTaskProgress = completedTasksToday + ongoingTasks + pendingTasks + pausedTasks;
-    const taskProgressPercentage = totalTaskProgress > 0 
-      ? Math.round((completedTasksToday / totalTaskProgress) * 100) 
-      : 0;
+    const totalTaskProgress =
+      completedTasksToday + ongoingTasks + pendingTasks + pausedTasks;
+    const taskProgressPercentage =
+      totalTaskProgress > 0
+        ? Math.round((completedTasksToday / totalTaskProgress) * 100)
+        : 0;
 
     // === 생산성 계산 ===
     const dailyTotal = Math.max(1, dailyTotalTasks);
     const weeklyTotal = Math.max(1, weeklyTotalTasks);
     const monthlyTotal = Math.max(1, monthlyTotalTasks);
-    
+
     // 생산성 퍼센트 계산 - 100% 상한
-    const dailyPercentage = Math.min(100, Math.round((dailyCompletedTasks / dailyTotal) * 100));
-    const weeklyPercentage = Math.min(100, Math.round((weeklyCompletedTasks / weeklyTotal) * 100));
-    const monthlyPercentage = Math.min(100, Math.round((monthlyCompletedTasks / monthlyTotal) * 100));
+    const dailyPercentage = Math.min(
+      100,
+      Math.round((dailyCompletedTasks / dailyTotal) * 100)
+    );
+    const weeklyPercentage = Math.min(
+      100,
+      Math.round((weeklyCompletedTasks / weeklyTotal) * 100)
+    );
+    const monthlyPercentage = Math.min(
+      100,
+      Math.round((monthlyCompletedTasks / monthlyTotal) * 100)
+    );
 
     // === Equipment utilization (real-time) ===
     const equipmentUtilizationPercentage =
@@ -383,33 +424,39 @@ export const getMonitorOverview = async (
     // === Equipment utilization - 가동장비수 ÷ 총장비수 (KPI Card용) ===
     // 일간/주간/월간 모두 동일 기준: 현재 ONLINE 장비 수 / 전체 장비 수
     // 요약 보고서의 '장비 가동률' 산출 로직과 동일하게 적용
-    const dailyUtilization = equipmentUtilizationPercentage;   // 가동장비수 / 총장비수
-    const weeklyUtilization = equipmentUtilizationPercentage;  // 가동장비수 / 총장비수
+    const dailyUtilization = equipmentUtilizationPercentage; // 가동장비수 / 총장비수
+    const weeklyUtilization = equipmentUtilizationPercentage; // 가동장비수 / 총장비수
     const monthlyUtilization = equipmentUtilizationPercentage; // 가동장비수 / 총장비수
-    
+
     // Raw work time (분) - 참고용으로 유지
     const dailyWorkMinutes = dailyWorkTimeResult[0]?.totalMinutes || 0;
     const weeklyWorkMinutes = weeklyWorkTimeResult[0]?.totalMinutes || 0;
     const monthlyWorkMinutes = monthlyWorkTimeResult[0]?.totalMinutes || 0;
 
     // === Worker metrics (작업자 role만) ===
-    const workerPercentage = totalWorkers > 0 ? Math.round((activeWorkers / totalWorkers) * 100) : 0;
-    const idleWorkers = Math.max(0, totalWorkers - activeWorkers - pausedWorkers);
+    const workerPercentage =
+      totalWorkers > 0 ? Math.round((activeWorkers / totalWorkers) * 100) : 0;
+    const idleWorkers = Math.max(
+      0,
+      totalWorkers - activeWorkers - pausedWorkers
+    );
 
     // === Alert summary ===
     const avgResponseTimeMinutes = 12; // TODO: Calculate from actual alert response times
     // Resolution rate: 오늘 해결된 알림 / (오늘 해결 + 미해결) × 100
     // 오늘 얼마나 처리했는지 보여주는 지표
     const totalWorkableAlerts = resolvedToday + pendingAlerts;
-    const resolutionRate = totalWorkableAlerts > 0 
-      ? Math.min(100, Math.round((resolvedToday / totalWorkableAlerts) * 100))
-      : 100;
+    const resolutionRate =
+      totalWorkableAlerts > 0
+        ? Math.min(100, Math.round((resolvedToday / totalWorkableAlerts) * 100))
+        : 100;
 
     // === Top 5 devices with alerts (for 설비 현황 page) ===
-    const maxAlertCount = topDevicesWithAlerts.length > 0 
-      ? Math.max(...topDevicesWithAlerts.map((d: any) => d.alertCount))
-      : 0;
-    
+    const maxAlertCount =
+      topDevicesWithAlerts.length > 0
+        ? Math.max(...topDevicesWithAlerts.map((d: any) => d.alertCount))
+        : 0;
+
     const topDeviceErrors = topDevicesWithAlerts.map((item: any) => {
       const deviceName = item.deviceName || "Unknown Device";
       const deviceTypeName = item.deviceTypeName || "Unknown Type";
@@ -417,7 +464,10 @@ export const getMonitorOverview = async (
       return {
         deviceName: displayName,
         alertCount: item.alertCount,
-        percentage: maxAlertCount > 0 ? Math.round((item.alertCount / maxAlertCount) * 100) : 0
+        percentage:
+          maxAlertCount > 0
+            ? Math.round((item.alertCount / maxAlertCount) * 100)
+            : 0
       };
     });
 
@@ -429,24 +479,30 @@ export const getMonitorOverview = async (
       { type: "PROCESSING_DEFECT", label: "가공불량" },
       { type: "OTHER", label: "기타" }
     ];
-    
+
     // Convert aggregation result to a map for easy lookup
     const errorCountMap: Record<string, number> = {};
     errorTypeCounts.forEach((item: any) => {
       errorCountMap[item._id] = item.alertCount;
     });
-    
+
     // Build the full list - always 5 items, sorted by count descending
-    const fullErrorTypesList = ERROR_TYPES_LIST.map(et => ({
+    const fullErrorTypesList = ERROR_TYPES_LIST.map((et) => ({
       errorType: et.type,
       errorTypeName: et.label,
       alertCount: errorCountMap[et.type] || 0
     })).sort((a, b) => b.alertCount - a.alertCount);
-    
-    const maxErrorTypeCount = Math.max(...fullErrorTypesList.map(d => d.alertCount), 1);
-    const topErrorTypesList = fullErrorTypesList.map(item => ({
+
+    const maxErrorTypeCount = Math.max(
+      ...fullErrorTypesList.map((d) => d.alertCount),
+      1
+    );
+    const topErrorTypesList = fullErrorTypesList.map((item) => ({
       ...item,
-      percentage: maxErrorTypeCount > 0 ? Math.round((item.alertCount / maxErrorTypeCount) * 100) : 0
+      percentage:
+        maxErrorTypeCount > 0
+          ? Math.round((item.alertCount / maxErrorTypeCount) * 100)
+          : 0
     }));
 
     const response: APIResponse = {
@@ -465,7 +521,7 @@ export const getMonitorOverview = async (
         // === 납품일 기준 현황 (납기준수율 삭제) ===
         deadlineStatus: {
           imminent: deadlineImminentTasks, // 납기 임박 (6시간 이내)
-          delayed: deadlineDelayedTasks    // 납기 지연 (납기일 지남)
+          delayed: deadlineDelayedTasks // 납기 지연 (납기일 지남)
         },
         // === 생산성 현황 ===
         productivity: {
@@ -495,9 +551,9 @@ export const getMonitorOverview = async (
         equipmentUtilization: {
           percentage: equipmentUtilizationPercentage, // 가동장비수 / 총장비수
           // 가동장비수 기반 가동률 (일간·주간·월간 동일)
-          daily: dailyUtilization,                    // 가동장비수 / 총장비수
-          weekly: weeklyUtilization,                  // 가동장비수 / 총장비수
-          monthly: monthlyUtilization,                // 가동장비수 / 총장비수
+          daily: dailyUtilization, // 가동장비수 / 총장비수
+          weekly: weeklyUtilization, // 가동장비수 / 총장비수
+          monthly: monthlyUtilization, // 가동장비수 / 총장비수
           // Raw work time (minutes) - 참고용
           dailyWorkMinutes: dailyWorkMinutes,
           weeklyWorkMinutes: weeklyWorkMinutes,
@@ -511,21 +567,21 @@ export const getMonitorOverview = async (
         },
         // === 작업인원 (role="worker"만) ===
         workers: {
-          online: activeWorkers,        // 활동 작업자 수 (WebSocket 접속 OR ONGOING 작업 보유)
-          total: totalWorkers,          // 사용자 마스터의 "작업자" 분류 인원
+          online: activeWorkers, // 활동 작업자 수 (WebSocket 접속 OR ONGOING 작업 보유)
+          total: totalWorkers, // 사용자 마스터의 "작업자" 분류 인원
           percentage: workerPercentage,
           active: activeWorkers,
-          paused: pausedWorkers,        // 일시정지 중인 작업자 수
+          paused: pausedWorkers, // 일시정지 중인 작업자 수
           idle: idleWorkers
         },
         // === 알림 요약 ===
         alerts: {
-          newAlerts24h: newAlerts24h,       // 24시간 내 신규 알림
-          overdueAlerts: overdueAlerts,     // 24시간 이전 생성, 미해결 (백로그)
-          resolvedToday: resolvedToday,     // 오늘 해결된 알림
-          pending: pendingAlerts,           // 전체 미해결 알림
+          newAlerts24h: newAlerts24h, // 24시간 내 신규 알림
+          overdueAlerts: overdueAlerts, // 24시간 이전 생성, 미해결 (백로그)
+          resolvedToday: resolvedToday, // 오늘 해결된 알림
+          pending: pendingAlerts, // 전체 미해결 알림
           highPriority: highPriorityAlerts, // 긴급 미해결 알림
-          resolutionRate: resolutionRate,   // 해결률 (오늘 해결 / 전체 workable)
+          resolutionRate: resolutionRate, // 해결률 (오늘 해결 / 전체 workable)
           avgResponseTime: avgResponseTimeMinutes,
           // Legacy fields for backward compatibility
           total: pendingAlerts,
@@ -567,15 +623,34 @@ export const getTaskStatusDistribution = async (
     const KST_OFFSET = 9 * 60 * 60 * 1000; // UTC+9
     const now = new Date();
     const nowKST = new Date(now.getTime() + KST_OFFSET);
-    
+
     // Today start at AM00:00 KST
-    const todayStartKST = new Date(Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), nowKST.getUTCDate(), 0, 0, 0) - KST_OFFSET);
+    const todayStartKST = new Date(
+      Date.UTC(
+        nowKST.getUTCFullYear(),
+        nowKST.getUTCMonth(),
+        nowKST.getUTCDate(),
+        0,
+        0,
+        0
+      ) - KST_OFFSET
+    );
     // Today end at PM11:59:59 KST
-    const todayEndKST = new Date(Date.UTC(nowKST.getUTCFullYear(), nowKST.getUTCMonth(), nowKST.getUTCDate(), 23, 59, 59, 999) - KST_OFFSET);
+    const todayEndKST = new Date(
+      Date.UTC(
+        nowKST.getUTCFullYear(),
+        nowKST.getUTCMonth(),
+        nowKST.getUTCDate(),
+        23,
+        59,
+        59,
+        999
+      ) - KST_OFFSET
+    );
 
     const distribution = await Task.aggregate([
       {
-        // Filter: 
+        // Filter:
         // 1. 일간: 완료 tasks from today (KST AM00:00~PM11:59)
         // 2. 미완료: All non-completed tasks regardless of date
         $match: {
@@ -583,7 +658,7 @@ export const getTaskStatusDistribution = async (
             // 1. Non-completed tasks (any date)
             { status: { $ne: "COMPLETED" } },
             // 2. Completed tasks from today (KST)
-            { 
+            {
               status: "COMPLETED",
               completedAt: { $gte: todayStartKST, $lte: todayEndKST }
             }
@@ -632,7 +707,7 @@ export const getTaskStatusDistribution = async (
 /**
  * GET /api/dashboard/monitor-tasks
  * Get optimized task list for Monitor TV display
- * 
+ *
  * Optimized for performance:
  * - Server-side filtering (exclude old COMPLETED tasks)
  * - Flattened data structure (no deep populates)
@@ -645,7 +720,7 @@ export const getMonitorTasks = async (
   try {
     const { limit = 100 } = req.query;
     const limitNum = Math.min(parseInt(limit as string) || 100, 200); // Cap at 200
-    
+
     // KST timezone: Today start at AM00:00 KST
     const KST_OFFSET = 9 * 60 * 60 * 1000; // UTC+9
     const now = new Date();
@@ -671,7 +746,7 @@ export const getMonitorTasks = async (
             // 1. All non-completed tasks
             { status: { $ne: "COMPLETED" } },
             // 2. Completed tasks from today (KST)
-            { 
+            {
               status: "COMPLETED",
               completedAt: { $gte: todayStartUTC }
             },
@@ -685,10 +760,10 @@ export const getMonitorTasks = async (
       },
       // Stage 2: Sort by priority and creation date
       {
-        $sort: { 
+        $sort: {
           status: 1, // PENDING/ONGOING first
           priority: -1, // URGENT first
-          createdAt: -1 
+          createdAt: -1
         }
       },
       // Stage 3: Limit results
@@ -700,9 +775,7 @@ export const getMonitorTasks = async (
           localField: "projectId",
           foreignField: "_id",
           as: "project",
-          pipeline: [
-            { $project: { name: 1, targetQuantity: 1, deadline: 1 } }
-          ]
+          pipeline: [{ $project: { name: 1, targetQuantity: 1, deadline: 1 } }]
         }
       },
       // Stage 5: Lookup product snapshot data
@@ -713,7 +786,15 @@ export const getMonitorTasks = async (
           foreignField: "_id",
           as: "productSnapshot",
           pipeline: [
-            { $project: { name: 1, productNumber: 1, customerName: 1, department: 1, personInCharge: 1 } }
+            {
+              $project: {
+                name: 1,
+                productNumber: 1,
+                customerName: 1,
+                department: 1,
+                personInCharge: 1
+              }
+            }
           ]
         }
       },
@@ -725,7 +806,15 @@ export const getMonitorTasks = async (
           foreignField: "_id",
           as: "product",
           pipeline: [
-            { $project: { productName: 1, designNumber: 1, customerName: 1, department: 1, personInCharge: 1 } }
+            {
+              $project: {
+                productName: 1,
+                designNumber: 1,
+                customerName: 1,
+                department: 1,
+                personInCharge: 1
+              }
+            }
           ]
         }
       },
@@ -736,9 +825,7 @@ export const getMonitorTasks = async (
           localField: "recipeSnapshotId",
           foreignField: "_id",
           as: "recipeSnapshot",
-          pipeline: [
-            { $project: { name: 1, steps: 1, dwgNo: 1 } }
-          ]
+          pipeline: [{ $project: { name: 1, steps: 1, dwgNo: 1 } }]
         }
       },
       // Stage 7.5: Lookup device data for equipment name
@@ -748,9 +835,7 @@ export const getMonitorTasks = async (
           localField: "deviceId",
           foreignField: "_id",
           as: "device",
-          pipeline: [
-            { $project: { name: 1 } }
-          ]
+          pipeline: [{ $project: { name: 1 } }]
         }
       },
       // Stage 7.6: Lookup device type data (for deviceTypeName - separate from deviceName)
@@ -760,9 +845,7 @@ export const getMonitorTasks = async (
           localField: "deviceTypeId",
           foreignField: "_id",
           as: "deviceType",
-          pipeline: [
-            { $project: { name: 1 } }
-          ]
+          pipeline: [{ $project: { name: 1 } }]
         }
       },
       // Stage 8: Project flattened fields
@@ -787,7 +870,9 @@ export const getMonitorTasks = async (
           createdAt: 1,
           // Flattened project fields
           projectName: { $arrayElemAt: ["$project.name", 0] },
-          projectTargetQuantity: { $arrayElemAt: ["$project.targetQuantity", 0] },
+          projectTargetQuantity: {
+            $arrayElemAt: ["$project.targetQuantity", 0]
+          },
           projectDeadline: { $arrayElemAt: ["$project.deadline", 0] },
           // Flattened product fields (from snapshot or product)
           productName: {
@@ -883,9 +968,7 @@ export const getMonitorTasks = async (
           localField: "stepDeviceTypeId",
           foreignField: "_id",
           as: "stepDeviceType",
-          pipeline: [
-            { $project: { name: 1 } }
-          ]
+          pipeline: [{ $project: { name: 1 } }]
         }
       },
       // Stage 9.6: Final deviceTypeName fallback - use step's deviceType if task doesn't have one
@@ -894,8 +977,8 @@ export const getMonitorTasks = async (
         $addFields: {
           deviceTypeName: {
             $ifNull: [
-              "$deviceTypeName",  // From task's deviceType
-              { $arrayElemAt: ["$stepDeviceType.name", 0] }  // Fallback to step's deviceType
+              "$deviceTypeName", // From task's deviceType
+              { $arrayElemAt: ["$stepDeviceType.name", 0] } // Fallback to step's deviceType
             ]
           }
           // deviceName: NOT modified - stays null if no device assigned
