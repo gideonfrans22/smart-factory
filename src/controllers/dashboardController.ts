@@ -94,8 +94,18 @@ export const getMonitorOverview = async (
         )
       )
     ].map((id) => new mongoose.Types.ObjectId(id));
+    // Bug fix: Device.countDocuments() does NOT trigger the pre(/^find/) hook, so
+    // isActive filter must be applied explicitly to exclude soft-deleted devices.
     const monitorDeviceFilter =
-      monitorDeviceIds.length > 0 ? { _id: { $in: monitorDeviceIds } } : {}; // fallback: 배치도가 없으면 전체 장비
+      monitorDeviceIds.length > 0
+        ? { _id: { $in: monitorDeviceIds }, isActive: { $ne: false } }
+        : { isActive: { $ne: false } }; // fallback: 배치도가 없으면 전체 활성 장비
+
+    // Work-time aggregation device filter (Task.deviceId ↔ monitored devices)
+    const workTimeDeviceFilter: Record<string, any> =
+      monitorDeviceIds.length > 0
+        ? { deviceId: { $in: monitorDeviceIds } }
+        : { deviceId: { $exists: true, $ne: null } };
 
     // Run all queries in parallel
     const [
@@ -242,13 +252,14 @@ export const getMonitorOverview = async (
       Device.countDocuments({ ...monitorDeviceFilter, status: "ERROR" }),
 
       // === Equipment Utilization - Actual Work Time (from completed tasks) ===
-      // 일간: 오늘 완료된 작업의 actualDuration 합계 (분)
+      // Scoped to monitorDeviceIds for consistency with device count queries.
+      // 일간: 오늘 완료된 모니터 장비 작업의 actualDuration 합계 (분)
       Task.aggregate([
         {
           $match: {
             ...projectFilter,
             status: "COMPLETED",
-            deviceId: { $exists: true, $ne: null },
+            ...workTimeDeviceFilter,
             completedAt: { $gte: todayStart }
           }
         },
@@ -259,13 +270,13 @@ export const getMonitorOverview = async (
           }
         }
       ]),
-      // 주간: 이번 주 완료된 작업의 actualDuration 합계 (분)
+      // 주간: 이번 주 완료된 모니터 장비 작업의 actualDuration 합계 (분)
       Task.aggregate([
         {
           $match: {
             ...projectFilter,
             status: "COMPLETED",
-            deviceId: { $exists: true, $ne: null },
+            ...workTimeDeviceFilter,
             completedAt: { $gte: weekStart }
           }
         },
@@ -276,13 +287,13 @@ export const getMonitorOverview = async (
           }
         }
       ]),
-      // 월간: 이번 달 완료된 작업의 actualDuration 합계 (분)
+      // 월간: 이번 달 완료된 모니터 장비 작업의 actualDuration 합계 (분)
       Task.aggregate([
         {
           $match: {
             ...projectFilter,
             status: "COMPLETED",
-            deviceId: { $exists: true, $ne: null },
+            ...workTimeDeviceFilter,
             completedAt: { $gte: monthStart }
           }
         },
@@ -418,20 +429,53 @@ export const getMonitorOverview = async (
     );
 
     // === Equipment utilization (real-time) ===
+    // Snapshot: currently ONLINE / total active monitor devices
     const equipmentUtilizationPercentage =
       totalDevices > 0 ? Math.round((onlineDevices / totalDevices) * 100) : 0;
 
-    // === Equipment utilization - 가동장비수 ÷ 총장비수 (KPI Card용) ===
-    // 일간/주간/월간 모두 동일 기준: 현재 ONLINE 장비 수 / 전체 장비 수
-    // 요약 보고서의 '장비 가동률' 산출 로직과 동일하게 적용
-    const dailyUtilization = equipmentUtilizationPercentage; // 가동장비수 / 총장비수
-    const weeklyUtilization = equipmentUtilizationPercentage; // 가동장비수 / 총장비수
-    const monthlyUtilization = equipmentUtilizationPercentage; // 가동장비수 / 총장비수
-
-    // Raw work time (분) - 참고용으로 유지
+    // Raw work time (분) from completed tasks on monitor devices
     const dailyWorkMinutes = dailyWorkTimeResult[0]?.totalMinutes || 0;
     const weeklyWorkMinutes = weeklyWorkTimeResult[0]?.totalMinutes || 0;
     const monthlyWorkMinutes = monthlyWorkTimeResult[0]?.totalMinutes || 0;
+
+    // === Equipment utilization - 기간별 실가동률 ===
+    // Formula: actualDuration 합계(완료 작업) / (장비수 × 경과시간(분)) × 100
+    // This gives distinct values per period that reflect actual device usage trends.
+    // Note: only COMPLETED tasks are counted; ONGOING tasks' in-progress time is excluded.
+    const totalDevicesForCalc = Math.max(1, totalDevices);
+
+    const dailyElapsedMinutes = Math.max(
+      1,
+      (now.getTime() - todayStart.getTime()) / (1000 * 60)
+    );
+    const weeklyElapsedMinutes = Math.max(
+      1,
+      (now.getTime() - weekStart.getTime()) / (1000 * 60)
+    );
+    const monthlyElapsedMinutes = Math.max(
+      1,
+      (now.getTime() - monthStart.getTime()) / (1000 * 60)
+    );
+
+    const dailyUtilization = Math.min(
+      100,
+      Math.round(
+        (dailyWorkMinutes / (totalDevicesForCalc * dailyElapsedMinutes)) * 100
+      )
+    );
+    const weeklyUtilization = Math.min(
+      100,
+      Math.round(
+        (weeklyWorkMinutes / (totalDevicesForCalc * weeklyElapsedMinutes)) * 100
+      )
+    );
+    const monthlyUtilization = Math.min(
+      100,
+      Math.round(
+        (monthlyWorkMinutes / (totalDevicesForCalc * monthlyElapsedMinutes)) *
+          100
+      )
+    );
 
     // === Worker metrics (작업자 role만) ===
     const workerPercentage =
