@@ -410,9 +410,9 @@ export const getMonitorOverview = async (
         : 0;
 
     // === 생산성 계산 ===
-    const dailyTotal = Math.max(1, dailyTotalTasks);
-    const weeklyTotal = Math.max(1, weeklyTotalTasks);
-    const monthlyTotal = Math.max(1, monthlyTotalTasks);
+    const dailyTotal = Math.max(0, dailyTotalTasks);
+    const weeklyTotal = Math.max(0, weeklyTotalTasks);
+    const monthlyTotal = Math.max(0, monthlyTotalTasks);
 
     // 생산성 퍼센트 계산 - 100% 상한
     const dailyPercentage = Math.min(
