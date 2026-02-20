@@ -145,9 +145,9 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
       alerts = await Alert.populate(alerts, [
         { path: "acknowledgedBy", select: "name username email" },
         { path: "reportedBy", select: "name username email" },
-        { 
+        {
           path: "device",
-          populate: { path: "deviceTypeId", select: "name" } 
+          populate: { path: "deviceTypeId", select: "name" }
         },
         { path: "task" },
         { path: "project" }
@@ -181,20 +181,24 @@ export const getAlerts = async (req: Request, res: Response): Promise<void> => {
     // Transform alerts to add flattened device info for easier frontend access
     const transformedAlerts = alerts.map((alert: any) => {
       const alertObj = alert.toObject ? alert.toObject() : alert;
-      
+
       // Extract device name and type name from populated data
-      if (alertObj.device && typeof alertObj.device === 'object') {
+      if (alertObj.device && typeof alertObj.device === "object") {
         alertObj.deviceName = alertObj.device.name || null;
-        if (alertObj.device.deviceTypeId && typeof alertObj.device.deviceTypeId === 'object') {
+        if (
+          alertObj.device.deviceTypeId &&
+          typeof alertObj.device.deviceTypeId === "object"
+        ) {
           alertObj.deviceTypeName = alertObj.device.deviceTypeId.name || null;
         }
       }
-      
+
       // Extract reporter name from populated data
-      if (alertObj.reportedBy && typeof alertObj.reportedBy === 'object') {
-        alertObj.reporterName = alertObj.reportedBy.name || alertObj.reportedBy.username || null;
+      if (alertObj.reportedBy && typeof alertObj.reportedBy === "object") {
+        alertObj.reporterName =
+          alertObj.reportedBy.name || alertObj.reportedBy.username || null;
       }
-      
+
       return alertObj;
     });
 
@@ -527,7 +531,7 @@ export const readAlert = async (
     }
 
     alert.status = "READ";
-    
+
     // Set acknowledgedAt when read (first response time)
     if (!alert.acknowledgedAt) {
       alert.acknowledgedAt = new Date();
@@ -664,7 +668,7 @@ export const bulkReadAlerts = async (
     }
 
     const result = await Alert.updateMany(
-      { 
+      {
         _id: { $in: alertIds },
         acknowledgedAt: { $exists: false } // Only set if not already set
       },
@@ -675,10 +679,10 @@ export const bulkReadAlerts = async (
         }
       }
     );
-    
+
     // Also update alerts that already have acknowledgedAt (just change status)
     await Alert.updateMany(
-      { 
+      {
         _id: { $in: alertIds },
         acknowledgedAt: { $exists: true }
       },
@@ -1033,6 +1037,149 @@ export const resolveEmergencyAlert = async (
     res.json(response);
   } catch (error) {
     console.error("Resolve emergency alert error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * Get alert statistics
+ * GET /api/alerts/stats
+ */
+export const getAlertStats = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    // Current period: last 7 days
+    const currentPeriodStart = new Date();
+    currentPeriodStart.setDate(currentPeriodStart.getDate() - 7);
+
+    // Previous period: 7 days before that (8-14 days ago)
+    const previousPeriodStart = new Date();
+    previousPeriodStart.setDate(previousPeriodStart.getDate() - 14);
+    const previousPeriodEnd = new Date();
+    previousPeriodEnd.setDate(previousPeriodEnd.getDate() - 7);
+
+    // Get all alerts for current period
+    const currentPeriodAlerts = await Alert.find({
+      createdAt: { $gte: currentPeriodStart }
+    });
+
+    // Get all alerts for previous period
+    const previousPeriodAlerts = await Alert.find({
+      createdAt: {
+        $gte: previousPeriodStart,
+        $lt: previousPeriodEnd
+      }
+    });
+
+    // Calculate current period stats
+    const currentStats = {
+      total: currentPeriodAlerts.length,
+      critical: currentPeriodAlerts.filter((a) => a.level === "CRITICAL")
+        .length,
+      unread: currentPeriodAlerts.filter((a) => a.status === "UNREAD").length,
+      pending: currentPeriodAlerts.filter(
+        (a) => a.status === "READ" || a.status === "ACKNOWLEDGED"
+      ).length,
+      resolved: currentPeriodAlerts.filter((a) => a.status === "RESOLVED")
+        .length
+    };
+
+    // Calculate previous period stats
+    const previousStats = {
+      total: previousPeriodAlerts.length,
+      critical: previousPeriodAlerts.filter((a) => a.level === "CRITICAL")
+        .length,
+      unread: previousPeriodAlerts.filter((a) => a.status === "UNREAD").length,
+      pending: previousPeriodAlerts.filter(
+        (a) => a.status === "READ" || a.status === "ACKNOWLEDGED"
+      ).length,
+      resolved: previousPeriodAlerts.filter((a) => a.status === "RESOLVED")
+        .length
+    };
+
+    // Calculate trends (percentage change)
+    const calculateTrend = (current: number, previous: number): number => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return Math.round(((current - previous) / previous) * 100);
+    };
+
+    const trends = {
+      total: calculateTrend(currentStats.total, previousStats.total),
+      critical: calculateTrend(currentStats.critical, previousStats.critical),
+      unread: calculateTrend(currentStats.unread, previousStats.unread),
+      pending: calculateTrend(currentStats.pending, previousStats.pending)
+    };
+
+    // Calculate average response time (time between createdAt and acknowledgedAt)
+    const alertsWithAcknowledgment = currentPeriodAlerts.filter(
+      (a) => a.acknowledgedAt && a.createdAt
+    );
+
+    let avgResponseTime = 0;
+    if (alertsWithAcknowledgment.length > 0) {
+      const totalResponseTime = alertsWithAcknowledgment.reduce(
+        (sum, alert) => {
+          const createdAt = new Date(alert.createdAt);
+          const acknowledgedAt = new Date(alert.acknowledgedAt!);
+          const diffMinutes =
+            (acknowledgedAt.getTime() - createdAt.getTime()) / (1000 * 60);
+          return sum + diffMinutes;
+        },
+        0
+      );
+      avgResponseTime = Math.round(
+        totalResponseTime / alertsWithAcknowledgment.length
+      );
+    }
+
+    // Get today's new alerts
+    const todayAlerts = await Alert.find({
+      createdAt: {
+        $gte: todayStart,
+        $lte: todayEnd
+      }
+    });
+    const todayNewAlerts = todayAlerts.length;
+
+    // Get overall stats (all time, not just current period)
+    const allAlerts = await Alert.find({});
+    const overallStats = {
+      total: allAlerts.length,
+      critical: allAlerts.filter((a) => a.level === "CRITICAL").length,
+      unread: allAlerts.filter((a) => a.status === "UNREAD").length,
+      pending: allAlerts.filter(
+        (a) => a.status === "READ" || a.status === "ACKNOWLEDGED"
+      ).length,
+      resolved: allAlerts.filter((a) => a.status === "RESOLVED").length
+    };
+
+    const response: APIResponse = {
+      success: true,
+      message: "Alert statistics retrieved successfully",
+      data: {
+        stats: overallStats,
+        trends,
+        avgResponseTime,
+        todayNewAlerts
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get alert stats error:", error);
     const response: APIResponse = {
       success: false,
       error: "INTERNAL_SERVER_ERROR",

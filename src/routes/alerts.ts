@@ -10,7 +10,8 @@ import {
   bulkAcknowledgeAlerts,
   bulkResolveAlerts,
   deleteAlert,
-  resolveEmergencyAlert
+  resolveEmergencyAlert,
+  getAlertStats
 } from "../controllers/alertController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
 
@@ -19,6 +20,16 @@ const router = Router();
 // ========================================
 // ALERT QUERY ENDPOINTS
 // ========================================
+
+/**
+ * @route   GET /api/alerts/stats
+ * @desc    Get alert statistics including counts, trends, and metrics
+ * @response Returns statistics object with: stats (total, critical, unread, pending, resolved), trends (percentage changes), avgResponseTime (minutes), todayNewAlerts
+ * @access  Private (authenticated users)
+ * @note    Trends compare last 7 days vs previous 7 days (8-14 days ago)
+ * @note    Average response time calculated from alerts with acknowledgedAt timestamp
+ */
+router.get("/stats", authenticateToken, getAlertStats);
 
 /**
  * @route   GET /api/alerts
