@@ -26,6 +26,60 @@ interface ScheduledReportConfig {
   dateRange: DateRange;
 }
 
+const TRANSLATIONS = {
+  WORKER_PERFORMANCE_KPI: {
+    ko: "작업자 성과 KPI 리포트",
+    en: "Worker Performance KPI Report"
+  },
+  PRODUCTION_RATE: {
+    ko: "생산률 리포트",
+    en: "Production Rate Report"
+  },
+  EQUIPMENT_PERFORMANCE: {
+    ko: "장비 성능 리포트",
+    en: "Equipment Performance Report"
+  },
+  daily: {
+    ko: "매일",
+    en: "Daily"
+  },
+  weekly: {
+    ko: "매주",
+    en: "Weekly"
+  },
+  monthly: {
+    ko: "매월",
+    en: "Monthly"
+  }
+};
+
+/**
+ * Get translation value from TRANSLATIONS object
+ * @param path Dot notation path to translation (e.g., "titles.workerPerformanceRankings")
+ * @param lang Language code ("en" or "ko"), defaults to "en"
+ * @returns Translated string value
+ */
+function getTranslation(path: string, lang: string = "en"): string {
+  const keys = path.split(".");
+  let value: any = TRANSLATIONS;
+
+  for (const key of keys) {
+    if (value && typeof value === "object" && key in value) {
+      value = value[key];
+    } else {
+      console.warn(`Translation not found for path: ${path}`);
+      return path;
+    }
+  }
+
+  if (typeof value === "object" && value !== null && lang in value) {
+    return value[lang];
+  }
+
+  console.warn(`Language "${lang}" not found for path: ${path}`);
+  return path;
+}
+
 /**
  * Initialize the scheduler with all cron jobs
  */
@@ -227,7 +281,8 @@ function scheduleMonthlyReports(): void {
  * Generate a scheduled report
  */
 async function generateScheduledReport(
-  config: ScheduledReportConfig
+  config: ScheduledReportConfig,
+  lang: string = "ko"
 ): Promise<void> {
   const { type, period, dateRange } = config;
   const startTime = Date.now();
@@ -248,13 +303,10 @@ async function generateScheduledReport(
       dateRange.endDate
     )}`;
     const fileExtension = "xlsx";
-    let reportTitle: string;
-
-    if (type === "WORKER_PERFORMANCE_KPI") {
-      reportTitle = `${type}-${timePeriod}.${fileExtension}`;
-    } else {
-      reportTitle = `${type}_${period.toUpperCase()}-${timePeriod}.${fileExtension}`;
-    }
+    let reportTitle = `${getTranslation(type, lang)}-${getTranslation(
+      period,
+      lang
+    )}-${timePeriod}.${fileExtension}`;
 
     // Set expiration to 7 days from now
     const expiresAt = new Date();
@@ -291,7 +343,7 @@ async function generateScheduledReport(
           dateRange.endDate,
           SYSTEM_USER_ID,
           reportIdStr,
-          undefined, // lang
+          lang as "en" | "ko",
           period as "daily" | "weekly" | "monthly"
         );
         break;
@@ -302,7 +354,7 @@ async function generateScheduledReport(
             dateRange.endDate,
             SYSTEM_USER_ID,
             reportIdStr,
-            undefined, // lang
+            lang as "en" | "ko",
             period as "daily" | "weekly" | "monthly"
           );
         break;
@@ -313,7 +365,8 @@ async function generateScheduledReport(
             dateRange.endDate,
             SYSTEM_USER_ID,
             reportIdStr,
-            undefined // lang
+            lang as "en" | "ko",
+            period as "daily" | "weekly" | "monthly"
           );
         break;
       default:
