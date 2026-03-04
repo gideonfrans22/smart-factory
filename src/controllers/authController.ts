@@ -337,6 +337,17 @@ export const workerLogin = async (
       return;
     }
 
+    // If device is under maintenance, don't allow login
+    if (device.status === "MAINTENANCE") {
+      const response: APIResponse = {
+        success: false,
+        error: "CONFLICT",
+        message: "장비가 점검중입니다. 관리자의 조치 후 재개 가능합니다."
+      };
+      res.status(409).json(response);
+      return;
+    }
+
     // Update device's currentUser
     device.currentUser = worker._id as any;
     device.lastHeartbeat = new Date();

@@ -13,7 +13,7 @@ import loggerService from "../services/loggerService";
 /**
  * KST 기준으로 날짜 문자열을 파싱하는 헬퍼 함수
  * dashboardController와 동일한 timezone 기준을 사용하여 데이터 일관성 확보
- * 
+ *
  * "2026-01-29" → 2026-01-29 00:00:00 KST = 2026-01-28T15:00:00.000Z
  * "2026-01-29" (end) → 2026-01-29 23:59:59.999 KST = 2026-01-29T14:59:59.999Z
  */
@@ -22,19 +22,21 @@ const KST_OFFSET = 9 * 60 * 60 * 1000; // 9 hours in milliseconds
 function parseDateAsKST(dateStr: string, isEndOfDay: boolean = false): Date {
   // dateStr format: "YYYY-MM-DD" or full ISO string
   const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
-  
+
   if (isDateOnly) {
     // Parse as KST date: "2026-01-29" → 2026-01-29 00:00:00 KST
-    const [year, month, day] = dateStr.split('-').map(Number);
+    const [year, month, day] = dateStr.split("-").map(Number);
     if (isEndOfDay) {
       // End of day KST: 23:59:59.999 KST
-      return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999) - KST_OFFSET);
+      return new Date(
+        Date.UTC(year, month - 1, day, 23, 59, 59, 999) - KST_OFFSET
+      );
     } else {
       // Start of day KST: 00:00:00.000 KST
       return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0) - KST_OFFSET);
     }
   }
-  
+
   // Full ISO string - parse as-is (already has timezone info)
   return new Date(dateStr);
 }
@@ -551,14 +553,20 @@ export const updateTaskStatus = async (
     if (progress !== undefined) task.progress = progress;
 
     // ⭐ CRITICAL: Close any open pause entry before calculating duration
-    if (status === "COMPLETED" && task.pauseHistory && task.pauseHistory.length > 0) {
+    if (
+      status === "COMPLETED" &&
+      task.pauseHistory &&
+      task.pauseHistory.length > 0
+    ) {
       const lastPause = task.pauseHistory[task.pauseHistory.length - 1];
       if (lastPause && !lastPause.resumedAt) {
         const completedAt = task.completedAt || new Date();
         lastPause.resumedAt = completedAt;
         lastPause.resolvedBy = req.user?.name || "System";
         const lastPauseDuration = Math.floor(
-          (new Date(completedAt).getTime() - new Date(lastPause.pausedAt).getTime()) / (1000 * 60)
+          (new Date(completedAt).getTime() -
+            new Date(lastPause.pausedAt).getTime()) /
+            (1000 * 60)
         );
         task.pausedDuration = (task.pausedDuration || 0) + lastPauseDuration;
       }
@@ -1079,16 +1087,17 @@ export const resumeTask = async (
       const unresolvedAlerts = await Alert.countDocuments({
         device: task.deviceId,
         level: { $in: ["CRITICAL", "HIGH"] },
-        status: { $nin: ["ACKNOWLEDGED", "RESOLVED", "READ"] }
+        status: { $nin: ["ACKNOWLEDGED", "RESOLVED"] }
       });
 
       if (unresolvedAlerts > 0) {
         const response: APIResponse = {
           success: false,
           error: "UNRESOLVED_ALERT",
-          message: "미해결 알림이 있어 작업을 재개할 수 없습니다. 관리자의 확인이 필요합니다. (Unresolved alerts exist for this device. Admin must acknowledge or resolve the alert before resuming.)"
+          message:
+            "미해결 알림이 있어 작업을 재개할 수 없습니다. 관리자의 확인이 필요합니다. (Unresolved alerts exist for this device. Admin must acknowledge or resolve the alert before resuming.)"
         };
-        res.status(403).json(response);
+        res.status(409).json(response);
         return;
       }
 
@@ -1098,9 +1107,13 @@ export const resumeTask = async (
         const response: APIResponse = {
           success: false,
           error: "DEVICE_NOT_AVAILABLE",
-          message: `장비가 현재 ${device.status === "MAINTENANCE" ? "점검중" : "에러"} 상태입니다. 관리자의 조치 후 재개 가능합니다. (Device is currently in ${device.status} state. Admin must resolve before resuming.)`
+          message: `장비가 현재 ${
+            device.status === "MAINTENANCE" ? "점검중" : "에러"
+          } 상태입니다. 관리자의 조치 후 재개 가능합니다. (Device is currently in ${
+            device.status
+          } state. Admin must resolve before resuming.)`
         };
-        res.status(403).json(response);
+        res.status(409).json(response);
         return;
       }
     }
@@ -1453,7 +1466,9 @@ export const completeTask = async (
         lastPause.resumedAt = task.completedAt;
         lastPause.resolvedBy = req.user?.name || "System";
         const lastPauseDuration = Math.floor(
-          (task.completedAt.getTime() - new Date(lastPause.pausedAt).getTime()) / (1000 * 60)
+          (task.completedAt.getTime() -
+            new Date(lastPause.pausedAt).getTime()) /
+            (1000 * 60)
         );
         task.pausedDuration = (task.pausedDuration || 0) + lastPauseDuration;
       }

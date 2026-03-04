@@ -319,7 +319,7 @@ export const createAlert = async (
 
     // Auto-actions for EMERGENCY alerts
     const emergencyActions: any = {};
-    if (type === "EMERGENCY") {
+    if (level === "CRITICAL" || level === "HIGH") {
       // Auto-pause related task if provided
       if (taskId) {
         const task = await Task.findById(taskId);
@@ -401,7 +401,7 @@ export const createAlert = async (
     const response: APIResponse = {
       success: true,
       message:
-        type === "EMERGENCY"
+        level === "CRITICAL" || level === "HIGH"
           ? "Emergency alert created with automatic actions"
           : "Alert created successfully",
       data: {

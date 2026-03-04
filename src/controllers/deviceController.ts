@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { GridLayout } from "../models";
+import { Alert, GridLayout } from "../models";
 import { Device } from "../models/Device";
 import { DeviceType } from "../models/DeviceType";
 import { Task } from "../models/Task";
@@ -255,6 +255,24 @@ export const updateDevice = async (
     // Track status changes with history
     const statusChanged = !!(status && status !== device.status);
     if (statusChanged) {
+      // If device is under maintenance, check if the alert is already resolved
+      // If the alert is not resolved, don't change the device status
+      if (device.status === "MAINTENANCE" && status !== "MAINTENANCE") {
+        const alert = await Alert.findOne({
+          device: device._id,
+          level: { $in: ["CRITICAL", "HIGH"] },
+          status: { $ne: "RESOLVED" }
+        });
+        if (alert) {
+          const response: APIResponse = {
+            success: false,
+            error: "CONFLICT",
+            message: "장비가 점검중입니다. 관리자의 조치 후 재개 가능합니다."
+          };
+          res.status(409).json(response);
+          return;
+        }
+      }
       const previousStatus = device.status;
       device.status = status;
 
@@ -294,9 +312,11 @@ export const updateDevice = async (
 
     // Broadcast device update via WebSocket when status changes
     if (statusChanged) {
-      realtimeService.broadcastDeviceUpdate(device).catch((err) =>
-        console.error("Failed to broadcast device update:", err)
-      );
+      realtimeService
+        .broadcastDeviceUpdate(device)
+        .catch((err) =>
+          console.error("Failed to broadcast device update:", err)
+        );
     }
 
     const response: APIResponse = {
