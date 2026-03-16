@@ -46,7 +46,42 @@ export interface ParsedRawMaterialData {
 
 const MAX_ROWS_PER_SHEET = 500;
 
-export async function generateRawMaterialTemplate(): Promise<ExcelJS.Workbook> {
+const TRANSLATIONS = {
+  Instructions: {
+    title: {
+      en: "Raw Material Import Instructions",
+      ko: "원자재 가져오기 안내"
+    },
+    body: {
+      en: [
+        "- Fill in the 'Raw Materials' and 'Specifications' sheets as needed.",
+        "- 'name' is the upsert key and must be unique within the Raw Materials sheet.",
+        "- Import will update existing materials by name or create new ones if not found.",
+        "- Specifications will be merged onto existing materials; duplicate specifications are skipped.",
+        "- Do not delete or rename any sheets or headers.",
+        "- 'currentStock' must be a non-negative number. Leave blank to keep default."
+      ],
+      ko: [
+        "- 필요에 따라 Raw Materials 시트와 Specifications 시트를 작성하세요.",
+        "- name 컬럼은 업서트 키이며, Raw Materials 시트 내에서 고유해야 합니다.",
+        "- 가져오기 시 name으로 기존 원자재를 찾아 업데이트하고, 없으면 새로 생성합니다.",
+        "- Specifications 데이터는 기존 원자재에 병합되며, 중복된 사양 행은 건너뜁니다.",
+        "- 어떤 시트나 헤더도 삭제하거나 이름을 변경하지 마세요.",
+        "- currentStock 값은 0 이상인 숫자여야 합니다. 기본값을 유지하려면 비워 두세요."
+      ]
+    }
+  },
+  dataValidation: {
+    currentStock: {
+      en: "currentStock must be a non-negative number. Leave blank to keep default.",
+      ko: "currentStock 값은 0 이상인 숫자여야 합니다. 기본값을 유지하려면 비워 두세요."
+    }
+  }
+};
+
+export async function generateRawMaterialTemplate(
+  lang: "en" | "ko" = "ko"
+): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
 
   workbook.creator = "Smart Factory";
@@ -65,14 +100,9 @@ export async function generateRawMaterialTemplate(): Promise<ExcelJS.Workbook> {
     1,
     30,
     6,
-    "Raw Material Import Instructions",
+    TRANSLATIONS.Instructions.title[lang],
     [
-      "- Fill in the 'Raw Materials' and 'Specifications' sheets as needed.",
-      "- 'name' is the upsert key and must be unique within the Raw Materials sheet.",
-      "- Import will update existing materials by name or create new ones if not found.",
-      "- Specifications will be merged onto existing materials; duplicate specifications are skipped.",
-      "- Do not delete or rename any sheets or headers.",
-      "- 'currentStock' must be a non-negative number. Leave blank to keep default.",
+      ...TRANSLATIONS.Instructions.body[lang],
       "",
       `Generated: ${now.toISOString()}`
     ]
@@ -122,7 +152,7 @@ export async function generateRawMaterialTemplate(): Promise<ExcelJS.Workbook> {
           showErrorMessage: true,
           errorStyle: "error",
           errorTitle: "Invalid value",
-          error: "currentStock must be a number greater than or equal to 0."
+          error: TRANSLATIONS.dataValidation.currentStock[lang]
         };
       }
     });
