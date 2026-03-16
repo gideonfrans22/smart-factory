@@ -4,14 +4,28 @@ import {
   getRawMaterialById,
   createRawMaterial,
   updateRawMaterial,
-  deleteRawMaterial
+  deleteRawMaterial,
+  downloadRawMaterialTemplate,
+  verifyRawMaterialImport,
+  importRawMaterials
 } from "../controllers/rawMaterialController";
 import { authenticateToken } from "../middleware/auth";
+import { importUpload } from "../middleware/importUpload";
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(authenticateToken);
+
+// Excel import routes - must be registered before any "/:id" routes
+// GET /api/raw-materials/import/template - Download Excel import template
+router.get("/import/template", downloadRawMaterialTemplate);
+
+// POST /api/raw-materials/import/verify - Verify Excel file without writing
+router.post("/import/verify", importUpload, verifyRawMaterialImport);
+
+// POST /api/raw-materials/import - Validate and import Excel file
+router.post("/import", importUpload, importRawMaterials);
 
 // GET /api/raw-materials - Get all raw materials
 router.get("/", getAllRawMaterials);
