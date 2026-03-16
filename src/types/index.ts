@@ -83,3 +83,36 @@ export interface FilterParams {
   dateFrom?: string;
   dateTo?: string;
 }
+
+export type ImportErrorSeverity = "error" | "warning";
+
+export interface ImportRowError {
+  sheet: string;
+  row: number;
+  column?: string;
+  message: string;
+  severity: ImportErrorSeverity;
+}
+
+export interface ImportResult {
+  success: boolean;
+  summary: {
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: ImportRowError[];
+  };
+}
+
+export interface VerifyResult {
+  valid: boolean;
+  summary: {
+    productsFound?: number;
+    recipesFound?: number;
+    stepsFound?: number;
+    rawMaterialsFound?: number;
+    specificationsFound?: number;
+    errors: ImportRowError[];
+  };
+}
+
