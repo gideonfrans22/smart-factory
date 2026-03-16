@@ -18,6 +18,9 @@ import {
 } from "../services/productImportService";
 import { DeviceType } from "../models/DeviceType";
 import { RawMaterial } from "../models/RawMaterial";
+import { importUpload } from "../middleware/importUpload";
+import { runMiddleware } from "../utils/runMiddleware";
+import { ActivityLog } from "../models/ActivityLog";
 
 // Get all products with pagination and filtering
 export const getProducts = async (
@@ -790,6 +793,18 @@ export const verifyProductImport = async (
   res: Response
 ): Promise<void> => {
   try {
+    try {
+      await runMiddleware(req as any, res, importUpload as any);
+    } catch (err: any) {
+      const response: APIResponse = {
+        success: false,
+        error: "FILE_ERROR",
+        message: err?.message || "Failed to process uploaded file."
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     if (!req.file || !req.file.buffer) {
       const response: APIResponse = {
         success: false,
@@ -858,6 +873,18 @@ export const importProducts = async (
   res: Response
 ): Promise<void> => {
   try {
+    try {
+      await runMiddleware(req as any, res, importUpload as any);
+    } catch (err: any) {
+      const response: APIResponse = {
+        success: false,
+        error: "FILE_ERROR",
+        message: err?.message || "Failed to process uploaded file."
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     if (!req.file || !req.file.buffer) {
       const response: APIResponse = {
         success: false,
@@ -1075,6 +1102,25 @@ export const importProducts = async (
         errors: parsed.errors
       }
     };
+
+    try {
+      await ActivityLog.create({
+        userId: req.user?._id,
+        action: "BULK_IMPORT",
+        resourceType: "Product",
+        resourceId: null,
+        details: {
+          created: result.summary.created,
+          updated: result.summary.updated,
+          skipped: result.summary.skipped,
+          fileName: req.file?.originalname
+        },
+        success: true,
+        modifiedBy: req.user?._id
+      });
+    } catch (logError) {
+      console.error("ActivityLog error (Product import):", logError);
+    }
 
     const response: APIResponse<ImportResult> = {
       success: true,

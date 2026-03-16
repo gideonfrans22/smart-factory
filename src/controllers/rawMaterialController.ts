@@ -12,6 +12,9 @@ import {
   generateRawMaterialTemplate,
   parseRawMaterialWorkbook
 } from "../services/rawMaterialImportService";
+import { importUpload } from "../middleware/importUpload";
+import { runMiddleware } from "../utils/runMiddleware";
+import { ActivityLog } from "../models/ActivityLog";
 
 // Get all raw materials with pagination and filtering
 export const getAllRawMaterials = async (
@@ -398,6 +401,18 @@ export const verifyRawMaterialImport = async (
   res: Response
 ): Promise<void> => {
   try {
+    try {
+      await runMiddleware(req as any, res, importUpload as any);
+    } catch (err: any) {
+      const response: APIResponse = {
+        success: false,
+        error: "FILE_ERROR",
+        message: err?.message || "Failed to process uploaded file."
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     if (!req.file || !req.file.buffer) {
       const response: APIResponse = {
         success: false,
@@ -466,6 +481,18 @@ export const importRawMaterials = async (
   res: Response
 ): Promise<void> => {
   try {
+    try {
+      await runMiddleware(req as any, res, importUpload as any);
+    } catch (err: any) {
+      const response: APIResponse = {
+        success: false,
+        error: "FILE_ERROR",
+        message: err?.message || "Failed to process uploaded file."
+      };
+      res.status(400).json(response);
+      return;
+    }
+
     if (!req.file || !req.file.buffer) {
       const response: APIResponse = {
         success: false,
@@ -622,6 +649,26 @@ export const importRawMaterials = async (
         errors: parsed.errors
       }
     };
+
+    try {
+      await ActivityLog.create({
+        userId: req.user?._id,
+        action: "BULK_IMPORT",
+        resourceType: "RawMaterial",
+        resourceId: null,
+        details: {
+          created: result.summary.created,
+          updated: result.summary.updated,
+          skipped: result.summary.skipped,
+          fileName: req.file?.originalname
+        },
+        success: true,
+        modifiedBy: req.user?._id
+      });
+    } catch (logError) {
+      // Logging failures should not break the main operation
+      console.error("ActivityLog error (RawMaterial import):", logError);
+    }
 
     const response: APIResponse<ImportResult> = {
       success: true,

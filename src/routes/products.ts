@@ -14,7 +14,6 @@ import {
   importProducts
 } from "../controllers/productController";
 import { authenticateToken, requireAdmin } from "../middleware/auth";
-import { importUpload } from "../middleware/importUpload";
 
 const router = Router();
 
@@ -26,10 +25,10 @@ router.use(authenticateToken, requireAdmin);
 router.get("/import/template", downloadProductImportTemplate);
 
 // POST /api/products/import/verify - Verify Excel file without writing
-router.post("/import/verify", importUpload, verifyProductImport);
+router.post("/import/verify", verifyProductImport);
 
 // POST /api/products/import - Validate and import Excel file
-router.post("/import", importUpload, importProducts);
+router.post("/import", importProducts);
 
 /**
  * @route GET /api/products

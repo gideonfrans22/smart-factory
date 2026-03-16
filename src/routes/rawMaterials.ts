@@ -10,7 +10,6 @@ import {
   importRawMaterials
 } from "../controllers/rawMaterialController";
 import { authenticateToken } from "../middleware/auth";
-import { importUpload } from "../middleware/importUpload";
 
 const router = express.Router();
 
@@ -22,10 +21,10 @@ router.use(authenticateToken);
 router.get("/import/template", downloadRawMaterialTemplate);
 
 // POST /api/raw-materials/import/verify - Verify Excel file without writing
-router.post("/import/verify", importUpload, verifyRawMaterialImport);
+router.post("/import/verify", verifyRawMaterialImport);
 
 // POST /api/raw-materials/import - Validate and import Excel file
-router.post("/import", importUpload, importRawMaterials);
+router.post("/import", importRawMaterials);
 
 // GET /api/raw-materials - Get all raw materials
 router.get("/", getAllRawMaterials);
