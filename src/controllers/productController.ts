@@ -4,9 +4,20 @@ import { Recipe } from "../models/Recipe";
 import { Project } from "../models/Project";
 import ProductSnapshot from "../models/ProductSnapshot";
 import RecipeSnapshot from "../models/RecipeSnapshot";
-import { APIResponse, AuthenticatedRequest } from "../types";
+import {
+  APIResponse,
+  AuthenticatedRequest,
+  ImportResult,
+  VerifyResult
+} from "../types";
 import { SnapshotService } from "../services/snapshotService";
 import mongoose from "mongoose";
+import {
+  generateProductImportTemplate,
+  parseProductImportWorkbook
+} from "../services/productImportService";
+import { DeviceType } from "../models/DeviceType";
+import { RawMaterial } from "../models/RawMaterial";
 
 // Get all products with pagination and filtering
 export const getProducts = async (
@@ -190,7 +201,7 @@ export const createProduct = async (
       return;
     }
 
-    // Validate design number format: 00000-00-000 (5 chars - 2 digits - 3 digits - 2 digits)
+    // Validate design number format: 00000-00-000-00 (5 chars - 2 digits - 3 digits - 2 digits)
     // 설계번호 형식 검증: 대문자+숫자 5자리 - 숫자 2자리 - 숫자 3자리 - 숫자 2자리
     const DESIGN_NUMBER_REGEX = /^[A-Z0-9]{5}-[0-9]{2}-[0-9]{3}-[0-9]{2}$/;
     if (!DESIGN_NUMBER_REGEX.test(designNumber)) {
@@ -742,6 +753,342 @@ export const restoreProductVersion = async (
       success: false,
       error: "INTERNAL_SERVER_ERROR",
       message: error instanceof Error ? error.message : "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+export const downloadProductImportTemplate = async (
+  _req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const workbook = await generateProductImportTemplate();
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="product-import-template.xlsx"'
+    );
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error("Download product import template error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Failed to generate product import template."
+    };
+    res.status(500).json(response);
+  }
+};
+
+export const verifyProductImport = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      const response: APIResponse = {
+        success: false,
+        error: "FILE_REQUIRED",
+        message: "No file uploaded."
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    const parsed = await parseProductImportWorkbook(req.file.buffer);
+
+    const designNumbers = parsed.products.map((p) => p.designNumber);
+    const existingProducts = await Product.find({
+      designNumber: { $in: designNumbers },
+      deletedAt: null
+    }).lean();
+    const existingDesigns = new Set(
+      existingProducts.map((p: any) => p.designNumber)
+    );
+
+    let productsToCreate = 0;
+    let productsToUpdate = 0;
+    parsed.products.forEach((p) => {
+      if (existingDesigns.has(p.designNumber)) {
+        productsToUpdate++;
+      } else {
+        productsToCreate++;
+      }
+    });
+
+    const hardErrors = parsed.errors.filter((e) => e.severity === "error");
+
+    const result: VerifyResult = {
+      valid: hardErrors.length === 0,
+      summary: {
+        productsFound: parsed.products.length,
+        recipesFound: parsed.recipes.length,
+        stepsFound: parsed.steps.length,
+        rawMaterialsFound: parsed.recipeMaterials.length,
+        specificationsFound: 0,
+        errors: parsed.errors
+      }
+    };
+
+    const response: APIResponse<VerifyResult> = {
+      success: true,
+      message: "Product import verification completed.",
+      data: result
+    };
+
+    res.status(hardErrors.length > 0 ? 400 : 200).json(response);
+  } catch (error) {
+    console.error("Verify product import error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "An unexpected error occurred during import verification."
+    };
+    res.status(500).json(response);
+  }
+};
+
+export const importProducts = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      const response: APIResponse = {
+        success: false,
+        error: "FILE_REQUIRED",
+        message: "No file uploaded."
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    const parsed = await parseProductImportWorkbook(req.file.buffer);
+    const hardErrors = parsed.errors.filter((e) => e.severity === "error");
+
+    if (hardErrors.length > 0) {
+      const verifyResult: VerifyResult = {
+        valid: false,
+        summary: {
+          productsFound: parsed.products.length,
+          recipesFound: parsed.recipes.length,
+          stepsFound: parsed.steps.length,
+          rawMaterialsFound: parsed.recipeMaterials.length,
+          specificationsFound: 0,
+          errors: parsed.errors
+        }
+      };
+
+      const response: APIResponse<VerifyResult> = {
+        success: false,
+        message: "Import failed due to validation errors. No data was written.",
+        data: verifyResult,
+        error: "VALIDATION_ERROR"
+      };
+
+      res.status(400).json(response);
+      return;
+    }
+
+    const session = await mongoose.startSession();
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    await session.withTransaction(async () => {
+      // Resolve DeviceTypes
+      const allDeviceTypeNames = Array.from(
+        new Set(parsed.steps.map((s) => s.deviceTypeName))
+      );
+      const deviceTypes = await DeviceType.find(
+        { name: { $in: allDeviceTypeNames } },
+        null,
+        { session }
+      );
+      const deviceTypeMap = new Map<string, mongoose.Types.ObjectId>();
+      deviceTypes.forEach((dt) =>
+        deviceTypeMap.set(dt.name, dt._id as mongoose.Types.ObjectId)
+      );
+
+      // Resolve RawMaterials
+      const allMaterialNames = Array.from(
+        new Set(parsed.recipeMaterials.map((rm) => rm.materialName))
+      );
+      const materials = await RawMaterial.find(
+        { name: { $in: allMaterialNames } },
+        null,
+        { session }
+      );
+      const materialMap = new Map<string, any>();
+      materials.forEach((m) => materialMap.set(m.name, m));
+
+      // Upsert Products
+      const productIdByDesignNumber = new Map<
+        string,
+        mongoose.Types.ObjectId
+      >();
+      for (const p of parsed.products) {
+        const updatedProduct = await Product.findOneAndUpdate(
+          { designNumber: p.designNumber, deletedAt: null },
+          {
+            $set: {
+              productName: p.productName,
+              customerName: p.customerName,
+              personInCharge: p.personInCharge,
+              department: p.department,
+              quantityUnit: p.quantityUnit,
+              modifiedBy: req.user?._id
+            }
+          },
+          {
+            upsert: true,
+            new: true,
+            setDefaultsOnInsert: true,
+            session
+          }
+        );
+
+        if (updatedProduct.isNew) {
+          created++;
+        } else {
+          updated++;
+        }
+
+        productIdByDesignNumber.set(
+          updatedProduct.designNumber,
+          updatedProduct._id as mongoose.Types.ObjectId
+        );
+      }
+
+      // Create Recipes
+      for (const recipeRow of parsed.recipes) {
+        const productId = productIdByDesignNumber.get(
+          recipeRow.productDesignNumber
+        );
+        if (!productId) {
+          skipped++;
+          continue;
+        }
+
+        const stepsForRecipe = parsed.steps.filter(
+          (s) => s.recipeName === recipeRow.recipeName
+        );
+        const materialsForRecipe = parsed.recipeMaterials.filter(
+          (rm) => rm.recipeName === recipeRow.recipeName
+        );
+
+        const stepIdMap = new Map<number, mongoose.Types.ObjectId>();
+        const steps = stepsForRecipe.map((s) => {
+          const newId = new mongoose.Types.ObjectId();
+          stepIdMap.set(s.stepOrder, newId);
+          return {
+            _id: newId,
+            order: s.stepOrder,
+            name: s.stepName,
+            description: s.stepDescription ?? "",
+            estimatedDuration: s.estimatedDurationMin,
+            deviceTypeId: deviceTypeMap.get(s.deviceTypeName),
+            qualityChecks: s.qualityChecks,
+            dependsOn: [] as mongoose.Types.ObjectId[],
+            mediaIds: []
+          };
+        });
+
+        steps.forEach((step, index) => {
+          const src = stepsForRecipe[index];
+          step.dependsOn = src.dependsOnStepOrders.map((order) => {
+            const depId = stepIdMap.get(order);
+            if (!depId) {
+              throw new Error(
+                `Step order '${order}' not found for recipe '${recipeRow.recipeName}'.`
+              );
+            }
+            return depId;
+          });
+        });
+
+        const rawMaterials = materialsForRecipe.map((rm) => {
+          const materialDoc = materialMap.get(rm.materialName);
+          return {
+            materialId: materialDoc?._id,
+            quantityRequired: rm.quantityRequired,
+            specification: {
+              color: rm.spec.color,
+              dimensions: {
+                length: rm.spec.dim_length,
+                width: rm.spec.dim_width,
+                height: rm.spec.dim_height,
+                unit: rm.spec.dim_unit
+              },
+              weight: {
+                value: rm.spec.weight_value,
+                unit: rm.spec.weight_unit
+              }
+            }
+          };
+        });
+
+        const recipe = new Recipe({
+          name: recipeRow.recipeName,
+          description: recipeRow.description,
+          dwgNo: recipeRow.dwgNo,
+          unit: recipeRow.unit ?? "EA",
+          outsourcing: recipeRow.outsourcing,
+          remarks: recipeRow.remarks,
+          product: productId,
+          steps,
+          rawMaterials,
+          estimatedDuration: 0,
+          modifiedBy: req.user?._id
+        });
+
+        await recipe.save({ session });
+
+        await Product.findByIdAndUpdate(
+          productId,
+          {
+            $push: {
+              recipes: {
+                recipeId: recipe._id,
+                quantity: 1
+              }
+            }
+          },
+          { session }
+        );
+      }
+    });
+
+    await session.endSession();
+
+    const result: ImportResult = {
+      success: true,
+      summary: {
+        created,
+        updated,
+        skipped,
+        errors: parsed.errors
+      }
+    };
+
+    const response: APIResponse<ImportResult> = {
+      success: true,
+      message: "Import completed successfully.",
+      data: result
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("Import products error:", error);
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: "An unexpected error occurred during import. Please try again."
     };
     res.status(500).json(response);
   }
