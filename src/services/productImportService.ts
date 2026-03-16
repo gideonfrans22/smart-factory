@@ -74,9 +74,63 @@ export interface ParsedProductData {
   errors: ImportRowError[];
 }
 
+const TRANSLATIONS = {
+  Instructions: {
+    title: {
+      en: "Product & Recipe Import Instructions",
+      ko: "제품 & 레시피 가져오기 안내"
+    },
+    body: {
+      en: [
+        "- Fill Products, Recipes, Steps, and RecipeMaterials sheets.",
+        "- Product designNumber is the upsert key (non-deleted Products).",
+        "- Recipes are always created as new versions; existing recipes are not overwritten.",
+        "- Steps must reference valid DeviceType names from REF_DeviceTypes.",
+        "- RecipeMaterials must reference valid RawMaterial names from REF_RawMaterials.",
+        "- dependsOnStepOrders must reference valid step orders within the same recipe."
+      ],
+      ko: [
+        "- Products, Recipes, Steps, RecipeMaterials 시트를 각각 작성하세요.",
+        "- 제품의 designNumber 컬럼은 업서트 키이며(삭제되지 않은 Products 기준), 고유해야 합니다.",
+        "- 레시피는 항상 새 버전으로 생성되며, 기존 레시피는 덮어쓰지 않습니다.",
+        "- Steps 시트의 deviceTypeName 값은 REF_DeviceTypes 시트의 유효한 장비 유형 이름을 참조해야 합니다.",
+        "- RecipeMaterials 시트의 materialName 값은 REF_RawMaterials 시트의 유효한 원자재 이름을 참조해야 합니다.",
+        "- dependsOnStepOrders 값은 동일한 레시피 내에서 존재하는 단계 번호(stepOrder)만 참조해야 합니다."
+      ]
+    }
+  },
+  dataValidation: {
+    productDesignNumber: {
+      en: "productDesignNumber must be a valid product design number.",
+      ko: "productDesignNumber 값은 유효한 제품 디자인 번호여야 합니다."
+    },
+    recipeName: {
+      en: "recipeName must be a valid recipe name.",
+      ko: "recipeName 값은 유효한 레시피 이름여야 합니다."
+    },
+    estimatedDuration: {
+      en: "estimatedDuration_min must be a number greater than or equal to 0.",
+      ko: "estimatedDuration_min 값은 0 이상의 숫자여야 합니다."
+    },
+    deviceTypeName: {
+      en: "deviceTypeName must be a valid device type name.",
+      ko: "deviceTypeName 값은 유효한 장비 유형 이름여야 합니다."
+    },
+    materialName: {
+      en: "materialName must be a valid raw material name.",
+      ko: "materialName 값은 유효한 원자재 이름여야 합니다."
+    },
+    quantityRequired: {
+      en: "quantityRequired must be a number greater than 0.",
+      ko: "quantityRequired 값은 0 이상의 숫자여야 합니다."
+    }
+  }
+};
 const MAX_ROWS_PER_SHEET = 500;
 
-export async function generateProductImportTemplate(): Promise<ExcelJS.Workbook> {
+export async function generateProductImportTemplate(
+  lang: "en" | "ko" = "ko"
+): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
 
   const now = new Date();
@@ -99,14 +153,9 @@ export async function generateProductImportTemplate(): Promise<ExcelJS.Workbook>
     1,
     40,
     8,
-    "Product & Recipe Import Instructions",
+    TRANSLATIONS.Instructions.title[lang],
     [
-      "- Fill Products, Recipes, Steps, and RecipeMaterials sheets.",
-      "- Product designNumber is the upsert key (non-deleted Products).",
-      "- Recipes are always created as new versions; existing recipes are not overwritten.",
-      "- Steps must reference valid DeviceType names from REF_DeviceTypes.",
-      "- RecipeMaterials must reference valid RawMaterial names from REF_RawMaterials.",
-      "- dependsOnStepOrders must reference valid step orders within the same recipe.",
+      ...TRANSLATIONS.Instructions.body[lang],
       "",
       `Generated: ${now.toISOString()}`
     ]
@@ -170,17 +219,17 @@ export async function generateProductImportTemplate(): Promise<ExcelJS.Workbook>
 
   // Validate productDesignNumber
   await Promise.all(
-    Array.from({ length: 100 - 3 + 1 }, (_, row) => row + 3).map(
+    Array.from({ length: MAX_ROWS_PER_SHEET - 3 + 1 }, (_, row) => row + 3).map(
       async (row) => {
         const productDesignNumberCell = recipesSheet.getCell(`B${row}`);
         productDesignNumberCell.dataValidation = {
           type: "list",
-          formulae: [`Products!$A$3:$A$100`],
+          formulae: [`Products!$A$3:$A$${MAX_ROWS_PER_SHEET}`],
           allowBlank: false,
           showErrorMessage: true,
           errorStyle: "error",
           errorTitle: "Invalid value",
-          error: "productDesignNumber must be a valid product design number."
+          error: TRANSLATIONS.dataValidation.productDesignNumber[lang]
         };
       }
     )
@@ -235,7 +284,7 @@ export async function generateProductImportTemplate(): Promise<ExcelJS.Workbook>
           showErrorMessage: true,
           errorStyle: "error",
           errorTitle: "Invalid value",
-          error: "recipeName must be a valid recipe name."
+          error: TRANSLATIONS.dataValidation.recipeName[lang]
         };
 
         // estimatedDuration validation (>= 0)
@@ -247,8 +296,7 @@ export async function generateProductImportTemplate(): Promise<ExcelJS.Workbook>
           showErrorMessage: true,
           errorStyle: "error",
           errorTitle: "Invalid value",
-          error:
-            "estimatedDuration_min must be a number greater than or equal to 0."
+          error: TRANSLATIONS.dataValidation.estimatedDuration[lang]
         };
 
         // deviceTypeName validation (list of device type names)
@@ -260,7 +308,7 @@ export async function generateProductImportTemplate(): Promise<ExcelJS.Workbook>
           showErrorMessage: true,
           errorStyle: "error",
           errorTitle: "Invalid value",
-          error: "deviceTypeName must be a valid device type name."
+          error: TRANSLATIONS.dataValidation.deviceTypeName[lang]
         };
       }
     )
@@ -320,7 +368,7 @@ export async function generateProductImportTemplate(): Promise<ExcelJS.Workbook>
           showErrorMessage: true,
           errorStyle: "error",
           errorTitle: "Invalid value",
-          error: "recipeName must be a valid recipe name."
+          error: TRANSLATIONS.dataValidation.recipeName[lang]
         };
 
         // materialName validation (list of raw material names)
@@ -332,7 +380,7 @@ export async function generateProductImportTemplate(): Promise<ExcelJS.Workbook>
           showErrorMessage: true,
           errorStyle: "error",
           errorTitle: "Invalid value",
-          error: "materialName must be a valid raw material name."
+          error: TRANSLATIONS.dataValidation.materialName[lang]
         };
 
         // quantityRequired validation (> 0)
@@ -344,7 +392,7 @@ export async function generateProductImportTemplate(): Promise<ExcelJS.Workbook>
           showErrorMessage: true,
           errorStyle: "error",
           errorTitle: "Invalid value",
-          error: "quantityRequired must be a number greater than 0."
+          error: TRANSLATIONS.dataValidation.quantityRequired[lang]
         };
 
         //
