@@ -1,10 +1,8 @@
 import http from "http";
 
+import { connectDB, initializeWebSocket, mqttService } from "@infra/config";
 import { loggerService, realtimeService } from "@shared/services";
 import app from "./app";
-import { connectDB } from "./config/database";
-import { mqttService } from "./config/mqtt";
-import { initializeWebSocket } from "./config/websocket";
 
 const PORT = process.env.PORT || 3000;
 

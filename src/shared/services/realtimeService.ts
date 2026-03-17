@@ -1,10 +1,14 @@
-import { mqttService, MQTT_TOPICS } from "../../config/mqtt";
-import { getIO } from "../../config/websocket";
-import { Alert, Task, Device, IDevice } from "../../models";
-import { ITask } from "../../models/Task";
-import { IAlert } from "../../models/Alert";
-import { IProject } from "../../models/Project";
-import { IKPIData } from "../../models/KPIData";
+import { getIO, MQTT_TOPICS, mqttService } from "@infra/config";
+import {
+  Alert,
+  Device,
+  IAlert,
+  IDevice,
+  IKPIData,
+  IProject,
+  ITask,
+  Task
+} from "@/models";
 import { loggerService } from "@shared/services";
 
 /**

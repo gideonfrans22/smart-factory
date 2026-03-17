@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Alert, Device } from "../models";
 import { realtimeService } from "@shared/services";
-import { getIO } from "../config/websocket";
+import { getIO } from "@infra/config";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 export const getAlerts = async (req: Request, res: Response): Promise<void> => {

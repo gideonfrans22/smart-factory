@@ -1,5 +1,5 @@
 import * as dotenv from "dotenv";
-import { connectDB, disconnectDB } from "./config/database";
+import { connectDB, disconnectDB } from "@infra/config";
 import { initializeScheduler } from "./services/schedulerService";
 import { loggerService } from "@shared/services";
 
