@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { AuthenticatedRequest, APIResponse } from "../../types";
+import { AuthenticatedRequest, APIResponse } from "@shared/types";
 import { authService } from "./auth.service";
 
 export class AuthController {

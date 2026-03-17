@@ -1,9 +1,8 @@
-import { Response, NextFunction } from "express";
+import { loggerService } from "@shared/services";
+import { APIResponse, AuthenticatedRequest, JWTPayload } from "@shared/types";
+import { NextFunction, Response } from "express";
 import * as jwt from "jsonwebtoken";
 import { User } from "../modules/user/user.model";
-import { AuthenticatedRequest } from "../types";
-import { JWTPayload, APIResponse } from "../types";
-import { loggerService } from "@shared/services";
 
 export const authenticateToken = async (
   req: AuthenticatedRequest,

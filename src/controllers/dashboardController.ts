@@ -6,7 +6,7 @@ import { Device } from "../models/Device";
 import { User } from "../modules/user/user.model";
 import { Project } from "../models/Project";
 import { GridLayout } from "../models/GridLayout";
-import { APIResponse } from "../types";
+import { APIResponse } from "@shared/types";
 
 /**
  * GET /api/dashboard/monitor-overview

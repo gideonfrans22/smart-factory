@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { ZodType } from "zod";
-import { APIResponse } from "@/types";
+import { APIResponse } from "@shared/types";
 
 export const validateBody =
   (schema: ZodType) =>

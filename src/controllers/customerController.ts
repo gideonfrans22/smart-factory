@@ -1,6 +1,6 @@
 import { Response } from "express";
 import Customer from "../models/Customer";
-import { APIResponse, AuthenticatedRequest } from "../types";
+import { APIResponse, AuthenticatedRequest } from "@shared/types";
 import mongoose from "mongoose";
 
 // Get all customers with pagination and filtering

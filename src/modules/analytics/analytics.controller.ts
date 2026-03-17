@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { analyticsService } from "./analytics.service";
-import { APIResponse, AuthenticatedRequest } from "../../types";
+import { APIResponse, AuthenticatedRequest } from "@shared/types";
 
 export class AnalyticsController {
   async getWorkerPerformance(

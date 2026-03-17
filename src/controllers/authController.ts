@@ -6,7 +6,7 @@ import {
   AuthenticatedRequest,
   JWTPayload,
   RegisterData
-} from "../types";
+} from "@shared/types";
 import {
   comparePassword,
   generateToken,

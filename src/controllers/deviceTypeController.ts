@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { DeviceType } from "../models";
 import { Device } from "../models/Device";
-import { APIResponse } from "../types";
+import { APIResponse } from "@shared/types";
 import mongoose from "mongoose";
 
 /**

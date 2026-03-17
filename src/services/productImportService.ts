@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import { DeviceType } from "../models/DeviceType";
 import { Product } from "../models/Product";
 import { RawMaterial } from "../models/RawMaterial";
-import { ImportRowError } from "../types";
+import { ImportRowError } from "@shared/types";
 import { cellToNumber, cellToString, parseHeaderRow } from "@shared/utils";
 import {
   COLORS,

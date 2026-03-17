@@ -3,7 +3,7 @@ import { KPIData } from "../models/KPIData";
 import { Project } from "../models/Project";
 import { Task } from "../models/Task";
 import { Alert } from "../models/Alert";
-import { APIResponse } from "../types";
+import { APIResponse } from "@shared/types";
 import { realtimeService } from "@shared/services";
 
 export const getRealtimeKPI = async (

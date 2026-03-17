@@ -6,7 +6,7 @@ import {
   AuthenticatedRequest,
   ImportResult,
   VerifyResult
-} from "../types";
+} from "@shared/types";
 import mongoose from "mongoose";
 import {
   generateRawMaterialTemplate,

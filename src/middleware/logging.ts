@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { loggerService } from "@shared/services";
-import { AuthenticatedRequest } from "../types";
+import { AuthenticatedRequest } from "@shared/types";
 
 /**
  * Express middleware for logging HTTP requests and responses

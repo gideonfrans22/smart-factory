@@ -1,6 +1,6 @@
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
-import { JWTPayload } from "../../types";
+import { JWTPayload } from "@shared/types";
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || "12");
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";

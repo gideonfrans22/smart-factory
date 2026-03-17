@@ -3,7 +3,7 @@ import { IProductRecipe, Product, Recipe } from "../models";
 import { RawMaterial } from "../models/RawMaterial";
 import { DeviceType } from "../models/DeviceType";
 import { Project } from "../models/Project";
-import { APIResponse, AuthenticatedRequest } from "../types";
+import { APIResponse, AuthenticatedRequest } from "@shared/types";
 import { RecipeService } from "../services/recipeService";
 import { SnapshotService } from "../services/snapshotService";
 import mongoose from "mongoose";

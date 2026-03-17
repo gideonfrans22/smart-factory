@@ -10,7 +10,7 @@ import {
   deleteProjectTasks,
   generateTasksForProject
 } from "../services/taskService";
-import { APIResponse, AuthenticatedRequest } from "../types";
+import { APIResponse, AuthenticatedRequest } from "@shared/types";
 
 /**
  * Get all projects with optional filtering and pagination

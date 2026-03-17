@@ -1,4 +1,4 @@
-import { roundToTwoDecimals } from "@/shared/helpers";
+import { roundToTwoDecimals } from "@shared/helpers";
 import { realtimeService } from "@shared/services";
 import mongoose from "mongoose";
 import { IProductSnapshot, IProject, IRecipeSnapshot, Task } from "../models";

@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { GridLayout } from "../models/GridLayout";
 import { Device } from "../models/Device";
 import { realtimeService } from "@shared/services";
-import { APIResponse, AuthenticatedRequest } from "../types";
+import { APIResponse, AuthenticatedRequest } from "@shared/types";
 
 /**
  * Get all grid layouts

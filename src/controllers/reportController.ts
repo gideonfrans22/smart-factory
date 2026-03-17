@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { Report } from "../models/Report";
-import { APIResponse, AuthenticatedRequest } from "../types";
+import { APIResponse, AuthenticatedRequest } from "@shared/types";
 import * as ReportGenerationService from "../services/reportGenerationService";
 
 export const generateReport = async (

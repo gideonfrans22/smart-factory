@@ -9,7 +9,7 @@ import {
   AuthenticatedRequest,
   ImportResult,
   VerifyResult
-} from "../types";
+} from "@shared/types";
 import { SnapshotService } from "../services/snapshotService";
 import mongoose from "mongoose";
 import {

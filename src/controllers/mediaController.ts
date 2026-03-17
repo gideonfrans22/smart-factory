@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { Media } from "../models/Media";
-import { APIResponse, AuthenticatedRequest } from "../types";
+import { APIResponse, AuthenticatedRequest } from "@shared/types";
 import fs from "fs";
 
 /**

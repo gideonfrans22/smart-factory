@@ -18,7 +18,7 @@ import {
   sanitizeInput,
   validateEmail
 } from "@shared/helpers";
-import { JWTPayload } from "../../types";
+import { JWTPayload } from "@shared/types";
 
 export class AuthService {
   async register(input: RegisterDTO): Promise<RegisterResult> {

@@ -8,7 +8,7 @@ import {
   styleHeaderRow
 } from "./excelFormatService";
 import { cellToNumber, cellToString, parseHeaderRow } from "@shared/utils";
-import { ImportRowError } from "../types";
+import { ImportRowError } from "@shared/types";
 
 interface ParsedMaterial {
   rowNumber: number;

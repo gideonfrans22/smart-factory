@@ -12,7 +12,7 @@ import {
   Recipe,
   Task
 } from "../models";
-import { APIResponse, AuthenticatedRequest } from "../types";
+import { APIResponse, AuthenticatedRequest } from "@shared/types";
 
 /**
  * KST 기준으로 날짜 문자열을 파싱하는 헬퍼 함수

@@ -5,7 +5,7 @@ import { DeviceType } from "../models/DeviceType";
 import { Task } from "../models/Task";
 import { realtimeService } from "@shared/services";
 import { isDeviceOccupied } from "../services/deviceOccupationService";
-import { APIResponse, AuthenticatedRequest } from "../types";
+import { APIResponse, AuthenticatedRequest } from "@shared/types";
 
 export const getDevices = async (
   req: Request,

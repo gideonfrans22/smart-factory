@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { Alert, Device } from "../models";
 import { realtimeService } from "@shared/services";
 import { getIO } from "@infra/config";
-import { APIResponse, AuthenticatedRequest } from "../types";
+import { APIResponse, AuthenticatedRequest } from "@shared/types";
 
 export const getAlerts = async (req: Request, res: Response): Promise<void> => {
   try {
