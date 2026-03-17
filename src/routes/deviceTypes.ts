@@ -8,7 +8,7 @@ import {
   updateDeviceType,
   deleteDeviceType
 } from "../controllers/deviceTypeController";
-import { authenticateToken } from "../middleware/auth";
+import { authenticateToken } from "@shared/middleware";
 
 const router = express.Router();
 

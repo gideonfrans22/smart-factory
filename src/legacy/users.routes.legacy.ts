@@ -8,7 +8,7 @@ import {
   getWorkerStatistics,
   getUserStatistics
 } from "../controllers/userController";
-import { authenticateToken, requireAdmin } from "../middleware/auth";
+import { authenticateToken, requireAdmin } from "../middleware";
 
 const router = Router();
 
@@ -47,7 +47,12 @@ router.get("/", getUsers);
  * @response Returns array of workers with performance metrics: completionRate, avgDuration, qualityScore, taskCount, currentTask, productivity, etc.
  * @access  Private (Admin only)
  */
-router.get("/worker-performance", authenticateToken, requireAdmin, getWorkerStatistics);
+router.get(
+  "/worker-performance",
+  authenticateToken,
+  requireAdmin,
+  getWorkerStatistics
+);
 
 /**
  * @route   GET /api/users/:id

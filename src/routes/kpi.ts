@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getRealtimeKPI, createKPIData } from "../controllers/kpiController";
-import { authenticateToken } from "../middleware/auth";
+import { authenticateToken } from "@shared/middleware";
 
 const router = Router();
 

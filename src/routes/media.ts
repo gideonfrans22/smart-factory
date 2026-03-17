@@ -1,14 +1,17 @@
+import {
+  authenticateToken,
+  uploadMultiple,
+  uploadSingle
+} from "@shared/middleware";
 import { Router } from "express";
 import {
+  deleteMedia,
+  downloadMedia,
+  getMediaById,
   uploadMedia,
   uploadMultipleMedia,
-  getMediaById,
-  viewMedia,
-  downloadMedia,
-  deleteMedia
+  viewMedia
 } from "../controllers/mediaController";
-import { authenticateToken } from "../middleware/auth";
-import { uploadSingle, uploadMultiple } from "../middleware/upload";
 
 const router = Router();
 

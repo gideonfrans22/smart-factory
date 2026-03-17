@@ -12,7 +12,7 @@ import {
   generateRawMaterialTemplate,
   parseRawMaterialWorkbook
 } from "../services/rawMaterialImportService";
-import { importUpload } from "../middleware/importUpload";
+import { importUpload } from "@shared/middleware";
 import { runMiddleware } from "@shared/utils";
 import { ActivityLog } from "../models/ActivityLog";
 

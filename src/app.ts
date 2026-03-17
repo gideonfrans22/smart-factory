@@ -9,7 +9,7 @@ import { mqttService } from "@infra/config";
 import {
   errorLoggingMiddleware,
   requestLoggingMiddleware
-} from "./middleware/logging";
+} from "@shared/middleware";
 
 import { authRoutes } from "@modules/auth";
 import { analyticsRoutes } from "@modules/analytics";

@@ -13,7 +13,7 @@ import {
   resolveEmergencyAlert,
   getAlertStats
 } from "../controllers/alertController";
-import { authenticateToken, requireAdmin } from "../middleware/auth";
+import { authenticateToken, requireAdmin } from "@shared/middleware";
 
 const router = Router();
 

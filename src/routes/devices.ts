@@ -12,7 +12,7 @@ import {
   workerLogoutFromDevice,
   checkDeviceAvailability
 } from "../controllers/deviceController";
-import { authenticateToken, requireAdmin } from "../middleware/auth";
+import { authenticateToken, requireAdmin } from "@shared/middleware";
 
 const router = Router();
 

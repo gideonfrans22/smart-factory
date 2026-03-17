@@ -18,7 +18,7 @@ import {
 } from "../services/productImportService";
 import { DeviceType } from "../models/DeviceType";
 import { RawMaterial } from "../models/RawMaterial";
-import { importUpload } from "../middleware/importUpload";
+import { importUpload } from "@shared/middleware";
 import { runMiddleware } from "@shared/utils";
 import { ActivityLog } from "../models/ActivityLog";
 

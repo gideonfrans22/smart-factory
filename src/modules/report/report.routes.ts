@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { reportController } from "./report.controller";
-// import { authMiddleware } from "@shared/middleware/auth"; // example
+// import { authMiddleware } from "@shared/middleware"; // example
 const router = Router();
 // router.use(authMiddleware); // enable if needed
 router.get("/", reportController.list);

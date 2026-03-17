@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { customerController } from "./customer.controller";
-// import { authMiddleware } from "@shared/middleware/auth"; // example
+// import { authMiddleware } from "@shared/middleware"; // example
 const router = Router();
 // router.use(authMiddleware); // enable if needed
 router.get("/", customerController.list);

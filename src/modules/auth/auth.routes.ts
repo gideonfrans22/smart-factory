@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authController } from "./auth.controller";
-import { authenticateToken } from "../../middleware/auth";
+import { authenticateToken } from "@shared/middleware";
 import {
   registerSchema,
   loginSchema,
@@ -11,7 +11,6 @@ import { validateBody } from "@shared/utils";
 
 const router = Router();
 
-console.log("authRoutes");
 // Public auth endpoints
 router.post("/register", validateBody(registerSchema), authController.register);
 

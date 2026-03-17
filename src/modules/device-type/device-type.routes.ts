@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { deviceTypeController } from "./device-type.controller";
-// import { authMiddleware } from "@shared/middleware/auth"; // example
+// import { authMiddleware } from "@shared/middleware"; // example
 const router = Router();
 // router.use(authMiddleware); // enable if needed
 router.get("/", deviceTypeController.list);

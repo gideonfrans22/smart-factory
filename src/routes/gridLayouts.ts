@@ -8,7 +8,7 @@ import {
   bulkUpdateDevicePositions,
   deleteGridLayout
 } from "../controllers/gridLayoutController";
-import { authenticateToken } from "../middleware/auth";
+import { authenticateToken } from "@shared/middleware";
 
 const router = express.Router();
 

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { userController } from "./user.controller";
-import { authenticateToken, requireAdmin } from "../../middleware/auth";
+import { authenticateToken, requireAdmin } from "@shared/middleware";
 import { validateBody } from "@shared/utils";
 import { userCreateSchema, userUpdateSchema } from "./user.validators";
 

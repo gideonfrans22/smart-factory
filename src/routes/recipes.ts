@@ -9,7 +9,7 @@ import {
   createRecipeVersion,
   getRecipeDependencyGraph
 } from "../controllers/recipeController";
-import { authenticateToken } from "../middleware/auth";
+import { authenticateToken } from "@shared/middleware";
 
 const router = Router();
 

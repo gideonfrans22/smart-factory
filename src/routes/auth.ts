@@ -7,7 +7,7 @@ import {
   workerLogin,
   monitorLogin
 } from "../controllers/authController";
-import { authenticateToken } from "../middleware/auth";
+import { authenticateToken } from "@shared/middleware";
 
 const router = Router();
 
