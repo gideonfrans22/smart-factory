@@ -29,6 +29,12 @@
       "@modules/*": ["./src/modules/*"]
     }
   },
-  "include": ["src/**/*", "api_spec/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.js", "db/**/*"]
+  "include": ["src/**/*", "api_spec/**/*", "db/**/*"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.js",
+    "src/legacy/**/*"
+  ]
 }
