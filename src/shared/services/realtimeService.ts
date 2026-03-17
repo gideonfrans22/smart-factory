@@ -1,10 +1,10 @@
-import { mqttService, MQTT_TOPICS } from "../config/mqtt";
-import { getIO } from "../config/websocket";
-import { Alert, Task, Device, IDevice } from "../models";
-import { ITask } from "../models/Task";
-import { IAlert } from "../models/Alert";
-import { IProject } from "../models/Project";
-import { IKPIData } from "../models/KPIData";
+import { mqttService, MQTT_TOPICS } from "../../config/mqtt";
+import { getIO } from "../../config/websocket";
+import { Alert, Task, Device, IDevice } from "../../models";
+import { ITask } from "../../models/Task";
+import { IAlert } from "../../models/Alert";
+import { IProject } from "../../models/Project";
+import { IKPIData } from "../../models/KPIData";
 import { loggerService } from "./loggerService";
 
 /**
@@ -104,7 +104,7 @@ class RealtimeService {
     });
 
     // --- Device Status Handler ---
-    mqttService.subscribe("device/+/status", async (topic, message) => {
+    mqttService.subscribe("device/+/status", async (topic: string, message: any) => {
       const deviceId = topic.split("/")[1];
       try {
         const statusData = JSON.parse(message);
@@ -143,7 +143,7 @@ class RealtimeService {
     });
 
     // --- Device Metrics Handler ---
-    mqttService.subscribe("device/+/metrics", async (topic, message) => {
+    mqttService.subscribe("device/+/metrics", async (topic: string, message: any) => {
       const deviceId = topic.split("/")[1];
       try {
         const metricsData = JSON.parse(message);
@@ -165,7 +165,7 @@ class RealtimeService {
     });
 
     // --- Task Completion Handler (from devices/workers) ---
-    mqttService.subscribe("task/+/completed", async (topic, message) => {
+    mqttService.subscribe("task/+/completed", async (topic: string, message: any) => {
       const taskId = topic.split("/")[1];
       try {
         const completionData = JSON.parse(message);

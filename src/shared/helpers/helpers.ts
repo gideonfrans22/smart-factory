@@ -1,6 +1,6 @@
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
-import { JWTPayload } from "../types";
+import { JWTPayload } from "../../types";
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || "12");
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
@@ -17,7 +17,10 @@ export const comparePassword = async (
   return await bcrypt.compare(password, hashedPassword);
 };
 
-export const generateToken = (payload: JWTPayload, expiresIn?: string): string => {
+export const generateToken = (
+  payload: JWTPayload,
+  expiresIn?: string
+): string => {
   return jwt.sign(payload as object, JWT_SECRET, {
     expiresIn: expiresIn || JWT_ACCESS_TOKEN_EXPIRES
   } as jwt.SignOptions);

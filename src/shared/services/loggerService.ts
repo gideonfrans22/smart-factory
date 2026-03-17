@@ -7,17 +7,22 @@ dotenv.config();
 
 // Configuration
 const LOG_DIR = process.env.LOG_DIR || "./logs";
-const LOG_LEVEL = process.env.LOG_LEVEL || (process.env.NODE_ENV === "production" ? "info" : "debug");
+const LOG_LEVEL =
+  process.env.LOG_LEVEL ||
+  (process.env.NODE_ENV === "production" ? "info" : "debug");
 const LOG_MAX_SIZE = process.env.LOG_MAX_SIZE || "20m";
 const LOG_MAX_FILES = process.env.LOG_MAX_FILES || "14d";
 const LOG_ENABLE_API = process.env.LOG_ENABLE_API !== "false";
 
 // Custom format for log messages
-const logFormat = winston.format.printf(({ timestamp, level, message, processId, ...meta }) => {
-  const pid = processId || process.pid;
-  const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : "";
-  return `[${timestamp}] [${level}] [${pid}] ${message}${metaStr}`;
-});
+const logFormat = winston.format.printf(
+  ({ timestamp, level, message, processId, ...meta }) => {
+    const pid = processId || process.pid;
+    const metaStr =
+      Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : "";
+    return `[${timestamp}] [${level}] [${pid}] ${message}${metaStr}`;
+  }
+);
 
 // Create format with timestamp
 const timestampFormat = winston.format.combine(
@@ -48,10 +53,7 @@ const errorRotateTransport = new DailyRotateFile({
 
 // Console transport for development (formatted, colored output)
 const consoleTransport = new winston.transports.Console({
-  format: winston.format.combine(
-    winston.format.colorize(),
-    timestampFormat
-  ),
+  format: winston.format.combine(winston.format.colorize(), timestampFormat),
   level: LOG_LEVEL
 });
 
@@ -97,9 +99,10 @@ export const logAPIRequest = (
 ): void => {
   if (!LOG_ENABLE_API) return;
 
-  const logLevel = statusCode >= 500 ? "error" : statusCode >= 400 ? "warn" : "info";
+  const logLevel =
+    statusCode >= 500 ? "error" : statusCode >= 400 ? "warn" : "info";
   const message = `${method} ${path} ${statusCode} ${durationMs}ms`;
-  
+
   logger.log(logLevel, message, {
     processId: process.pid,
     ip,
@@ -119,11 +122,11 @@ export const logMQTTEvent = (
 ): void => {
   const level = error ? "error" : "info";
   let message = `MQTT ${event}`;
-  
+
   if (topic) {
     message += `: ${topic}`;
   }
-  
+
   if (error) {
     message += ` - ${error.message}`;
   }
@@ -131,7 +134,8 @@ export const logMQTTEvent = (
   // Truncate large payloads
   let payloadStr: string | undefined;
   if (payload) {
-    payloadStr = typeof payload === "string" ? payload : JSON.stringify(payload);
+    payloadStr =
+      typeof payload === "string" ? payload : JSON.stringify(payload);
     if (payloadStr.length > 200) {
       payloadStr = payloadStr.substring(0, 200) + "... [truncated]";
     }
@@ -152,7 +156,7 @@ export const logWebSocketEvent = (
   details?: Record<string, any>
 ): void => {
   const message = `WebSocket ${event}${socketId ? `: ${socketId}` : ""}`;
-  
+
   logger.info(message, {
     processId: process.pid,
     socketId,
@@ -168,7 +172,7 @@ export const logDatabaseEvent = (
 ): void => {
   const level = error ? "error" : "info";
   const message = `Database ${event}`;
-  
+
   logger.log(level, message, {
     processId: process.pid,
     ...details,
@@ -184,7 +188,7 @@ export const logSchedulerEvent = (
 ): void => {
   const level = error ? "error" : "info";
   const message = `Scheduler ${event}`;
-  
+
   logger.log(level, message, {
     processId: process.pid,
     ...details,

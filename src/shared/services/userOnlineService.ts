@@ -7,30 +7,18 @@
 
 import { createClient, RedisClientType } from "redis";
 import { loggerService } from "./loggerService";
+import { userOnlineService } from "../../modules/user/user-online.service";
+import { OnlineUser } from "../../modules/user/user.types";
 
-interface OnlineUser {
-  userId: string;
-  role: string;
-  name: string;
-  socketId: string;
-  connectedAt: string;
-}
+const REDIS_ONLINE_USERS_KEY = "online_users";
+const REDIS_SOCKET_TO_USER_KEY = "socket_to_user";
 
-// Redis keys
-const REDIS_ONLINE_USERS_KEY = "online_users"; // Hash: { oderId -> JSON(OnlineUser) }
-const REDIS_SOCKET_TO_USER_KEY = "socket_to_user"; // Hash: { socketId -> userId }
-
-// Redis client (will be initialized)
 let redisClient: RedisClientType | null = null;
 let isRedisConnected = false;
 
-// Fallback in-memory store (used when Redis is not available)
 const inMemoryOnlineUsers = new Map<string, OnlineUser>();
 const inMemorySocketToUser = new Map<string, string>();
 
-/**
- * Initialize Redis connection for online user tracking
- */
 export async function initializeUserOnlineService(): Promise<void> {
   const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
   
@@ -62,40 +50,28 @@ export async function initializeUserOnlineService(): Promise<void> {
   }
 }
 
-/**
- * Register a user as online when they connect via WebSocket
- */
 export async function registerUserOnline(
   socketId: string,
   userId: string,
   role: string,
   name: string
 ): Promise<void> {
-  const user: OnlineUser = {
-    userId,
-    role,
-    name,
-    socketId,
-    connectedAt: new Date().toISOString()
-  };
+  const user = userOnlineService.formatOnlineUser(userId, role, name, socketId);
 
   if (isRedisConnected && redisClient) {
     try {
-      // Check if user already has a connection, remove old socket mapping
       const existingUserJson = await redisClient.hGet(REDIS_ONLINE_USERS_KEY, userId);
       if (existingUserJson) {
         const existingUser: OnlineUser = JSON.parse(existingUserJson);
         await redisClient.hDel(REDIS_SOCKET_TO_USER_KEY, existingUser.socketId);
       }
       
-      // Store new connection
       await redisClient.hSet(REDIS_ONLINE_USERS_KEY, userId, JSON.stringify(user));
       await redisClient.hSet(REDIS_SOCKET_TO_USER_KEY, socketId, userId);
       
       loggerService.info(`[Redis] User online: ${name} (${role})`, { userId, socketId, role, name });
     } catch (error) {
       loggerService.error("Redis error in registerUserOnline", { error: (error as Error).message });
-      // Fallback to in-memory
       registerUserOnlineInMemory(socketId, userId, role, name);
     }
   } else {
@@ -114,21 +90,13 @@ function registerUserOnlineInMemory(
     inMemorySocketToUser.delete(existingEntry.socketId);
   }
 
-  inMemoryOnlineUsers.set(userId, {
-    userId,
-    role,
-    name,
-    socketId,
-    connectedAt: new Date().toISOString()
-  });
+  const user = userOnlineService.formatOnlineUser(userId, role, name, socketId);
+  inMemoryOnlineUsers.set(userId, user);
   inMemorySocketToUser.set(socketId, userId);
 
   loggerService.info(`[Memory] User online: ${name} (${role})`, { userId, socketId, role, name });
 }
 
-/**
- * Unregister a user when they disconnect
- */
 export async function unregisterUserOnline(socketId: string): Promise<OnlineUser | undefined> {
   if (isRedisConnected && redisClient) {
     try {
@@ -143,7 +111,6 @@ export async function unregisterUserOnline(socketId: string): Promise<OnlineUser
 
       const user: OnlineUser = JSON.parse(userJson);
       
-      // Only remove if socket ID matches (prevents race conditions)
       if (user.socketId === socketId) {
         await redisClient.hDel(REDIS_ONLINE_USERS_KEY, userId);
         await redisClient.hDel(REDIS_SOCKET_TO_USER_KEY, socketId);
@@ -178,9 +145,6 @@ function unregisterUserOnlineInMemory(socketId: string): OnlineUser | undefined 
   return undefined;
 }
 
-/**
- * Check if a user is online
- */
 export async function isUserOnline(userId: string): Promise<boolean> {
   if (isRedisConnected && redisClient) {
     try {
@@ -194,28 +158,19 @@ export async function isUserOnline(userId: string): Promise<boolean> {
   return inMemoryOnlineUsers.has(userId);
 }
 
-/**
- * Get count of online users by role
- */
 export async function getOnlineCountByRole(): Promise<{ admin: number; monitor: number; worker: number }> {
-  const counts = { admin: 0, monitor: 0, worker: 0 };
-
   if (isRedisConnected && redisClient) {
     try {
       const allUsers = await redisClient.hGetAll(REDIS_ONLINE_USERS_KEY);
-      
-      Object.values(allUsers).forEach((userJson) => {
+      const users: OnlineUser[] = Object.values(allUsers).map((userJson) => {
         try {
-          const user: OnlineUser = JSON.parse(userJson);
-          if (user.role === "admin") counts.admin++;
-          else if (user.role === "monitor") counts.monitor++;
-          else if (user.role === "worker") counts.worker++;
+          return JSON.parse(userJson);
         } catch (e) {
-          // Skip invalid JSON
+          return null;
         }
-      });
+      }).filter((u): u is OnlineUser => u !== null);
       
-      return counts;
+      return userOnlineService.countByRole(users);
     } catch (error) {
       loggerService.error("Redis error in getOnlineCountByRole", { error: (error as Error).message });
       return getOnlineCountByRoleInMemory();
@@ -226,20 +181,10 @@ export async function getOnlineCountByRole(): Promise<{ admin: number; monitor: 
 }
 
 function getOnlineCountByRoleInMemory(): { admin: number; monitor: number; worker: number } {
-  const counts = { admin: 0, monitor: 0, worker: 0 };
-  
-  inMemoryOnlineUsers.forEach((user) => {
-    if (user.role === "admin") counts.admin++;
-    else if (user.role === "monitor") counts.monitor++;
-    else if (user.role === "worker") counts.worker++;
-  });
-
-  return counts;
+  const users = Array.from(inMemoryOnlineUsers.values());
+  return userOnlineService.countByRole(users);
 }
 
-/**
- * Get all online users (for debugging/admin)
- */
 export async function getAllOnlineUsers(): Promise<OnlineUser[]> {
   if (isRedisConnected && redisClient) {
     try {
@@ -253,17 +198,11 @@ export async function getAllOnlineUsers(): Promise<OnlineUser[]> {
   return Array.from(inMemoryOnlineUsers.values());
 }
 
-/**
- * Get online users by role
- */
 export async function getOnlineUsersByRole(role: string): Promise<OnlineUser[]> {
   const allUsers = await getAllOnlineUsers();
-  return allUsers.filter(user => user.role === role);
+  return userOnlineService.filterByRole(allUsers, role);
 }
 
-/**
- * Get total online count
- */
 export async function getTotalOnlineCount(): Promise<number> {
   if (isRedisConnected && redisClient) {
     try {
