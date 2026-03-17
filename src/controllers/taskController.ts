@@ -2,11 +2,16 @@ import { roundToTwoDecimals } from "@shared/helpers";
 import { loggerService, realtimeService } from "@shared/services";
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import { Alert, Device, IRecipeSnapshot, ProductSnapshot } from "../models";
-import { Product } from "../models/Product";
-import { Project } from "../models/Project";
-import { Recipe } from "../models/Recipe";
-import { Task } from "../models/Task";
+import {
+  Alert,
+  Device,
+  IRecipeSnapshot,
+  Product,
+  ProductSnapshot,
+  Project,
+  Recipe,
+  Task
+} from "../models";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 /**

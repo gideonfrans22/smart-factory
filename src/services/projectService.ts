@@ -1,5 +1,5 @@
 import { Project } from "../models/Project";
-import { DateTime } from "../utils/datetime";
+import { DateTime } from "@shared/utils";
 
 /**
  * Generate project name with quantity suffix

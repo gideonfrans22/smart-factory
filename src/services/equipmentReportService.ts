@@ -4,7 +4,7 @@ import { Device } from "../models/Device";
 import { Task } from "../models/Task";
 import * as ExcelFormatService from "./excelFormatService";
 import { formatDateKorean } from "./excelFormatService";
-import loggerService from "./loggerService";
+import { loggerService } from "@shared/services";
 
 /**
  * Equipment Performance Report Data Aggregation Service
@@ -256,7 +256,7 @@ export function adjustDateRangeForPeriod(
 
 /**
  * Calculate overall device utilization: (Actual uptime/operational hours) x 100
- * 
+ *
  * endDate가 미래인 경우 (예: 월간 리포트를 월 중에 생성),
  * 현재 시각까지만 경과 시간으로 분모를 계산하여
  * 아직 지나지 않은 시간이 분모에 포함되지 않도록 합니다.
@@ -932,5 +932,7 @@ export async function generateEquipmentPerformanceKPISheet(
   worksheet.getColumn(6).width = 16; // Error Count
   worksheet.getColumn(7).width = 16; // Production Quantity
 
-  loggerService.info("✓ Equipment Performance Report Sheet generated successfully");
+  loggerService.info(
+    "✓ Equipment Performance Report Sheet generated successfully"
+  );
 }

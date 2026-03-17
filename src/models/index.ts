@@ -1,5 +1,5 @@
 // User and Authentication
-export { User, IUser } from "./User";
+export { User, IUser } from "../modules/user/user.model";
 
 // Customer Management
 export { default as Customer, ICustomer } from "./Customer";

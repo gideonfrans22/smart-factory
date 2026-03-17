@@ -1,6 +1,6 @@
 import * as mqtt from "mqtt";
 import * as dotenv from "dotenv";
-import { loggerService } from "../services/loggerService";
+import { loggerService } from "@shared/services";
 
 dotenv.config();
 
@@ -23,9 +23,9 @@ class MQTTService {
       // Ensure clientId is UNIQUE per process, especially important in cluster mode.
       // If multiple clients connect with the same clientId, the broker will drop
       // the previous connection, causing ECONNRESET errors.
-      clientId: `${
-        process.env.MQTT_CLIENT_ID || "smart_factory_backend"
-      }-${process.pid}`
+      clientId: `${process.env.MQTT_CLIENT_ID || "smart_factory_backend"}-${
+        process.pid
+      }`
     };
   }
 
@@ -49,7 +49,12 @@ class MQTTService {
         });
 
         this.client.on("error", (error) => {
-          loggerService.logMQTTEvent("Connection error", undefined, undefined, error);
+          loggerService.logMQTTEvent(
+            "Connection error",
+            undefined,
+            undefined,
+            error
+          );
           reject(error);
         });
 
@@ -75,7 +80,10 @@ class MQTTService {
 
   public publish(topic: string, message: string | object): void {
     if (!this.client || !this.client.connected) {
-      loggerService.logMQTTEvent("Publish failed - Client not connected", topic);
+      loggerService.logMQTTEvent(
+        "Publish failed - Client not connected",
+        topic
+      );
       return;
     }
 
@@ -96,7 +104,10 @@ class MQTTService {
     callback: (topic: string, message: string) => void
   ): void {
     if (!this.client || !this.client.connected) {
-      loggerService.logMQTTEvent("Subscribe failed - Client not connected", topic);
+      loggerService.logMQTTEvent(
+        "Subscribe failed - Client not connected",
+        topic
+      );
       return;
     }
 

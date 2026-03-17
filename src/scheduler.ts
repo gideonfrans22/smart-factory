@@ -1,7 +1,7 @@
 import * as dotenv from "dotenv";
 import { connectDB, disconnectDB } from "./config/database";
 import { initializeScheduler } from "./services/schedulerService";
-import { loggerService } from "./services/loggerService";
+import { loggerService } from "@shared/services";
 
 // Load environment variables
 dotenv.config();

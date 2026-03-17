@@ -5,7 +5,7 @@ import { ITask } from "../../models/Task";
 import { IAlert } from "../../models/Alert";
 import { IProject } from "../../models/Project";
 import { IKPIData } from "../../models/KPIData";
-import { loggerService } from "./loggerService";
+import { loggerService } from "@shared/services";
 
 /**
  * RealtimeService - Central orchestrator for real-time updates
@@ -37,7 +37,10 @@ class RealtimeService {
       try {
         const alertData = JSON.parse(message);
 
-        loggerService.info(`MQTT Alert received from device ${deviceId}`, { deviceId, alertType: alertData.alertType || alertData.type });
+        loggerService.info(`MQTT Alert received from device ${deviceId}`, {
+          deviceId,
+          alertType: alertData.alertType || alertData.type
+        });
 
         // Save alert to database
         const alert = await Alert.create({
@@ -55,9 +58,16 @@ class RealtimeService {
         io.to(`device:${deviceId}`).emit("device:alert", alert);
         io.to("global").emit("alert:new", alert);
 
-        loggerService.info(`Alert broadcasted via WebSocket`, { alertId: alert._id?.toString(), deviceId });
+        loggerService.info(`Alert broadcasted via WebSocket`, {
+          alertId: alert._id?.toString(),
+          deviceId
+        });
       } catch (error) {
-        loggerService.error("Error processing device alert", { error: (error as Error).message, deviceId, topic });
+        loggerService.error("Error processing device alert", {
+          error: (error as Error).message,
+          deviceId,
+          topic
+        });
       }
     });
 
@@ -67,7 +77,10 @@ class RealtimeService {
       try {
         const progressData = JSON.parse(message);
 
-        loggerService.info(`MQTT Task progress update`, { taskId, progress: progressData.percentage || progressData.progress });
+        loggerService.info(`MQTT Task progress update`, {
+          taskId,
+          progress: progressData.percentage || progressData.progress
+        });
 
         // Update task progress in database
         const task = await Task.findByIdAndUpdate(
@@ -96,96 +109,130 @@ class RealtimeService {
             });
           }
 
-          loggerService.info(`Task progress broadcasted`, { taskId, progress: task.progress });
+          loggerService.info(`Task progress broadcasted`, {
+            taskId,
+            progress: task.progress
+          });
         }
       } catch (error) {
-        loggerService.error("Error processing task progress", { error: (error as Error).message, taskId, topic });
+        loggerService.error("Error processing task progress", {
+          error: (error as Error).message,
+          taskId,
+          topic
+        });
       }
     });
 
     // --- Device Status Handler ---
-    mqttService.subscribe("device/+/status", async (topic: string, message: any) => {
-      const deviceId = topic.split("/")[1];
-      try {
-        const statusData = JSON.parse(message);
+    mqttService.subscribe(
+      "device/+/status",
+      async (topic: string, message: any) => {
+        const deviceId = topic.split("/")[1];
+        try {
+          const statusData = JSON.parse(message);
 
-        loggerService.info(`MQTT Device status update`, { deviceId, status: statusData.status });
+          loggerService.info(`MQTT Device status update`, {
+            deviceId,
+            status: statusData.status
+          });
 
-        // Update device in database
-        await Device.findByIdAndUpdate(deviceId, {
-          status: statusData.status,
-          lastSeen: new Date(),
-          metadata: {
-            ...statusData.metadata,
-            lastStatusUpdate: new Date().toISOString()
-          }
-        });
+          // Update device in database
+          await Device.findByIdAndUpdate(deviceId, {
+            status: statusData.status,
+            lastSeen: new Date(),
+            metadata: {
+              ...statusData.metadata,
+              lastStatusUpdate: new Date().toISOString()
+            }
+          });
 
-        // Broadcast to WebSocket
-        const io = getIO();
-        io.to(`device:${deviceId}`).emit("device:status", {
-          deviceId,
-          status: statusData.status,
-          timestamp: new Date().toISOString(),
-          ...statusData
-        });
+          // Broadcast to WebSocket
+          const io = getIO();
+          io.to(`device:${deviceId}`).emit("device:status", {
+            deviceId,
+            status: statusData.status,
+            timestamp: new Date().toISOString(),
+            ...statusData
+          });
 
-        io.to("global").emit("device:status", {
-          deviceId,
-          status: statusData.status,
-          timestamp: new Date().toISOString()
-        });
+          io.to("global").emit("device:status", {
+            deviceId,
+            status: statusData.status,
+            timestamp: new Date().toISOString()
+          });
 
-        loggerService.info(`Device status broadcasted`, { deviceId, status: statusData.status });
-      } catch (error) {
-        loggerService.error("Error processing device status", { error: (error as Error).message, deviceId, topic });
+          loggerService.info(`Device status broadcasted`, {
+            deviceId,
+            status: statusData.status
+          });
+        } catch (error) {
+          loggerService.error("Error processing device status", {
+            error: (error as Error).message,
+            deviceId,
+            topic
+          });
+        }
       }
-    });
+    );
 
     // --- Device Metrics Handler ---
-    mqttService.subscribe("device/+/metrics", async (topic: string, message: any) => {
-      const deviceId = topic.split("/")[1];
-      try {
-        const metricsData = JSON.parse(message);
+    mqttService.subscribe(
+      "device/+/metrics",
+      async (topic: string, message: any) => {
+        const deviceId = topic.split("/")[1];
+        try {
+          const metricsData = JSON.parse(message);
 
-        loggerService.debug(`MQTT Device metrics`, { deviceId });
+          loggerService.debug(`MQTT Device metrics`, { deviceId });
 
-        // Broadcast metrics to WebSocket (for real-time charts)
-        const io = getIO();
-        io.to(`device:${deviceId}`).emit("device:metrics", {
-          deviceId,
-          metrics: metricsData,
-          timestamp: new Date().toISOString()
-        });
+          // Broadcast metrics to WebSocket (for real-time charts)
+          const io = getIO();
+          io.to(`device:${deviceId}`).emit("device:metrics", {
+            deviceId,
+            metrics: metricsData,
+            timestamp: new Date().toISOString()
+          });
 
-        loggerService.debug(`Device metrics broadcasted`, { deviceId });
-      } catch (error) {
-        loggerService.error("Error processing device metrics", { error: (error as Error).message, deviceId, topic });
+          loggerService.debug(`Device metrics broadcasted`, { deviceId });
+        } catch (error) {
+          loggerService.error("Error processing device metrics", {
+            error: (error as Error).message,
+            deviceId,
+            topic
+          });
+        }
       }
-    });
+    );
 
     // --- Task Completion Handler (from devices/workers) ---
-    mqttService.subscribe("task/+/completed", async (topic: string, message: any) => {
-      const taskId = topic.split("/")[1];
-      try {
-        const completionData = JSON.parse(message);
+    mqttService.subscribe(
+      "task/+/completed",
+      async (topic: string, message: any) => {
+        const taskId = topic.split("/")[1];
+        try {
+          const completionData = JSON.parse(message);
 
-        loggerService.info(`MQTT Task completion signal`, { taskId });
+          loggerService.info(`MQTT Task completion signal`, { taskId });
 
-        // Note: Actual task completion logic stays in taskController
-        // This is just for device-initiated completions
-        // Broadcast notification
-        const io = getIO();
-        io.to(`task:${taskId}`).emit("task:completed:signal", {
-          taskId,
-          ...completionData
-        });
+          // Note: Actual task completion logic stays in taskController
+          // This is just for device-initiated completions
+          // Broadcast notification
+          const io = getIO();
+          io.to(`task:${taskId}`).emit("task:completed:signal", {
+            taskId,
+            ...completionData
+          });
 
-        loggerService.info(`Task completion signal broadcasted`, { taskId });
-      } catch (error) {
-        loggerService.error("Error processing task completion", { error: (error as Error).message, taskId, topic });
+          loggerService.info(`Task completion signal broadcasted`, { taskId });
+        } catch (error) {
+          loggerService.error("Error processing task completion", {
+            error: (error as Error).message,
+            taskId,
+            topic
+          });
+        }
       }
-    });
+    );
 
     this.mqttInitialized = true;
     loggerService.info("MQTT message handlers initialized");
@@ -226,9 +273,16 @@ class RealtimeService {
       }
       io.to("global").emit("task:assigned", payload);
 
-      loggerService.info(`Task assignment broadcasted`, { taskId: task._id?.toString(), deviceId: task.deviceId?.toString(), projectId: task.projectId?.toString() });
+      loggerService.info(`Task assignment broadcasted`, {
+        taskId: task._id?.toString(),
+        deviceId: task.deviceId?.toString(),
+        projectId: task.projectId?.toString()
+      });
     } catch (error) {
-      loggerService.error("Error broadcasting task assignment", { error: (error as Error).message, taskId: task._id?.toString() });
+      loggerService.error("Error broadcasting task assignment", {
+        error: (error as Error).message,
+        taskId: task._id?.toString()
+      });
     }
   }
 
@@ -275,16 +329,26 @@ class RealtimeService {
       if (task.deviceTypeId) {
         const deviceTypeId =
           task.deviceTypeId._id || (task.deviceTypeId as any)?.toString();
-        loggerService.debug("Task status change", { taskId: task._id?.toString(), deviceTypeId, status: task.status });
+        loggerService.debug("Task status change", {
+          taskId: task._id?.toString(),
+          deviceTypeId,
+          status: task.status
+        });
         io.to(`devicetype:${deviceTypeId}`).emit(
           "devicetype:task:status",
           payload
         );
       }
 
-      loggerService.info(`Task status change broadcasted`, { taskId: task._id?.toString(), status: task.status });
+      loggerService.info(`Task status change broadcasted`, {
+        taskId: task._id?.toString(),
+        status: task.status
+      });
     } catch (error) {
-      loggerService.error("Error broadcasting task status", { error: (error as Error).message, taskId: task._id?.toString() });
+      loggerService.error("Error broadcasting task status", {
+        error: (error as Error).message,
+        taskId: task._id?.toString()
+      });
     }
   }
 
@@ -324,9 +388,15 @@ class RealtimeService {
       }
       io.to("global").emit("task:completed", payload);
 
-      loggerService.info(`Task completion broadcasted`, { taskId: task._id?.toString(), projectId: task.projectId?.toString() });
+      loggerService.info(`Task completion broadcasted`, {
+        taskId: task._id?.toString(),
+        projectId: task.projectId?.toString()
+      });
     } catch (error) {
-      loggerService.error("Error broadcasting task completion", { error: (error as Error).message, taskId: task._id?.toString() });
+      loggerService.error("Error broadcasting task completion", {
+        error: (error as Error).message,
+        taskId: task._id?.toString()
+      });
     }
   }
 
@@ -354,9 +424,15 @@ class RealtimeService {
       io.to(`project:${projectId}`).emit("project:progress", payload);
       io.to("global").emit("project:progress", payload);
 
-      loggerService.info(`Project progress broadcasted`, { projectId, progress: project.progress });
+      loggerService.info(`Project progress broadcasted`, {
+        projectId,
+        progress: project.progress
+      });
     } catch (error) {
-      loggerService.error("Error broadcasting project progress", { error: (error as Error).message, projectId });
+      loggerService.error("Error broadcasting project progress", {
+        error: (error as Error).message,
+        projectId
+      });
     }
   }
 
@@ -386,9 +462,15 @@ class RealtimeService {
       io.to(`project:${projectId}`).emit("project:updated", payload);
       io.to("global").emit("project:updated", payload);
 
-      loggerService.info(`Project update broadcasted`, { projectId, status: project.status });
+      loggerService.info(`Project update broadcasted`, {
+        projectId,
+        status: project.status
+      });
     } catch (error) {
-      loggerService.error("Error broadcasting project update", { error: (error as Error).message, projectId });
+      loggerService.error("Error broadcasting project update", {
+        error: (error as Error).message,
+        projectId
+      });
     }
   }
 
@@ -418,9 +500,16 @@ class RealtimeService {
       io.to("alerts").emit("alert:new", payload);
       io.to("global").emit("alert:new", payload);
 
-      loggerService.info(`Alert broadcasted`, { alertId: alert._id?.toString(), level: alert.level, type: alert.type });
+      loggerService.info(`Alert broadcasted`, {
+        alertId: alert._id?.toString(),
+        level: alert.level,
+        type: alert.type
+      });
     } catch (error) {
-      loggerService.error("Error broadcasting alert", { error: (error as Error).message, alertId: alert._id?.toString() });
+      loggerService.error("Error broadcasting alert", {
+        error: (error as Error).message,
+        alertId: alert._id?.toString()
+      });
     }
   }
 
@@ -447,9 +536,16 @@ class RealtimeService {
       io.to("kpis").emit("kpi:update", payload);
       io.to("global").emit("kpi:update", payload);
 
-      loggerService.info(`KPI update broadcasted`, { kpiId: kpiData._id?.toString(), metricName: kpiData.metricName, metricValue: kpiData.metricValue });
+      loggerService.info(`KPI update broadcasted`, {
+        kpiId: kpiData._id?.toString(),
+        metricName: kpiData.metricName,
+        metricValue: kpiData.metricValue
+      });
     } catch (error) {
-      loggerService.error("Error broadcasting KPI update", { error: (error as Error).message, kpiId: kpiData._id?.toString() });
+      loggerService.error("Error broadcasting KPI update", {
+        error: (error as Error).message,
+        kpiId: kpiData._id?.toString()
+      });
     }
   }
 
@@ -472,9 +568,15 @@ class RealtimeService {
       // Broadcast via WebSocket
       io.to(`device:${device._id}`).emit("device:updated", payload);
       io.to("global").emit("device:updated", payload);
-      loggerService.info(`Device update broadcasted`, { deviceId: device._id?.toString(), status: device.status });
+      loggerService.info(`Device update broadcasted`, {
+        deviceId: device._id?.toString(),
+        status: device.status
+      });
     } catch (error) {
-      loggerService.error("Error broadcasting device update", { error: (error as Error).message, deviceId: device._id?.toString() });
+      loggerService.error("Error broadcasting device update", {
+        error: (error as Error).message,
+        deviceId: device._id?.toString()
+      });
     }
   }
 
@@ -502,7 +604,9 @@ class RealtimeService {
 
       loggerService.info(`System announcement broadcasted`, { message });
     } catch (error) {
-      loggerService.error("Error broadcasting announcement", { error: (error as Error).message });
+      loggerService.error("Error broadcasting announcement", {
+        error: (error as Error).message
+      });
     }
   }
 
@@ -562,7 +666,11 @@ class RealtimeService {
           payload
         );
 
-        loggerService.info(`Task generation broadcasted to DeviceType`, { deviceTypeId, taskCount: deviceTypeTasks.length, projectId });
+        loggerService.info(`Task generation broadcasted to DeviceType`, {
+          deviceTypeId,
+          taskCount: deviceTypeTasks.length,
+          projectId
+        });
       }
 
       // Also broadcast summary to global/project rooms
@@ -585,9 +693,16 @@ class RealtimeService {
       );
       io.to("global").emit("project:tasks:generated", summaryPayload);
 
-      loggerService.info(`Task generation summary broadcasted`, { totalTasks: tasks.length, deviceTypeCount: tasksByDeviceType.size, projectId });
+      loggerService.info(`Task generation summary broadcasted`, {
+        totalTasks: tasks.length,
+        deviceTypeCount: tasksByDeviceType.size,
+        projectId
+      });
     } catch (error) {
-      loggerService.error("Error broadcasting task generation", { error: (error as Error).message, projectId });
+      loggerService.error("Error broadcasting task generation", {
+        error: (error as Error).message,
+        projectId
+      });
     }
   }
 
@@ -611,9 +726,16 @@ class RealtimeService {
       // Also broadcast to global for admin dashboards
       io.to("global").emit("layout:monitorDisplayToggled", data);
 
-      loggerService.info(`Layout monitor display toggled`, { layoutId: data.layoutId, layoutName: data.layoutName, isMonitorDisplay: data.isMonitorDisplay });
+      loggerService.info(`Layout monitor display toggled`, {
+        layoutId: data.layoutId,
+        layoutName: data.layoutName,
+        isMonitorDisplay: data.isMonitorDisplay
+      });
     } catch (error) {
-      loggerService.error("Error emitting layout monitor display toggle", { error: (error as Error).message, layoutId: data.layoutId });
+      loggerService.error("Error emitting layout monitor display toggle", {
+        error: (error as Error).message,
+        layoutId: data.layoutId
+      });
     }
   }
 }

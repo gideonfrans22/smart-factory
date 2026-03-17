@@ -3,11 +3,7 @@ import { DeviceType } from "../models/DeviceType";
 import { Product } from "../models/Product";
 import { RawMaterial } from "../models/RawMaterial";
 import { ImportRowError } from "../types";
-import {
-  cellToNumber,
-  cellToString,
-  parseHeaderRow
-} from "../utils/excelParseUtils";
+import { cellToNumber, cellToString, parseHeaderRow } from "@shared/utils";
 import {
   COLORS,
   createInstructionBox,
@@ -15,7 +11,7 @@ import {
   freezePanes,
   styleHeaderRow
 } from "./excelFormatService";
-import loggerService from "./loggerService";
+import { loggerService } from "@shared/services";
 
 export interface ParsedProduct {
   rowNumber: number;

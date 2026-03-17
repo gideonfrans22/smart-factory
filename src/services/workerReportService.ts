@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 import { Task } from "../models/Task";
-import { User } from "../models/User";
+import { User } from "../modules/user/user.model";
 import * as ExcelFormatService from "./excelFormatService";
 import { formatDateKorean } from "./excelFormatService";
 

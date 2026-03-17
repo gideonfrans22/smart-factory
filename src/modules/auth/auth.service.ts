@@ -17,7 +17,7 @@ import {
   hashPassword,
   sanitizeInput,
   validateEmail
-} from "../../utils/helpers";
+} from "@shared/helpers";
 import { JWTPayload } from "../../types";
 
 export class AuthService {
@@ -38,9 +38,7 @@ export class AuthService {
         : null;
 
     if (existingUser) {
-      const error: any = new Error(
-        "Employee number or email already exists"
-      );
+      const error: any = new Error("Employee number or email already exists");
       error.code = "CONFLICT";
       throw error;
     }

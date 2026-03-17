@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import * as dotenv from "dotenv";
-import { loggerService } from "../services/loggerService";
+import { loggerService } from "@shared/services";
 
 dotenv.config();
 

@@ -13,7 +13,7 @@ import {
   parseRawMaterialWorkbook
 } from "../services/rawMaterialImportService";
 import { importUpload } from "../middleware/importUpload";
-import { runMiddleware } from "../utils/runMiddleware";
+import { runMiddleware } from "@shared/utils";
 import { ActivityLog } from "../models/ActivityLog";
 
 // Get all raw materials with pagination and filtering

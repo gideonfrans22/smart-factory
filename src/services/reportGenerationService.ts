@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { Report } from "../models/Report";
 import * as EquipmentReportService from "./equipmentReportService";
-import { loggerService } from "./loggerService";
+import { loggerService } from "@shared/services";
 import * as ProductionReportService from "./productionReportService";
 import * as SummaryReportService from "./summaryReportService";
 import * as WorkerReportService from "./workerReportService";
@@ -224,7 +224,8 @@ export async function generateProductionRateReport(
 
   try {
     loggerService.info(
-      `[ProductionReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}${period ? ` (${period})` : ""
+      `[ProductionReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}${
+        period ? ` (${period})` : ""
       }`
     );
 
@@ -330,7 +331,8 @@ export async function generateEquipmentPerformanceReport(
 
   try {
     loggerService.info(
-      `[EquipmentReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}${period ? ` (${period})` : ""
+      `[EquipmentReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}${
+        period ? ` (${period})` : ""
       }`
     );
 
@@ -462,7 +464,10 @@ export async function generateSummaryReport(
 
     // Save workbook to file
     const fileName = generateReportFileName(
-      `${getTranslation("summary", lang)}_${getTranslation(`periods.${period}`, lang)}`,
+      `${getTranslation("summary", lang)}_${getTranslation(
+        `periods.${period}`,
+        lang
+      )}`,
       startDate,
       endDate
     );

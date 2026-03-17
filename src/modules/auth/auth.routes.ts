@@ -7,7 +7,7 @@ import {
   workerLoginSchema,
   monitorLoginSchema
 } from "./auth.validators";
-import { validateBody } from "@shared/utils/validateRequest";
+import { validateBody } from "@shared/utils";
 
 const router = Router();
 

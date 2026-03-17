@@ -7,11 +7,7 @@ import {
   freezePanes,
   styleHeaderRow
 } from "./excelFormatService";
-import {
-  cellToNumber,
-  cellToString,
-  parseHeaderRow
-} from "../utils/excelParseUtils";
+import { cellToNumber, cellToString, parseHeaderRow } from "@shared/utils";
 import { ImportRowError } from "../types";
 
 interface ParsedMaterial {

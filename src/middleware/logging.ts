@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { loggerService } from "../services/loggerService";
+import { loggerService } from "@shared/services";
 import { AuthenticatedRequest } from "../types";
 
 /**
@@ -13,7 +13,7 @@ export const requestLoggingMiddleware = (
 ): void => {
   // Skip logging for health check endpoints (or log at debug level)
   const isHealthCheck = req.path === "/api/health" || req.path === "/";
-  
+
   if (isHealthCheck) {
     // Log health checks at debug level
     loggerService.debug(`Health check: ${req.method} ${req.path}`);
@@ -37,7 +37,7 @@ export const requestLoggingMiddleware = (
     const statusCode = res.statusCode;
     const ip = req.ip || req.socket.remoteAddress || "unknown";
     const userAgent = req.get("user-agent") || "unknown";
-    
+
     // Get user ID if authenticated (Mongoose uses _id)
     const userId = (req as AuthenticatedRequest).user?._id?.toString();
 

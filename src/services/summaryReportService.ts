@@ -3,7 +3,7 @@ import { Alert } from "../models/Alert";
 import { Device } from "../models/Device";
 import { Project } from "../models/Project";
 import { Task } from "../models/Task";
-import { User } from "../models/User";
+import { User } from "../modules/user/user.model";
 import * as ExcelFormatService from "./excelFormatService";
 
 import { formatDateKorean, formatDateMM } from "./excelFormatService";

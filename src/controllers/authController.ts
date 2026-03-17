@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { Device } from "../models/Device";
-import { User } from "../models/User";
+import { User } from "../modules/user/user.model";
 import {
   APIResponse,
   AuthenticatedRequest,
@@ -13,7 +13,7 @@ import {
   hashPassword,
   sanitizeInput,
   validateEmail
-} from "../utils/helpers";
+} from "@shared/helpers";
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {

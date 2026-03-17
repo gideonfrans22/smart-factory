@@ -10,7 +10,7 @@ import {
   DateRange
 } from "@shared/utils";
 import { DateTime } from "luxon";
-import { loggerService } from "./loggerService";
+import { loggerService } from "@shared/services";
 
 /**
  * Scheduler Service for Auto-Generating Reports

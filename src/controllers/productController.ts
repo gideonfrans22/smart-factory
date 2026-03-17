@@ -19,7 +19,7 @@ import {
 import { DeviceType } from "../models/DeviceType";
 import { RawMaterial } from "../models/RawMaterial";
 import { importUpload } from "../middleware/importUpload";
-import { runMiddleware } from "../utils/runMiddleware";
+import { runMiddleware } from "@shared/utils";
 import { ActivityLog } from "../models/ActivityLog";
 
 // Get all products with pagination and filtering
