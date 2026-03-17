@@ -1,5 +1,5 @@
 import { Request } from "express";
-import { IUser } from "../modules/user/user.model";
+import { IUser } from "@modules/user";
 
 export interface AuthenticatedRequest extends Request {
   user?: IUser;
@@ -115,4 +115,3 @@ export interface VerifyResult {
     errors: ImportRowError[];
   };
 }
-
