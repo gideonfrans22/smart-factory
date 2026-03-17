@@ -8,7 +8,7 @@ import {
   setDeviceOccupied,
   releaseDevice,
   releaseDeviceBySocketId
-} from "../services/deviceOccupationService";
+} from "../../services/deviceOccupationService";
 import {
   initializeUserOnlineService,
   registerUserOnline,
