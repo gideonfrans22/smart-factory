@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { User } from "../models/User";
 import { Task } from "../models/Task";
 import { Device } from "../models/Device";
-import { APIResponse, AuthenticatedRequest } from "../types";
+import { APIResponse, AuthenticatedRequest } from "@shared/types";
 import { hashPassword, sanitizeInput, validateEmail } from "../utils/helpers";
 import { realtimeService } from "../services/realtimeService";
 import { getOnlineCountByRole } from "../services/userOnlineService";
@@ -229,7 +229,7 @@ export const createUser = async (
     try {
       const io = getIO();
       const onlineCounts = await getOnlineCountByRole();
-      
+
       // Get total counts per role
       const [adminTotal, monitorTotal, workerTotal] = await Promise.all([
         User.countDocuments({ role: "admin", deletedAt: null }),
@@ -243,14 +243,20 @@ export const createUser = async (
         worker: { total: workerTotal, online: onlineCounts.worker || 0 },
         summary: {
           totalUsers: adminTotal + monitorTotal + workerTotal,
-          totalOnline: (onlineCounts.admin || 0) + (onlineCounts.monitor || 0) + (onlineCounts.worker || 0)
+          totalOnline:
+            (onlineCounts.admin || 0) +
+            (onlineCounts.monitor || 0) +
+            (onlineCounts.worker || 0)
         },
         action: "created",
         timestamp: new Date().toISOString()
       };
 
       io.to("global").emit("users:total:updated", totalData);
-      console.log("📡 Broadcasted users:total:updated (user created):", totalData);
+      console.log(
+        "📡 Broadcasted users:total:updated (user created):",
+        totalData
+      );
     } catch (wsError) {
       console.error("Failed to broadcast users:total:updated:", wsError);
     }
@@ -496,7 +502,7 @@ export const deleteUser = async (
     try {
       const io = getIO();
       const onlineCounts = await getOnlineCountByRole();
-      
+
       // Get total counts per role
       const [adminTotal, monitorTotal, workerTotal] = await Promise.all([
         User.countDocuments({ role: "admin", deletedAt: null }),
@@ -510,14 +516,20 @@ export const deleteUser = async (
         worker: { total: workerTotal, online: onlineCounts.worker || 0 },
         summary: {
           totalUsers: adminTotal + monitorTotal + workerTotal,
-          totalOnline: (onlineCounts.admin || 0) + (onlineCounts.monitor || 0) + (onlineCounts.worker || 0)
+          totalOnline:
+            (onlineCounts.admin || 0) +
+            (onlineCounts.monitor || 0) +
+            (onlineCounts.worker || 0)
         },
         action: "deleted",
         timestamp: new Date().toISOString()
       };
 
       io.to("global").emit("users:total:updated", totalData);
-      console.log("📡 Broadcasted users:total:updated (user deleted):", totalData);
+      console.log(
+        "📡 Broadcasted users:total:updated (user deleted):",
+        totalData
+      );
     } catch (wsError) {
       console.error("Failed to broadcast users:total:updated:", wsError);
     }
@@ -779,14 +791,17 @@ export const getWorkerStatistics = async (
 /**
  * Get user statistics by role (total and online counts)
  * GET /api/users/statistics
- * 
+ *
  * Returns: {
  *   admin: { total: number, online: number },
  *   monitor: { total: number, online: number },
  *   worker: { total: number, online: number }
  * }
  */
-export const getUserStatistics = async (_req: Request, res: Response): Promise<void> => {
+export const getUserStatistics = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
   try {
     // Get total counts from database (all registered users, not just active)
     // deletedAt: null means not soft-deleted
@@ -817,7 +832,8 @@ export const getUserStatistics = async (_req: Request, res: Response): Promise<v
         },
         summary: {
           totalUsers: adminTotal + monitorTotal + workerTotal,
-          totalOnline: onlineCounts.admin + onlineCounts.monitor + onlineCounts.worker
+          totalOnline:
+            onlineCounts.admin + onlineCounts.monitor + onlineCounts.worker
         }
       }
     };
