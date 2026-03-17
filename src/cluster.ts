@@ -171,7 +171,7 @@ if (cluster.isPrimary) {
   );
 } else {
   // Worker process - import and start the server
-  import("./index").catch((error) => {
+  import("./server").catch((error) => {
     loggerService.error("Failed to start worker", {
       error: (error as Error).message
     });
