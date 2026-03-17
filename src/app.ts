@@ -1,32 +1,33 @@
-import express, { Request, Response } from "express";
 import cors from "cors";
-import helmet from "helmet";
 import * as dotenv from "dotenv";
+import express, { Request, Response } from "express";
 import rateLimit from "express-rate-limit";
+import helmet from "helmet";
 import path from "path";
 
-import { mqttService } from "./config/mqtt";
+import { mqttService } from "@infra/config";
 import {
-  requestLoggingMiddleware,
-  errorLoggingMiddleware
+  errorLoggingMiddleware,
+  requestLoggingMiddleware
 } from "./middleware/logging";
 
-import authRoutes from "./routes/auth";
-import userRoutes from "./routes/users";
-import recipeRoutes from "./routes/recipes";
-import rawMaterialRoutes from "./routes/rawMaterials";
-import productRoutes from "./routes/products";
-import projectRoutes from "./routes/projects";
-import taskRoutes from "./routes/tasks";
+import { authRoutes } from "@modules/auth";
+import { analyticsRoutes } from "@modules/analytics";
+import { userRoutes } from "@modules/user";
+import alertRoutes from "./routes/alerts";
+import customerRoutes from "./routes/customers";
+import dashboardRoutes from "./routes/dashboard";
 import deviceRoutes from "./routes/devices";
 import deviceTypeRoutes from "./routes/deviceTypes";
 import gridLayoutRoutes from "./routes/gridLayouts";
-import alertRoutes from "./routes/alerts";
 import kpiRoutes from "./routes/kpi";
-import reportRoutes from "./routes/reports";
 import mediaRoutes from "./routes/media";
-import customerRoutes from "./routes/customers";
-import dashboardRoutes from "./routes/dashboard";
+import productRoutes from "./routes/products";
+import projectRoutes from "./routes/projects";
+import rawMaterialRoutes from "./routes/rawMaterials";
+import recipeRoutes from "./routes/recipes";
+import reportRoutes from "./routes/reports";
+import taskRoutes from "./routes/tasks";
 
 dotenv.config();
 
@@ -58,6 +59,7 @@ app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/analytics", analyticsRoutes);
 app.use("/api/recipes", recipeRoutes);
 app.use("/api/raw-materials", rawMaterialRoutes);
 app.use("/api/products", productRoutes);
