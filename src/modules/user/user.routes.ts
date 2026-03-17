@@ -1,17 +1,33 @@
 import { Router } from "express";
-  import { userController } from "./user.controller";
-  // import { authMiddleware } from "../../shared/middleware/auth"; // example
-  const router = Router();
-  // router.use(authMiddleware); // enable if needed
-  router.get("/", (req, res, next) => userController.list(req, res, next));
-  router.get("/:id", (req, res, next) => userController.getById(req, res, next));
-  router.post("/", (req, res, next) => userController.create(req, res, next));
-  router.put("/:id", (req, res, next) => userController.update(req, res, next));
-  router.delete("/:id", (req, res, next) => userController.remove(req, res, next));
-  export default router;
-  /**
-   * Mount in app:
-   *   import userRoutes from "./modules/user/user.routes";
-   *   app.use("/api/user", userRoutes);
-   */
-  
+import { userController } from "./user.controller";
+import { authenticateToken, requireAdmin } from "../../middleware/auth";
+import { validateBody } from "@shared/utils";
+import { userCreateSchema, userUpdateSchema } from "./user.validators";
+
+const router = Router();
+
+router.get("/statistics", userController.getStatistics);
+
+router.get("/", authenticateToken, requireAdmin, userController.list);
+
+router.get("/:id", authenticateToken, requireAdmin, userController.getById);
+
+router.post(
+  "/",
+  authenticateToken,
+  requireAdmin,
+  validateBody(userCreateSchema),
+  userController.create
+);
+
+router.put(
+  "/:id",
+  authenticateToken,
+  requireAdmin,
+  validateBody(userUpdateSchema),
+  userController.update
+);
+
+router.delete("/:id", authenticateToken, requireAdmin, userController.remove);
+
+export default router;
