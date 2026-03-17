@@ -2,22 +2,23 @@
   "name": "smart-factory-backend",
   "version": "1.0.0",
   "description": "Smart Factory Backend API built with Node.js and TypeScript",
-  "main": "dist/index.js",
+  "main": "dist/server.js",
   "scripts": {
     "start": "node dist/cluster.js",
-    "start:single": "node dist/index.js",
-    "dev": "nodemon src/index.ts",
+    "start:single": "node dist/server.js",
+    "dev": "nodemon",
     "dev:cluster": "ts-node src/cluster.ts",
     "scheduler": "ts-node src/scheduler.ts",
     "scheduler:prod": "node dist/scheduler.js",
     "build": "tsc",
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",
-    "seed": "ts-node ./src/utils/seed.ts",
-    "recreate-task-indexes": "ts-node ./src/utils/recreate_task_indexes.ts",
-    "recreate-all-indexes": "ts-node ./src/utils/recreate_all_indexes.ts",
-    "reset-collections": "ts-node ./src/utils/resetCollections.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "seed": "ts-node ./db/seeds/seed.ts",
+    "recreate-task-indexes": "ts-node ./db/utils/recreate_task_indexes.ts",
+    "recreate-all-indexes": "ts-node ./db/utils/recreate_all_indexes.ts",
+    "reset-collections": "ts-node ./db/utils/resetCollections.ts",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "generate:module": "ts-node ./scripts/generate-module.ts"
   },
   "keywords": [
     "smart-factory",
@@ -38,6 +39,7 @@
     "@types/node-cron": "^3.0.11",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.2"
   },
   "dependencies": {
@@ -62,6 +64,7 @@
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "winston": "^3.19.0",
-    "winston-daily-rotate-file": "^5.0.0"
+    "winston-daily-rotate-file": "^5.0.0",
+    "zod": "^4.3.6"
   }
 }
