@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Alert, Device } from "../models";
-import { realtimeService } from "../services/realtimeService";
+import { realtimeService } from "@shared/services";
 import { getIO } from "../config/websocket";
 import { APIResponse, AuthenticatedRequest } from "../types";
 

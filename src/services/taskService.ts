@@ -1,9 +1,7 @@
-import { Task } from "../models/Task";
-import { IProject } from "../models/Project";
-import { IProductSnapshot } from "../models/ProductSnapshot";
-import { IRecipeSnapshot } from "../models/RecipeSnapshot";
+import { roundToTwoDecimals } from "@/shared/helpers";
+import { realtimeService } from "@shared/services";
 import mongoose from "mongoose";
-import { realtimeService } from "./realtimeService";
+import { IProductSnapshot, IProject, IRecipeSnapshot, Task } from "../models";
 
 /**
  * Generate all first-step tasks for a project when it becomes ACTIVE
@@ -195,7 +193,6 @@ export const recalculateProjectMetrics = async (
   ).length;
 
   // Calculate progress: (completed tasks / total tasks) × 100
-  const { roundToTwoDecimals } = await import("../utils/helpers");
   project.progress = roundToTwoDecimals(
     totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
   );

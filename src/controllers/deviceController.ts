@@ -3,7 +3,7 @@ import { Alert, GridLayout } from "../models";
 import { Device } from "../models/Device";
 import { DeviceType } from "../models/DeviceType";
 import { Task } from "../models/Task";
-import { realtimeService } from "../services/realtimeService";
+import { realtimeService } from "@shared/services";
 import { isDeviceOccupied } from "../services/deviceOccupationService";
 import { APIResponse, AuthenticatedRequest } from "../types";
 

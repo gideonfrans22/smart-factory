@@ -1,11 +1,10 @@
 import http from "http";
 
+import { loggerService, realtimeService } from "@shared/services";
+import app from "./app";
 import { connectDB } from "./config/database";
 import { mqttService } from "./config/mqtt";
 import { initializeWebSocket } from "./config/websocket";
-import { realtimeService } from "./services/realtimeService";
-import { loggerService } from "./services/loggerService";
-import app from "./app";
 
 const PORT = process.env.PORT || 3000;
 
@@ -106,4 +105,4 @@ process.on("unhandledRejection", (reason) => {
 
 startServer();
 
-export { app, startServer, gracefulShutdown };
+export { app, gracefulShutdown, startServer };

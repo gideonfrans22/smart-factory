@@ -4,7 +4,7 @@ import { Project } from "../models/Project";
 import { Task } from "../models/Task";
 import { Alert } from "../models/Alert";
 import { APIResponse } from "../types";
-import { realtimeService } from "../services/realtimeService";
+import { realtimeService } from "@shared/services";
 
 export const getRealtimeKPI = async (
   _req: Request,
@@ -15,8 +15,8 @@ export const getRealtimeKPI = async (
     const activeProjects = await Project.countDocuments({ status: "ACTIVE" });
     const completedTasks = await Task.countDocuments({ status: "COMPLETED" });
     const pendingTasks = await Task.countDocuments({ status: "PENDING" });
-    const activeTasks = await Task.countDocuments({ 
-      status: { $in: ["ONGOING", "PAUSED"] } 
+    const activeTasks = await Task.countDocuments({
+      status: { $in: ["ONGOING", "PAUSED"] }
     });
     const emergencyAlerts = await Alert.countDocuments({
       level: "CRITICAL",

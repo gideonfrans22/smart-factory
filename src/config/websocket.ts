@@ -13,9 +13,9 @@ import {
   initializeUserOnlineService,
   registerUserOnline,
   unregisterUserOnline,
-  getOnlineCountByRole
-} from "../services/userOnlineService";
-import { loggerService } from "../services/loggerService";
+  getOnlineCountByRole,
+  loggerService
+} from "@shared/services";
 // import jwt from "jsonwebtoken";
 
 let io: SocketIOServer;

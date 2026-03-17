@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { GridLayout } from "../models/GridLayout";
 import { Device } from "../models/Device";
-import { realtimeService } from "../services/realtimeService";
+import { realtimeService } from "@shared/services";
 import { APIResponse, AuthenticatedRequest } from "../types";
 
 /**
@@ -21,7 +21,7 @@ export const getGridLayouts = async (
 
     // Build query filter
     const query: any = {};
-    if (isMonitorDisplay === 'true') {
+    if (isMonitorDisplay === "true") {
       query.isMonitorDisplay = true;
     }
 
@@ -320,12 +320,13 @@ export const updateGridLayout = async (
     if (rows !== undefined) layout.rows = rows;
     if (devices !== undefined) layout.devices = devices;
     if (isDefault !== undefined) layout.isDefault = isDefault;
-    
+
     // Track if isMonitorDisplay changed for WebSocket notification
-    const isMonitorDisplayChanged = isMonitorDisplay !== undefined && 
+    const isMonitorDisplayChanged =
+      isMonitorDisplay !== undefined &&
       layout.isMonitorDisplay !== isMonitorDisplay;
     const oldIsMonitorDisplay = layout.isMonitorDisplay;
-    
+
     if (isMonitorDisplay !== undefined)
       layout.isMonitorDisplay = isMonitorDisplay;
 

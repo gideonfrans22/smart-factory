@@ -1,6 +1,6 @@
-import { User } from "../../src/models/User";
+import { User } from "../../src/modules/user/user.model";
 import { connectDB } from "../../src/config/database";
-import { hashPassword } from "../../src/utils/helpers";
+import { hashPassword } from "@shared/helpers";
 
 const seedDefaultUsers = async (): Promise<void> => {
   try {
