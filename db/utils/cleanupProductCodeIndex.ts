@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { connectDB } from "../config/database";
+import { connectDB } from "@infra/config";
 
 /**
  * Migration script to clean up unused productCode index

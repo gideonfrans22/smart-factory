@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { Project } from "../models/Project";
+import { Project } from "@/models";
 import dotenv from "dotenv";
 
 dotenv.config(); // Load environment variables from .env file

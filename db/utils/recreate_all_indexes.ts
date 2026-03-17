@@ -20,7 +20,7 @@ import {
   KPIData,
   Report,
   ActivityLog
-} from "../models";
+} from "@/models";
 
 dotenv.config(); // Load environment variables from .env file
 
