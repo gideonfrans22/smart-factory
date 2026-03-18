@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
-import { ISpecifications } from "./RawMaterial";
+import { RawMaterialSpecification } from "@modules/raw-material";
 
 // Recipe Step interface for snapshot
 export interface IRecipeStepSnapshot {
@@ -22,7 +22,7 @@ export interface IRawMaterialSnapshotReference {
   unit: string;
   description?: string;
   quantityRequired: number; // Quantity needed per unit produced
-  specification?: ISpecifications; // Specifications like dimensions, weight, etc.
+  specification?: RawMaterialSpecification; // Specifications like dimensions, weight, etc.
 }
 
 // RecipeSnapshot interface

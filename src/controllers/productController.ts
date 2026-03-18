@@ -17,7 +17,7 @@ import {
   parseProductImportWorkbook
 } from "../services/productImportService";
 import { DeviceType } from "../models/DeviceType";
-import { RawMaterial } from "../models/RawMaterial";
+import { RawMaterial } from "@modules/raw-material";
 import { importUpload } from "@shared/middleware";
 import { runMiddleware } from "@shared/utils";
 import { ActivityLog } from "../models/ActivityLog";

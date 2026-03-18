@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { ISpecifications } from "./RawMaterial";
+import { RawMaterialSpecification } from "@modules/raw-material";
 
 export interface IRecipeStep extends Document<mongoose.Types.ObjectId> {
   order: number;
@@ -15,7 +15,7 @@ export interface IRecipeStep extends Document<mongoose.Types.ObjectId> {
 export interface IRawMaterialReference {
   materialId: mongoose.Types.ObjectId; // Reference to RawMaterial._id
   quantityRequired: number; // Quantity needed per unit produced
-  specification?: ISpecifications; // Specifications like dimensions, weight, etc.
+  specification?: RawMaterialSpecification; // Specifications like dimensions, weight, etc.
 }
 
 export interface IRecipe extends Document {

@@ -4,9 +4,7 @@ import * as dotenv from "dotenv";
 // Import all models
 import {
   User,
-  Customer,
   Recipe,
-  RawMaterial,
   Product,
   Project,
   Task,
@@ -21,13 +19,13 @@ import {
   Report,
   ActivityLog
 } from "@/models";
+import { RawMaterial } from "@modules/raw-material";
 
 dotenv.config(); // Load environment variables from .env file
 
 // Define all models with their display names
 const models = [
   { model: User, name: "User", collectionName: "users" },
-  { model: Customer, name: "Customer", collectionName: "customers" },
   { model: Recipe, name: "Recipe", collectionName: "recipes" },
   { model: RawMaterial, name: "RawMaterial", collectionName: "rawmaterials" },
   { model: Product, name: "Product", collectionName: "products" },

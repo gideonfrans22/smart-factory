@@ -1,12 +1,8 @@
 // User and Authentication
 export { User, IUser } from "../modules/user/user.model";
 
-// Customer Management
-export { default as Customer, ICustomer } from "./Customer";
-
 // Projects and Tasks
 export { Recipe, IRecipe, IRecipeStep } from "./Recipe";
-export { RawMaterial, IRawMaterial } from "./RawMaterial";
 export { Product, IProduct, IProductRecipe } from "./Product";
 export { Project, IProject } from "./Project";
 export { Task, ITask } from "./Task";
@@ -28,7 +24,7 @@ export {
 export { Media, IMedia } from "./Media";
 
 // Devices
-export { Device, IDevice } from "./Device";
+export { Device, DeviceDocument as IDevice } from "@modules/device";
 export { DeviceType, IDeviceType } from "./DeviceType";
 export { GridLayout, IGridLayout, IDevicePosition } from "./GridLayout";
 
