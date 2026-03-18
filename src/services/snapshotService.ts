@@ -1,9 +1,10 @@
 import mongoose from "mongoose";
-import { Product } from "../models/Product";
-import ProductSnapshot, {
-  IProductRecipeSnapshotReference,
-  IProductSnapshot
-} from "../models/ProductSnapshot";
+import {
+  Product,
+  ProductSnapshot,
+  IProductSnapshot,
+  IProductRecipeSnapshotReference
+} from "@modules/product";
 import {
   Recipe,
   RecipeSnapshot,

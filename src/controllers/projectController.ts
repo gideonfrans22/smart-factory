@@ -1,7 +1,7 @@
 import { loggerService, realtimeService } from "@shared/services";
 import { Request, Response } from "express";
-import { ProductSnapshot, RecipeSnapshot, Task } from "../models";
-import { Product } from "../models/Product";
+import { Product, ProductSnapshot } from "@modules/product";
+import { RecipeSnapshot, Task } from "../models";
 import { Project } from "../models/Project";
 import { Recipe } from "@modules/recipe";
 import { generateProjectName } from "../services/projectService";

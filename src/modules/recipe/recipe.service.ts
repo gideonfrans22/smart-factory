@@ -9,7 +9,7 @@ import {
   RecipeListResult,
   RecipeUpdateDTO
 } from "./recipe.types";
-import { Product, IProductRecipe } from "../../models/Product";
+import { Product, IProductRecipe } from "@modules/product";
 import { Project } from "../../models/Project";
 import { SnapshotService } from "../../services/snapshotService";
 
