@@ -1,30 +1,29 @@
+import { authenticateToken, validate } from "@shared/middleware";
 import { Router } from "express";
 import { authController } from "./auth.controller";
-import { authenticateToken } from "@shared/middleware";
 import {
-  registerSchema,
   loginSchema,
-  workerLoginSchema,
-  monitorLoginSchema
+  monitorLoginSchema,
+  registerSchema,
+  workerLoginSchema
 } from "./auth.validators";
-import { validateBody } from "@shared/utils";
 
 const router = Router();
 
 // Public auth endpoints
-router.post("/register", validateBody(registerSchema), authController.register);
+router.post("/register", validate(registerSchema), authController.register);
 
-router.post("/login", validateBody(loginSchema), authController.login);
+router.post("/login", validate(loginSchema), authController.login);
 
 router.post(
   "/worker-login",
-  validateBody(workerLoginSchema),
+  validate(workerLoginSchema),
   authController.workerLogin
 );
 
 router.post(
   "/monitor-login",
-  validateBody(monitorLoginSchema),
+  validate(monitorLoginSchema),
   authController.monitorLogin
 );
 

@@ -1,7 +1,6 @@
+import { authenticateToken, requireAdmin, validate } from "@shared/middleware";
 import { Router } from "express";
 import { userController } from "./user.controller";
-import { authenticateToken, requireAdmin } from "@shared/middleware";
-import { validateBody } from "@shared/utils";
 import { userCreateSchema, userUpdateSchema } from "./user.validators";
 
 const router = Router();
@@ -16,7 +15,7 @@ router.post(
   "/",
   authenticateToken,
   requireAdmin,
-  validateBody(userCreateSchema),
+  validate(userCreateSchema),
   userController.create
 );
 
@@ -24,7 +23,7 @@ router.put(
   "/:id",
   authenticateToken,
   requireAdmin,
-  validateBody(userUpdateSchema),
+  validate(userUpdateSchema),
   userController.update
 );
 
