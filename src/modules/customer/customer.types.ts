@@ -1,11 +1,15 @@
 export interface CustomerDTO {
-    // TODO: define DTO fields
-    // example:
-    // name: string;
-  }
-  export interface CustomerFilters {
-    // TODO: define filter fields
-    // example:
-    // search?: string;
-  }
-  
+  name: string;
+  personInCharge: string;
+  department?: string;
+  notes?: string;
+}
+
+export interface CustomerUpdateDTO extends Partial<CustomerDTO> {}
+
+export interface CustomerFilters {
+  search?: string;
+  department?: string;
+  page?: number;
+  limit?: number;
+}
