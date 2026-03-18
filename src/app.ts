@@ -21,7 +21,7 @@ import dashboardRoutes from "./routes/dashboard";
 import { deviceTypeRoutes } from "@modules/device-type";
 import { gridLayoutRoutes } from "@modules/grid-layout";
 import kpiRoutes from "./routes/kpi";
-import productRoutes from "./routes/products";
+import { productRoutes } from "@modules/product";
 import projectRoutes from "./routes/projects";
 import { rawMaterialRoutes } from "@modules/raw-material";
 import { recipeRoutes } from "@modules/recipe";
