@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import { ProductSnapshot, RecipeSnapshot, Task } from "../models";
 import { Product } from "../models/Product";
 import { Project } from "../models/Project";
-import { Recipe } from "../models/Recipe";
+import { Recipe } from "@modules/recipe";
 import { generateProjectName } from "../services/projectService";
 import { SnapshotService } from "../services/snapshotService";
 import {

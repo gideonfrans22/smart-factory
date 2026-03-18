@@ -1,9 +1,8 @@
 import { Response } from "express";
 import { Product } from "../models/Product";
-import { Recipe } from "../models/Recipe";
 import { Project } from "../models/Project";
 import ProductSnapshot from "../models/ProductSnapshot";
-import RecipeSnapshot from "../models/RecipeSnapshot";
+import { Recipe, RecipeSnapshot } from "@modules/recipe";
 import {
   APIResponse,
   AuthenticatedRequest,

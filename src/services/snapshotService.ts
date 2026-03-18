@@ -4,12 +4,13 @@ import ProductSnapshot, {
   IProductRecipeSnapshotReference,
   IProductSnapshot
 } from "../models/ProductSnapshot";
-import { Recipe } from "../models/Recipe";
-import RecipeSnapshot, {
+import {
+  Recipe,
+  RecipeSnapshot,
   IRawMaterialSnapshotReference,
   IRecipeSnapshot,
   IRecipeStepSnapshot
-} from "../models/RecipeSnapshot";
+} from "@modules/recipe";
 
 /**
  * SnapshotService

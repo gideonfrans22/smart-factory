@@ -2,18 +2,18 @@
 export { User, IUser } from "../modules/user/user.model";
 
 // Projects and Tasks
-export { Recipe, IRecipe, IRecipeStep } from "./Recipe";
+export { Recipe, IRecipe, IRecipeStep } from "@modules/recipe";
 export { Product, IProduct, IProductRecipe } from "./Product";
 export { Project, IProject } from "./Project";
 export { Task, ITask } from "./Task";
 
 // Snapshots
 export {
-  default as RecipeSnapshot,
+  RecipeSnapshot,
   IRecipeSnapshot,
   IRecipeStepSnapshot,
   IRawMaterialSnapshotReference
-} from "./RecipeSnapshot";
+} from "@modules/recipe";
 export {
   default as ProductSnapshot,
   IProductSnapshot,
