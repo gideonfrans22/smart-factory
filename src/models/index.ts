@@ -21,12 +21,16 @@ export {
 } from "./ProductSnapshot";
 
 // Media
-export { Media, IMedia } from "./Media";
+export { Media, IMedia } from "@modules/media";
 
 // Devices
 export { Device, DeviceDocument as IDevice } from "@modules/device";
 export { DeviceType, IDeviceType } from "@modules/device-type";
-export { GridLayout, GridLayoutDocument as IGridLayout, IDevicePosition } from "@modules/grid-layout";
+export {
+  GridLayout,
+  GridLayoutDocument as IGridLayout,
+  IDevicePosition
+} from "@modules/grid-layout";
 
 // Alerts and Emergency
 export { Alert, AlertDocument as IAlert } from "@modules/alert";

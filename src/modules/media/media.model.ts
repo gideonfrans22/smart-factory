@@ -76,3 +76,4 @@ MediaSchema.index({ createdAt: -1 });
 MediaSchema.index({ mimeType: 1 });
 
 export const Media = mongoose.model<IMedia>("Media", MediaSchema);
+
