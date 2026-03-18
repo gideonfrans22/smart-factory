@@ -1,11 +1,13 @@
 export interface DeviceTypeDTO {
-    // TODO: define DTO fields
-    // example:
-    // name: string;
-  }
-  export interface DeviceTypeFilters {
-    // TODO: define filter fields
-    // example:
-    // search?: string;
-  }
-  
+  name: string;
+  description?: string;
+  specifications?: Record<string, any>;
+  validRecipeStepNames?: string[];
+}
+
+export interface DeviceTypeUpdateDTO extends Partial<DeviceTypeDTO> {}
+
+export interface DeviceTypeListResult {
+  count: number;
+  items: any[];
+}

@@ -1,16 +1,55 @@
 import { Router } from "express";
 import { deviceTypeController } from "./device-type.controller";
-// import { authMiddleware } from "@shared/middleware"; // example
+import { authenticateToken } from "@shared/middleware";
+import {
+  deviceTypeCreateSchema,
+  deviceTypeIdParamSchema,
+  deviceTypeUpdateSchema
+} from "./device-type.validators";
+import { validate } from "@shared/middleware/validate";
+
 const router = Router();
-// router.use(authMiddleware); // enable if needed
+
+router.use(authenticateToken);
+
 router.get("/", deviceTypeController.list);
-router.get("/:id", deviceTypeController.getById);
-router.post("/", deviceTypeController.create);
-router.put("/:id", deviceTypeController.update);
-router.delete("/:id", deviceTypeController.remove);
+
+router.get(
+  "/:id",
+  validate(deviceTypeIdParamSchema, "params"),
+  deviceTypeController.getById
+);
+
+router.get(
+  "/:id/devices",
+  validate(deviceTypeIdParamSchema, "params"),
+  deviceTypeController.getDevicesByType
+);
+
+router.get(
+  "/:id/devices/available",
+  validate(deviceTypeIdParamSchema, "params"),
+  deviceTypeController.getAvailableDevicesByType
+);
+
+router.post(
+  "/",
+  validate(deviceTypeCreateSchema),
+  deviceTypeController.create
+);
+
+router.put(
+  "/:id",
+  validate(deviceTypeIdParamSchema, "params"),
+  validate(deviceTypeUpdateSchema),
+  deviceTypeController.update
+);
+
+router.delete(
+  "/:id",
+  validate(deviceTypeIdParamSchema, "params"),
+  deviceTypeController.remove
+);
+
 export default router;
-/**
- * Mount in app:
- *   import deviceTypeRoutes from "./modules/device-type/device-type.routes";
- *   app.use("/api/device-type", deviceTypeRoutes);
- */
+
