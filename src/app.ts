@@ -24,7 +24,7 @@ import kpiRoutes from "./routes/kpi";
 import productRoutes from "./routes/products";
 import projectRoutes from "./routes/projects";
 import { rawMaterialRoutes } from "@modules/raw-material";
-import recipeRoutes from "./routes/recipes";
+import { recipeRoutes } from "@modules/recipe";
 import reportRoutes from "./routes/reports";
 import taskRoutes from "./routes/tasks";
 import { mediaRoutes } from "@modules/media";
