@@ -1,58 +1,51 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Document, Schema } from "mongoose";
 import { RawMaterialSpecification } from "@modules/raw-material";
 
-// Recipe Step interface for snapshot
 export interface IRecipeStepSnapshot {
-  _id: mongoose.Types.ObjectId; // Important: step ID lives within snapshot
+  _id: mongoose.Types.ObjectId;
   order: number;
   name: string;
   description?: string;
   deviceTypeId: mongoose.Types.ObjectId;
-  estimatedDuration: number; // in minutes
-  dependsOn?: mongoose.Types.ObjectId[]; // References to other step _ids in this snapshot
+  estimatedDuration: number;
+  dependsOn?: mongoose.Types.ObjectId[];
   instructions?: string;
   qualityChecks?: string[];
 }
 
-// Raw Material Reference interface for snapshot
 export interface IRawMaterialSnapshotReference {
   rawMaterialId: mongoose.Types.ObjectId;
   rawMaterialNumber?: string;
   name: string;
   unit: string;
   description?: string;
-  quantityRequired: number; // Quantity needed per unit produced
-  specification?: RawMaterialSpecification; // Specifications like dimensions, weight, etc.
+  quantityRequired: number;
+  specification?: RawMaterialSpecification;
 }
 
-// RecipeSnapshot interface
 export interface IRecipeSnapshot extends Document {
   _id: mongoose.Types.ObjectId;
-  originalRecipeId: mongoose.Types.ObjectId; // Reference to the live Recipe
-  version: number; // Snapshot version (increments on each update)
+  originalRecipeId: mongoose.Types.ObjectId;
+  version: number;
   recipeNumber?: string;
   name: string;
   description?: string;
   specification?: string;
   steps: IRecipeStepSnapshot[];
   rawMaterials: IRawMaterialSnapshotReference[];
-  estimatedDuration: number; // Total duration in minutes
+  estimatedDuration: number;
 
-  // ✨ NEW FIELDS - Manufacturing metadata
   dwgNo?: string;
   unit?: string;
   outsourcing?: string;
   remarks?: string;
 
-  // ✨ MEDIA FIELDS
   mediaIds?: mongoose.Types.ObjectId[];
-
   modifiedBy?: mongoose.Types.ObjectId;
-  createdAt: Date; // For smart caching: compare with Recipe.updatedAt
+  createdAt: Date;
   updatedAt: Date;
 }
 
-// Static methods interface
 export interface IRecipeSnapshotModel extends mongoose.Model<IRecipeSnapshot> {
   getLatestSnapshot(
     recipeId: mongoose.Types.ObjectId
@@ -63,7 +56,6 @@ export interface IRecipeSnapshotModel extends mongoose.Model<IRecipeSnapshot> {
   ): Promise<IRecipeSnapshot>;
 }
 
-// Recipe Step Schema for snapshot
 const RecipeStepSnapshotSchema = new Schema<IRecipeStepSnapshot>(
   {
     order: { type: Number, required: true },
@@ -75,14 +67,13 @@ const RecipeStepSnapshotSchema = new Schema<IRecipeStepSnapshot>(
       required: true
     },
     estimatedDuration: { type: Number, required: true },
-    dependsOn: [{ type: Schema.Types.ObjectId }], // References to step _ids in this snapshot
+    dependsOn: [{ type: Schema.Types.ObjectId }],
     instructions: { type: String },
     qualityChecks: [{ type: String }]
   },
-  { _id: true } // Ensure each step has its own _id
+  { _id: true }
 );
 
-// Raw Material Snapshot Reference Schema
 const RawMaterialSnapshotReferenceSchema =
   new Schema<IRawMaterialSnapshotReference>({
     rawMaterialId: {
@@ -98,7 +89,6 @@ const RawMaterialSnapshotReferenceSchema =
     specification: { type: Schema.Types.Mixed }
   });
 
-// RecipeSnapshot Schema
 const RecipeSnapshotSchema = new Schema<IRecipeSnapshot>(
   {
     originalRecipeId: {
@@ -129,12 +119,10 @@ const RecipeSnapshotSchema = new Schema<IRecipeSnapshot>(
     },
     rawMaterials: [RawMaterialSnapshotReferenceSchema],
     estimatedDuration: { type: Number, required: true },
-    // ✨ NEW FIELDS - Manufacturing metadata
     dwgNo: { type: String, required: false },
     unit: { type: String, required: false, default: "EA" },
     outsourcing: { type: String, required: false },
     remarks: { type: String, required: false },
-    // ✨ MEDIA FIELDS
     mediaIds: [{ type: Schema.Types.ObjectId, ref: "Media" }],
     modifiedBy: {
       type: Schema.Types.ObjectId,
@@ -144,30 +132,23 @@ const RecipeSnapshotSchema = new Schema<IRecipeSnapshot>(
   { timestamps: true }
 );
 
-// Compound index for efficient querying and caching
-RecipeSnapshotSchema.index({ originalRecipeId: 1, version: -1 }); // Get latest version
-RecipeSnapshotSchema.index({ originalRecipeId: 1, createdAt: 1 }); // For cache checking
+RecipeSnapshotSchema.index({ originalRecipeId: 1, version: -1 });
+RecipeSnapshotSchema.index({ originalRecipeId: 1, createdAt: 1 });
 
-// Static method to get latest snapshot for a recipe
 RecipeSnapshotSchema.statics.getLatestSnapshot = async function (
   recipeId: mongoose.Types.ObjectId
 ): Promise<IRecipeSnapshot | null> {
-  return this.findOne({ originalRecipeId: recipeId })
-    .sort({ version: -1 })
-    .exec();
+  return this.findOne({ originalRecipeId: recipeId }).sort({ version: -1 }).exec();
 };
 
-// Static method to get or create snapshot with smart caching
 RecipeSnapshotSchema.statics.getOrCreateSnapshot = async function (
   recipeId: mongoose.Types.ObjectId,
   recipeData: any
 ): Promise<IRecipeSnapshot> {
-  // Find latest snapshot using the static method
   const latestSnapshot = await this.findOne({ originalRecipeId: recipeId })
     .sort({ version: -1 })
     .exec();
 
-  // If no snapshot exists, create first version
   if (!latestSnapshot) {
     return this.create({
       originalRecipeId: recipeId,
@@ -176,16 +157,10 @@ RecipeSnapshotSchema.statics.getOrCreateSnapshot = async function (
     });
   }
 
-  // Smart caching: compare timestamps
-  // If live recipe hasn't been updated since snapshot creation, reuse snapshot
-  if (
-    recipeData.updatedAt &&
-    latestSnapshot.createdAt >= recipeData.updatedAt
-  ) {
+  if (recipeData.updatedAt && latestSnapshot.createdAt >= recipeData.updatedAt) {
     return latestSnapshot;
   }
 
-  // Recipe has been updated, create new version
   return this.create({
     originalRecipeId: recipeId,
     version: latestSnapshot.version + 1,
@@ -193,7 +168,8 @@ RecipeSnapshotSchema.statics.getOrCreateSnapshot = async function (
   });
 };
 
-export default mongoose.model<IRecipeSnapshot, IRecipeSnapshotModel>(
+export const RecipeSnapshot = mongoose.model<IRecipeSnapshot, IRecipeSnapshotModel>(
   "RecipeSnapshot",
   RecipeSnapshotSchema
 );
+
