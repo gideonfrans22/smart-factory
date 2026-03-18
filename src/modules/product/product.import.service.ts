@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { DeviceType } from "@modules/device-type";
-import { Product } from "../models/Product";
+import { Product } from "./product.model";
 import { RawMaterial } from "@modules/raw-material";
 import { ImportRowError } from "@shared/types";
 import { cellToNumber, cellToString, parseHeaderRow } from "@shared/utils";
@@ -10,7 +10,7 @@ import {
   enableAutoFilter,
   freezePanes,
   styleHeaderRow
-} from "./excelFormatService";
+} from "../../services/excelFormatService";
 import { loggerService } from "@shared/services";
 
 export interface ParsedProduct {

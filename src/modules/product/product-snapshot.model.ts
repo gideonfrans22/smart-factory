@@ -129,7 +129,7 @@ ProductSnapshotSchema.statics.getOrCreateSnapshot = async function (
   });
 };
 
-export default mongoose.model<IProductSnapshot, IProductSnapshotModel>(
+export const ProductSnapshot = mongoose.model<IProductSnapshot, IProductSnapshotModel>(
   "ProductSnapshot",
   ProductSnapshotSchema
 );
