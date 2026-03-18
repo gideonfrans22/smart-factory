@@ -16,7 +16,7 @@ import {
   generateProductImportTemplate,
   parseProductImportWorkbook
 } from "../services/productImportService";
-import { DeviceType } from "../models/DeviceType";
+import { DeviceType } from "@modules/device-type";
 import { RawMaterial } from "@modules/raw-material";
 import { importUpload } from "@shared/middleware";
 import { runMiddleware } from "@shared/utils";

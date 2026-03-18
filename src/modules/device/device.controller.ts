@@ -5,7 +5,7 @@ import { Device } from "./device.model";
 import { AuthenticatedRequest, APIResponse } from "@shared/types";
 import { Alert } from "../../models";
 import { GridLayout } from "../../models";
-import { DeviceType } from "../../models/DeviceType";
+import { DeviceType } from "@modules/device-type";
 import { realtimeService } from "@shared/services";
 import { isDeviceOccupied } from "../../services/deviceOccupationService";
 

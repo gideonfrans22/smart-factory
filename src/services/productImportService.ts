@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { DeviceType } from "../models/DeviceType";
+import { DeviceType } from "@modules/device-type";
 import { Product } from "../models/Product";
 import { RawMaterial } from "@modules/raw-material";
 import { ImportRowError } from "@shared/types";
@@ -264,7 +264,7 @@ export async function generateProductImportTemplate(
   });
   stepsExampleRow.font = { italic: true, color: { argb: "FF808080" } };
 
-  const list = deviceTypes.map((dt) => dt.name).join(",");
+  const list = deviceTypes.map((dt: any) => dt.name).join(",");
   // If you might ever have double quotes in names, escape them for Excel:
   const escapedList = list.replace(/"/g, '""');
 
@@ -406,7 +406,7 @@ export async function generateProductImportTemplate(
     { header: "description", key: "description", width: 40 }
   ];
   styleHeaderRow(refDeviceTypesSheet, 1, refDeviceTypesSheet.columns.length);
-  deviceTypes.forEach((dt) => {
+  deviceTypes.forEach((dt: any) => {
     refDeviceTypesSheet.addRow({
       id: (dt as any)._id.toString(),
       name: dt.name,
@@ -1036,7 +1036,9 @@ export async function parseProductImportWorkbook(
   const dbDeviceTypes = await DeviceType.find({
     name: { $in: allDeviceTypeNames }
   }).lean();
-  const dbDeviceTypeNames = new Set<string>(dbDeviceTypes.map((dt) => dt.name));
+  const dbDeviceTypeNames = new Set<string>(
+    dbDeviceTypes.map((dt: any) => dt.name)
+  );
 
   steps.forEach((step) => {
     if (

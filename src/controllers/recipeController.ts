@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { IProductRecipe, Product, Recipe } from "../models";
 import { RawMaterial } from "@modules/raw-material";
-import { DeviceType } from "../models/DeviceType";
+import { DeviceType } from "@modules/device-type";
 import { Project } from "../models/Project";
 import { APIResponse, AuthenticatedRequest } from "@shared/types";
 import { RecipeService } from "../services/recipeService";

@@ -25,11 +25,11 @@ export { Media, IMedia } from "./Media";
 
 // Devices
 export { Device, DeviceDocument as IDevice } from "@modules/device";
-export { DeviceType, IDeviceType } from "./DeviceType";
+export { DeviceType, IDeviceType } from "@modules/device-type";
 export { GridLayout, IGridLayout, IDevicePosition } from "./GridLayout";
 
 // Alerts and Emergency
-export { Alert, IAlert } from "./Alert";
+export { Alert, AlertDocument as IAlert } from "@modules/alert";
 
 // Analytics and Reporting
 export { KPIData, IKPIData } from "./KPIData";
