@@ -19,7 +19,7 @@ import { deviceRoutes } from "@modules/device";
 import { alertRoutes } from "@modules/alert";
 import dashboardRoutes from "./routes/dashboard";
 import { deviceTypeRoutes } from "@modules/device-type";
-import gridLayoutRoutes from "./routes/gridLayouts";
+import { gridLayoutRoutes } from "@modules/grid-layout";
 import kpiRoutes from "./routes/kpi";
 import mediaRoutes from "./routes/media";
 import productRoutes from "./routes/products";
