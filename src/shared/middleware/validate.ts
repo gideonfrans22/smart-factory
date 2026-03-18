@@ -14,6 +14,5 @@ export const validate =
       });
       return;
     }
-    (req as any)[source] = result.data;
     next();
   };
