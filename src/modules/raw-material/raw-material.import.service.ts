@@ -1,12 +1,12 @@
 import ExcelJS from "exceljs";
-import { RawMaterial } from "../models/RawMaterial";
+import { RawMaterial } from "./raw-material.model";
 import {
   COLORS,
   createInstructionBox,
   enableAutoFilter,
   freezePanes,
   styleHeaderRow
-} from "./excelFormatService";
+} from "../../services/excelFormatService";
 import { cellToNumber, cellToString, parseHeaderRow } from "@shared/utils";
 import { ImportRowError } from "@shared/types";
 
@@ -86,7 +86,6 @@ export async function generateRawMaterialTemplate(
   workbook.created = now;
   workbook.modified = now;
 
-  // Sheet 1 — Instructions
   const instructionsSheet = workbook.addWorksheet("Instructions");
   instructionsSheet.properties.tabColor = { argb: COLORS.NEUTRAL };
 
@@ -109,7 +108,6 @@ export async function generateRawMaterialTemplate(
     selectUnlockedCells: true
   });
 
-  // Sheet 2 — Raw Materials
   const materialsSheet = workbook.addWorksheet("Raw Materials");
   materialsSheet.columns = [
     { header: "materialCode", key: "materialCode", width: 20 },
@@ -120,12 +118,10 @@ export async function generateRawMaterialTemplate(
     { header: "currentStock", key: "currentStock", width: 15 }
   ];
 
-  // Header row
   styleHeaderRow(materialsSheet, 1, materialsSheet.columns.length);
   freezePanes(materialsSheet);
   enableAutoFilter(materialsSheet, 1, 1, materialsSheet.columns.length);
 
-  // Example row (row 2)
   const exampleRow = materialsSheet.addRow({
     materialCode: "AL",
     name: "Aluminum Sheet",
@@ -136,7 +132,6 @@ export async function generateRawMaterialTemplate(
   });
   exampleRow.font = { italic: true, color: { argb: "FF808080" } };
 
-  // currentStock validation (whole number >= 0)
   materialsSheet
     .getColumn("F")
     .eachCell({ includeEmpty: true }, (cell, rowNumber) => {
@@ -153,7 +148,6 @@ export async function generateRawMaterialTemplate(
       }
     });
 
-  // Sheet 3 — Specifications
   const specsSheet = workbook.addWorksheet("Specifications");
   specsSheet.columns = [
     { header: "materialName", key: "materialName", width: 30 },
@@ -184,7 +178,6 @@ export async function generateRawMaterialTemplate(
   });
   specsExampleRow.font = { italic: true, color: { argb: "FF808080" } };
 
-  // Dropdown validation for dim_unit
   specsSheet
     .getColumn("F")
     .eachCell({ includeEmpty: true }, (cell, rowNumber) => {
@@ -197,7 +190,6 @@ export async function generateRawMaterialTemplate(
       }
     });
 
-  // Dropdown validation for weight_unit
   specsSheet
     .getColumn("H")
     .eachCell({ includeEmpty: true }, (cell, rowNumber) => {
@@ -272,14 +264,12 @@ export async function parseRawMaterialWorkbook(
 
   const seenNames = new Set<string>();
 
-  // Parse Raw Materials sheet
   for (let rowNumber = 3; rowNumber <= materialsSheet.rowCount; rowNumber++) {
     const row = materialsSheet.getRow(rowNumber);
     const nameCellIndex = materialHeaderMap.get("name");
     const nameValue =
       nameCellIndex != null ? cellToString(row.getCell(nameCellIndex)) : null;
 
-    // Skip blank primary key rows
     if (!nameValue) {
       continue;
     }
@@ -355,13 +345,11 @@ export async function parseRawMaterialWorkbook(
     });
   }
 
-  // Preload material names from DB for specifications validation
   const dbMaterials = await RawMaterial.find({}, { name: 1 }).lean();
   const dbMaterialNames = new Set<string>(
     dbMaterials.map((m) => (m as any).name)
   );
 
-  // Parse Specifications sheet
   for (let rowNumber = 2; rowNumber <= specsSheet.rowCount; rowNumber++) {
     const row = specsSheet.getRow(rowNumber);
     const materialNameIndex = specsHeaderMap.get("materialName");
@@ -498,3 +486,4 @@ export async function parseRawMaterialWorkbook(
 
   return { materials, specifications, errors };
 }
+

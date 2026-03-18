@@ -1,11 +1,17 @@
 export interface RawMaterialDTO {
-    // TODO: define DTO fields
-    // example:
-    // name: string;
-  }
-  export interface RawMaterialFilters {
-    // TODO: define filter fields
-    // example:
-    // search?: string;
-  }
-  
+  materialCode: string;
+  name: string;
+  description?: string;
+  supplier?: string;
+  unit?: string;
+  currentStock?: number;
+}
+
+export interface RawMaterialUpdateDTO extends Partial<RawMaterialDTO> {}
+
+export interface RawMaterialListFilters {
+  supplier?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
