@@ -1,20 +1,127 @@
-import mongoose, { Schema, Document } from "mongoose";
-  export interface AlertDocument extends Document {
-    // TODO: define document fields
-    // name: string;
-    // createdAt: Date;
-    // updatedAt: Date;
-  }
-  const AlertSchema = new Schema<AlertDocument>(
-    {
-      // name: { type: String, required: true },
+import mongoose, { Document, Schema } from "mongoose";
+
+export interface AlertDocument extends Document {
+  type:
+    | "EQUIPMENT_DEFECT"
+    | "TOOL_CHANGE"
+    | "MATERIAL_DEFECT"
+    | "PROCESSING_DEFECT"
+    | "OTHER";
+  level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  title: string;
+  message: string;
+  source?: string;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+  device?: mongoose.Types.ObjectId;
+  task?: mongoose.Types.ObjectId;
+  project?: mongoose.Types.ObjectId;
+  status: "UNREAD" | "READ" | "ACKNOWLEDGED" | "RESOLVED" | "PENDING";
+  reportedBy?: mongoose.Types.ObjectId;
+  acknowledgedBy?: mongoose.Types.ObjectId;
+  acknowledgedAt?: Date;
+  resolvedAt?: Date;
+  metadata: Record<string, any>;
+  modifiedBy?: mongoose.Types.ObjectId;
+  createdAt: Date;
+}
+
+const AlertSchema: Schema = new Schema(
+  {
+    type: {
+      type: String,
+      required: true,
+      enum: [
+        "EQUIPMENT_DEFECT",
+        "TOOL_CHANGE",
+        "MATERIAL_DEFECT",
+        "PROCESSING_DEFECT",
+        "OTHER"
+      ]
     },
-    {
-      timestamps: true,
+    level: {
+      type: String,
+      required: true,
+      enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      default: "MEDIUM"
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 255
+    },
+    message: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    source: {
+      type: String,
+      trim: true,
+      maxlength: 100
+    },
+    relatedEntityType: {
+      type: String,
+      trim: true,
+      maxlength: 50
+    },
+    relatedEntityId: {
+      type: String,
+      trim: true,
+      maxlength: 255
+    },
+    device: {
+      type: Schema.Types.ObjectId,
+      ref: "Device"
+    },
+    task: {
+      type: Schema.Types.ObjectId,
+      ref: "Task"
+    },
+    project: {
+      type: Schema.Types.ObjectId,
+      ref: "Project"
+    },
+    status: {
+      type: String,
+      required: true,
+      enum: ["UNREAD", "READ", "ACKNOWLEDGED", "RESOLVED", "PENDING"],
+      default: "UNREAD"
+    },
+    reportedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
+    },
+    acknowledgedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
+    },
+    acknowledgedAt: {
+      type: Date
+    },
+    resolvedAt: {
+      type: Date
+    },
+    metadata: {
+      type: Schema.Types.Mixed,
+      default: {}
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
-  );
-  export const Alert = mongoose.model<AlertDocument>(
-    "Alert",
-    AlertSchema
-  );
-  
+  },
+  {
+    timestamps: { createdAt: true, updatedAt: false }
+  }
+);
+
+AlertSchema.index({ type: 1 });
+AlertSchema.index({ level: 1 });
+AlertSchema.index({ status: 1 });
+AlertSchema.index({ source: 1 });
+AlertSchema.index({ relatedEntityType: 1, relatedEntityId: 1 });
+AlertSchema.index({ createdAt: -1 });
+
+export const Alert = mongoose.model<AlertDocument>("Alert", AlertSchema);
