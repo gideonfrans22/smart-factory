@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 import { RecipeSnapshot } from "../models";
-import { Alert } from "../models/Alert";
+import { Alert } from "@modules/alert";
 import { Project } from "../models/Project";
 import { Task } from "../models/Task";
 import * as ExcelFormatService from "./excelFormatService";

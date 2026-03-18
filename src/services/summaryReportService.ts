@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { Alert } from "../models/Alert";
+import { Alert } from "@modules/alert";
 import { Device } from "@modules/device";
 import { Project } from "../models/Project";
 import { Task } from "../models/Task";
