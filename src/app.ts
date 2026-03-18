@@ -21,13 +21,13 @@ import dashboardRoutes from "./routes/dashboard";
 import { deviceTypeRoutes } from "@modules/device-type";
 import { gridLayoutRoutes } from "@modules/grid-layout";
 import kpiRoutes from "./routes/kpi";
-import mediaRoutes from "./routes/media";
 import productRoutes from "./routes/products";
 import projectRoutes from "./routes/projects";
 import { rawMaterialRoutes } from "@modules/raw-material";
 import recipeRoutes from "./routes/recipes";
 import reportRoutes from "./routes/reports";
 import taskRoutes from "./routes/tasks";
+import { mediaRoutes } from "@modules/media";
 
 dotenv.config();
 
