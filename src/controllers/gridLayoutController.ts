@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { GridLayout } from "../models/GridLayout";
-import { Device } from "../models/Device";
+import { Device } from "@modules/device";
 import { realtimeService } from "@shared/services";
 import { APIResponse, AuthenticatedRequest } from "@shared/types";
 

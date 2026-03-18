@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { DeviceType } from "../models";
-import { Device } from "../models/Device";
+import { Device } from "@modules/device";
 import { APIResponse } from "@shared/types";
 import mongoose from "mongoose";
 

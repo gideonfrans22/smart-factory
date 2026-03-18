@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Task } from "../models/Task";
 import { Alert } from "../models/Alert";
-import { Device } from "../models/Device";
+import { Device } from "@modules/device";
 import { User } from "../modules/user/user.model";
 import { Project } from "../models/Project";
 import { GridLayout } from "../models/GridLayout";

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { Device } from "../models/Device";
+import { Device } from "@modules/device";
 import { User } from "../modules/user/user.model";
 import {
   APIResponse,

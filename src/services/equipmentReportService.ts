@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { Alert } from "../models/Alert";
-import { Device } from "../models/Device";
+import { Device } from "@modules/device";
 import { Task } from "../models/Task";
 import * as ExcelFormatService from "./excelFormatService";
 import { formatDateKorean } from "./excelFormatService";

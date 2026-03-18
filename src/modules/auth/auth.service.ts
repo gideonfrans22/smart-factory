@@ -1,4 +1,4 @@
-import { Device } from "../../models/Device";
+import { Device } from "@modules/device";
 import { User } from "../user/user.model";
 import {
   LoginDTO,
