@@ -1,21 +1,18 @@
 # Authentication Temporarily Disabled
 
-## ⚠️ Current Status: AUTHENTICATION DISABLED
+## ⚠️ Current Status: AUTHENTICATION ENABLED (middleware active)
 
-**Date Disabled:** October 29, 2025  
-**Reason:** Project requirements changed - routes may not need authentication
+**Last Updated:** March 17, 2026  
+**Note:** Core auth flows now live in `src/modules/auth`, and `authenticateToken` is active again. Role checks via `requireRole` remain temporarily bypassed.
 
 ---
 
-## 🔓 What Was Changed
+## 🔓 Current Middleware Behaviour
 
-### File Modified: `src/middleware/auth.ts`
+### File: `src/middleware/auth.ts`
 
-#### Changes Made:
-
-1. ✅ **`authenticateToken` middleware** - Now bypasses all authentication checks
-2. ✅ **`requireRole` middleware** - Now bypasses all role-based authorization checks
-3. ✅ **All route protection** - Effectively disabled across the entire application
+- `authenticateToken` validates JWTs and attaches `req.user`.
+- `requireRole` logs a warning and allows all roles (RBAC relaxed for now).
 
 #### Warning Messages:
 
