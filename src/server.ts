@@ -6,8 +6,6 @@ import app from "./app";
 
 const PORT = process.env.PORT || 3000;
 
-console.log("IS this working?");
-
 const startServer = async (): Promise<void> => {
   try {
     await connectDB();
