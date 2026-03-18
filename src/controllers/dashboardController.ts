@@ -5,7 +5,7 @@ import { Alert } from "@modules/alert";
 import { Device } from "@modules/device";
 import { User } from "../modules/user/user.model";
 import { Project } from "../models/Project";
-import { GridLayout } from "../models/GridLayout";
+import { GridLayout } from "@modules/grid-layout";
 import { APIResponse } from "@shared/types";
 
 /**
