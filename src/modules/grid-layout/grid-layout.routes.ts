@@ -1,16 +1,64 @@
 import { Router } from "express";
 import { gridLayoutController } from "./grid-layout.controller";
-// import { authMiddleware } from "@shared/middleware"; // example
+import { authenticateToken } from "@shared/middleware";
+import { validate } from "@shared/middleware/validate";
+import {
+  gridLayoutListQuerySchema,
+  gridLayoutCreateSchema,
+  gridLayoutUpdateSchema,
+  gridLayoutIdParamSchema,
+  deviceIdParamSchema,
+  bulkDeviceUpdateSchema,
+  devicePositionUpdateSchema
+} from "./grid-layout.validators";
+
 const router = Router();
-// router.use(authMiddleware); // enable if needed
-router.get("/", gridLayoutController.list);
-router.get("/:id", gridLayoutController.getById);
-router.post("/", gridLayoutController.create);
-router.put("/:id", gridLayoutController.update);
-router.delete("/:id", gridLayoutController.remove);
+
+router.use(authenticateToken);
+
+router.get(
+  "/",
+  validate(gridLayoutListQuerySchema, "query"),
+  gridLayoutController.list
+);
+
+router.get(
+  "/:id",
+  validate(gridLayoutIdParamSchema, "params"),
+  gridLayoutController.getById
+);
+
+router.post(
+  "/",
+  validate(gridLayoutCreateSchema),
+  gridLayoutController.create
+);
+
+router.patch(
+  "/:id",
+  validate(gridLayoutIdParamSchema, "params"),
+  validate(gridLayoutUpdateSchema),
+  gridLayoutController.update
+);
+
+router.patch(
+  "/:id/devices/:deviceId",
+  validate(deviceIdParamSchema, "params"),
+  validate(devicePositionUpdateSchema),
+  gridLayoutController.updateDevicePosition
+);
+
+router.patch(
+  "/:id/devices",
+  validate(gridLayoutIdParamSchema, "params"),
+  validate(bulkDeviceUpdateSchema),
+  gridLayoutController.bulkUpdateDevicePositions
+);
+
+router.delete(
+  "/:id",
+  validate(gridLayoutIdParamSchema, "params"),
+  gridLayoutController.remove
+);
+
 export default router;
-/**
- * Mount in app:
- *   import gridLayoutRoutes from "./modules/grid-layout/grid-layout.routes";
- *   app.use("/api/grid-layout", gridLayoutRoutes);
- */
