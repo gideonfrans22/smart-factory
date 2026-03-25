@@ -6,7 +6,7 @@ import {
   AlertListFilters,
   AlertResolveEmergencyDTO
 } from "./alert.types";
-import { Task } from "../../models/Task";
+import { Task } from "@modules/task";
 import { Device } from "@modules/device";
 import { realtimeService } from "@shared/services";
 import { getIO } from "@infra/config";

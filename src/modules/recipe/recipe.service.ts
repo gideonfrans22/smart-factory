@@ -10,7 +10,7 @@ import {
   RecipeUpdateDTO
 } from "./recipe.types";
 import { Product, IProductRecipe } from "@modules/product";
-import { Project } from "../../models/Project";
+import { Project } from "@modules/project";
 import { SnapshotService } from "../../services/snapshotService";
 
 export class RecipeService {

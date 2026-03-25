@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { KPIData } from "../models/KPIData";
-import { Project } from "../models/Project";
-import { Task } from "../models/Task";
+import { Project } from "@modules/project";
+import { Task } from "@modules/task";
 import { Alert } from "@modules/alert";
 import { APIResponse } from "@shared/types";
 import { realtimeService } from "@shared/services";

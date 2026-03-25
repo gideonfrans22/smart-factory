@@ -1,5 +1,5 @@
 import { User } from "../user/user.model";
-import { Task } from "../../models/Task";
+import { Task } from "@modules/task";
 import {
   WorkerPerformanceFilters,
   WorkerPerformanceData,

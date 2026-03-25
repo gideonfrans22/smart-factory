@@ -1,10 +1,10 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import { Task } from "../models/Task";
+import { Task } from "@modules/task";
 import { Alert } from "@modules/alert";
 import { Device } from "@modules/device";
 import { User } from "../modules/user/user.model";
-import { Project } from "../models/Project";
+import { Project } from "@modules/project";
 import { GridLayout } from "@modules/grid-layout";
 import { APIResponse } from "@shared/types";
 

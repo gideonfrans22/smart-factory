@@ -1,7 +1,6 @@
 import * as cron from "node-cron";
-import { Report } from "@/models/Report";
+import { Report, reportGenerationService as ReportGenerationService } from "@modules/report";
 import { ActivityLog } from "@/models/ActivityLog";
-import * as ReportGenerationService from "@/services/reportGenerationService";
 import {
   getPreviousDayRange,
   getPreviousWeekRange,
