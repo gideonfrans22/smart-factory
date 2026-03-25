@@ -2,7 +2,10 @@ import http from "http";
 
 import { connectDB, initializeWebSocket, mqttService } from "@infra/config";
 import { loggerService, realtimeService } from "@shared/services";
+import * as dotenv from "dotenv";
 import app from "./app";
+
+dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 

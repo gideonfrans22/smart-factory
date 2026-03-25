@@ -1,5 +1,4 @@
 import cors from "cors";
-import * as dotenv from "dotenv";
 import express, { Request, Response } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
@@ -11,25 +10,23 @@ import {
   requestLoggingMiddleware
 } from "@shared/middleware";
 
-import { authRoutes } from "@modules/auth";
+import { alertRoutes } from "@modules/alert";
 import { analyticsRoutes } from "@modules/analytics";
-import { userRoutes } from "@modules/user";
+import { authRoutes } from "@modules/auth";
 import { customerRoutes } from "@modules/customer";
 import { deviceRoutes } from "@modules/device";
-import { alertRoutes } from "@modules/alert";
-import dashboardRoutes from "./routes/dashboard";
 import { deviceTypeRoutes } from "@modules/device-type";
 import { gridLayoutRoutes } from "@modules/grid-layout";
-import kpiRoutes from "./routes/kpi";
+import { mediaRoutes } from "@modules/media";
 import { productRoutes } from "@modules/product";
-import projectRoutes from "./routes/projects";
+import { projectRoutes } from "@modules/project";
 import { rawMaterialRoutes } from "@modules/raw-material";
 import { recipeRoutes } from "@modules/recipe";
-import reportRoutes from "./routes/reports";
-import taskRoutes from "./routes/tasks";
-import { mediaRoutes } from "@modules/media";
-
-dotenv.config();
+import { reportRoutes } from "@modules/report";
+import { taskRoutes } from "@modules/task";
+import { userRoutes } from "@modules/user";
+import dashboardRoutes from "./routes/dashboard";
+import kpiRoutes from "./routes/kpi";
 
 const app = express();
 
