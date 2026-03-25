@@ -1,4 +1,3 @@
-import { loggerService } from "@shared/services";
 import { APIResponse, AuthenticatedRequest, JWTPayload } from "@shared/types";
 import { NextFunction, Response } from "express";
 import * as jwt from "jsonwebtoken";
@@ -60,20 +59,10 @@ export const authenticateToken = async (
  */
 export const requireRole = (roles: string[]) => {
   return (
-    _req: AuthenticatedRequest,
-    _res: Response,
+    req: AuthenticatedRequest,
+    res: Response,
     next: NextFunction
   ): void => {
-    // TEMPORARY BYPASS: Skip all role checks
-    loggerService.info(
-      `⚠️  WARNING: Role check for [${roles.join(
-        ", "
-      )}] is temporarily disabled`
-    );
-    next();
-    return;
-
-    /* ORIGINAL IMPLEMENTATION - CURRENTLY DISABLED
     if (!req.user) {
       const response: APIResponse = {
         success: false,
@@ -95,7 +84,6 @@ export const requireRole = (roles: string[]) => {
     }
 
     next();
-    */
   };
 };
 
