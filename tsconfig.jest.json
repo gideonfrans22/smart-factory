@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "jest"],
+    "rootDir": "."
+  },
+  "include": ["src/**/*", "api_spec/**/*", "db/**/*", "tests/**/*"]
+}
+
