@@ -8,6 +8,7 @@ const router = Router();
 router.get("/statistics", userController.getStatistics);
 
 router.get("/", authenticateToken, requireAdmin, userController.list);
+router.get("/workers", userController.listWorkers);
 
 router.get("/:id", authenticateToken, requireAdmin, userController.getById);
 

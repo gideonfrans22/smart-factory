@@ -29,6 +29,26 @@ export class UserController {
     }
   }
 
+  async listWorkers(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const result = await userService.listWorkers(req.query as any);
+      const response: APIResponse = {
+        success: true,
+        message: "Workers retrieved successfully",
+        data: result
+      };
+      res.json(response);
+    } catch (error) {
+      console.error("Get workers error:", error);
+      const response: APIResponse = {
+        success: false,
+        error: "INTERNAL_SERVER_ERROR",
+        message: "Internal server error"
+      };
+      res.status(500).json(response);
+    }
+  }
+
   async getById(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;

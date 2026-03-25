@@ -42,6 +42,34 @@ export class UserService {
     };
   }
 
+  async listWorkers(filters: UserFilters = {}): Promise<UserListResult> {
+    const { page = 1, limit = 10, ...queryFilters } = filters;
+
+    const query = this.buildListQuery({ ...queryFilters, role: "worker" });
+
+    const skip = (page - 1) * limit;
+    const total = await User.countDocuments(query);
+
+    const items = await User.find(query)
+      .populate("modifiedBy", "name email username")
+      .select("-password")
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    return {
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page * limit < total,
+        hasPrev: page > 1
+      }
+    };
+  }
+
   async getById(id: string): Promise<UserDocument | null> {
     return User.findById(id)
       .populate("modifiedBy", "name email username")
