@@ -17,7 +17,7 @@
     "recreate-task-indexes": "ts-node ./db/utils/recreate_task_indexes.ts",
     "recreate-all-indexes": "ts-node ./db/utils/recreate_all_indexes.ts",
     "reset-collections": "ts-node ./db/utils/resetCollections.ts",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest --config ./jest.config.js",
     "generate:module": "ts-node ./scripts/generate-module.ts"
   },
   "keywords": [
@@ -34,10 +34,13 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/jest": "^29.5.12",
     "@types/luxon": "^3.7.1",
     "@types/node": "^24.3.1",
     "@types/node-cron": "^3.0.11",
+    "jest": "^29.7.0",
     "nodemon": "^3.1.10",
+    "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.2"
