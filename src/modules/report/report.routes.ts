@@ -1,16 +1,49 @@
 import { Router } from "express";
-import { reportController } from "./report.controller";
-// import { authMiddleware } from "@shared/middleware"; // example
+import * as reportController from "./report.controller";
+import { authenticateToken, requireAdmin } from "@shared/middleware";
+import { validate } from "@shared/middleware/validate";
+import {
+  reportGenerateBodySchema,
+  reportListQuerySchema,
+  reportIdParamSchema,
+  reportDownloadParamSchema
+} from "./report.validators";
+
 const router = Router();
-// router.use(authMiddleware); // enable if needed
-router.get("/", reportController.list);
-router.get("/:id", reportController.getById);
-router.post("/", reportController.create);
-router.put("/:id", reportController.update);
-router.delete("/:id", reportController.remove);
+
+router.post(
+  "/generate",
+  authenticateToken,
+  validate(reportGenerateBodySchema),
+  reportController.generateReport
+);
+
+router.get(
+  "/",
+  authenticateToken,
+  validate(reportListQuerySchema, "query"),
+  reportController.getReports
+);
+
+router.get(
+  "/download/:id",
+  validate(reportDownloadParamSchema, "params"),
+  reportController.downloadReport
+);
+
+router.get(
+  "/:id",
+  authenticateToken,
+  validate(reportIdParamSchema, "params"),
+  reportController.getReportById
+);
+
+router.delete(
+  "/:id",
+  authenticateToken,
+  requireAdmin,
+  validate(reportIdParamSchema, "params"),
+  reportController.deleteReport
+);
+
 export default router;
-/**
- * Mount in app:
- *   import reportRoutes from "./modules/report/report.routes";
- *   app.use("/api/report", reportRoutes);
- */

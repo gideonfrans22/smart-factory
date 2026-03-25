@@ -1,20 +1,105 @@
-import mongoose, { Schema, Document } from "mongoose";
-  export interface ReportDocument extends Document {
-    // TODO: define document fields
-    // name: string;
-    // createdAt: Date;
-    // updatedAt: Date;
-  }
-  const ReportSchema = new Schema<ReportDocument>(
-    {
-      // name: { type: String, required: true },
+import mongoose, { Document, Schema } from "mongoose";
+
+export interface IReport extends Document {
+  title: string;
+  type:
+    | "TASK_COMPLETION"
+    | "WORKER_PERFORMANCE"
+    | "PRODUCTION_RATE"
+    | "WORKER_PERFORMANCE_KPI"
+    | "EQUIPMENT_PERFORMANCE"
+    | "SUMMARY_REPORT";
+  format: "PDF" | "EXCEL" | "CSV" | "JSON";
+  parameters: Record<string, unknown>;
+  filePath?: string;
+  fileSize?: number;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+  generatedBy?: mongoose.Types.ObjectId;
+  generatedAt?: Date;
+  expiresAt?: Date;
+  downloadCount: number;
+  errorMessage?: string;
+  modifiedBy?: mongoose.Types.ObjectId;
+  createdAt: Date;
+}
+
+const ReportSchema: Schema = new Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 255
     },
-    {
-      timestamps: true,
+    type: {
+      type: String,
+      required: true,
+      enum: [
+        "TASK_COMPLETION",
+        "WORKER_PERFORMANCE",
+        "PRODUCTION_RATE",
+        "WORKER_PERFORMANCE_KPI",
+        "EQUIPMENT_PERFORMANCE",
+        "SUMMARY_REPORT"
+      ]
+    },
+    format: {
+      type: String,
+      required: true,
+      enum: ["PDF", "EXCEL", "CSV", "JSON"],
+      default: "PDF"
+    },
+    parameters: {
+      type: Schema.Types.Mixed,
+      default: {}
+    },
+    filePath: {
+      type: String,
+      trim: true,
+      maxlength: 500
+    },
+    fileSize: {
+      type: Number,
+      min: 0
+    },
+    status: {
+      type: String,
+      required: true,
+      enum: ["PENDING", "PROCESSING", "COMPLETED", "FAILED"],
+      default: "PENDING"
+    },
+    generatedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
+    },
+    generatedAt: {
+      type: Date
+    },
+    expiresAt: {
+      type: Date
+    },
+    downloadCount: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    errorMessage: {
+      type: String,
+      trim: true
+    },
+    modifiedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
     }
-  );
-  export const Report = mongoose.model<ReportDocument>(
-    "Report",
-    ReportSchema
-  );
-  
+  },
+  {
+    timestamps: { createdAt: true, updatedAt: false }
+  }
+);
+
+ReportSchema.index({ type: 1 });
+ReportSchema.index({ status: 1 });
+ReportSchema.index({ generatedBy: 1 });
+ReportSchema.index({ createdAt: -1 });
+
+export const Report = mongoose.model<IReport>("Report", ReportSchema);
