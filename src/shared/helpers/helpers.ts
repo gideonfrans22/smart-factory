@@ -2,12 +2,13 @@ import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
 import { JWTPayload } from "@shared/types";
 
-const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || "12");
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key";
-const JWT_ACCESS_TOKEN_EXPIRES = "24h"; // 24 hours for access tokens
+const getSaltRounds = () => parseInt(process.env.BCRYPT_SALT_ROUNDS || "12");
+const getJwtSecret = () => process.env.JWT_SECRET || "fallback-secret-key";
+const getJwtAccessTokenExpires = () =>
+  process.env.JWT_ACCESS_TOKEN_EXPIRES || "24h"; // 24 hours for access tokens
 
 export const hashPassword = async (password: string): Promise<string> => {
-  return await bcrypt.hash(password, SALT_ROUNDS);
+  return await bcrypt.hash(password, getSaltRounds());
 };
 
 export const comparePassword = async (
@@ -21,13 +22,13 @@ export const generateToken = (
   payload: JWTPayload,
   expiresIn?: string
 ): string => {
-  return jwt.sign(payload as object, JWT_SECRET, {
-    expiresIn: expiresIn || JWT_ACCESS_TOKEN_EXPIRES
+  return jwt.sign(payload as object, getJwtSecret(), {
+    expiresIn: expiresIn || getJwtAccessTokenExpires()
   } as jwt.SignOptions);
 };
 
 export const verifyToken = (token: string): JWTPayload => {
-  return jwt.verify(token, JWT_SECRET) as JWTPayload;
+  return jwt.verify(token, getJwtSecret()) as JWTPayload;
 };
 
 export const generatePartId = (category: string): string => {
