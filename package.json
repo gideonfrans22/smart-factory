@@ -13,12 +13,12 @@
     "build": "tsc",
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",
-    "seed": "ts-node ./db/seeds/seed.ts",
-    "recreate-task-indexes": "ts-node ./db/utils/recreate_task_indexes.ts",
-    "recreate-all-indexes": "ts-node ./db/utils/recreate_all_indexes.ts",
-    "reset-collections": "ts-node ./db/utils/resetCollections.ts",
+    "seed": "ts-node -r tsconfig-paths/register ./db/seeds/seed.ts",
+    "recreate-task-indexes": "ts-node -r tsconfig-paths/register ./db/utils/recreate_task_indexes.ts",
+    "recreate-all-indexes": "ts-node -r tsconfig-paths/register ./db/utils/recreate_all_indexes.ts",
+    "reset-collections": "ts-node -r tsconfig-paths/register ./db/utils/resetCollections.ts",
     "test": "jest --config ./jest.config.js",
-    "generate:module": "ts-node ./scripts/generate-module.ts"
+    "generate:module": "ts-node -r tsconfig-paths/register ./scripts/generate-module.ts"
   },
   "keywords": [
     "smart-factory",
