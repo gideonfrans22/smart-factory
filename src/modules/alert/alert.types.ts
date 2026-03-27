@@ -1,4 +1,4 @@
-import { AlertLevel, AlertStatus, AlertType } from "../../../api_spec/types/alert";
+import { AlertLevel, AlertStatus, AlertType } from "@api_spec/types/alert";
 
 export interface AlertListFilters {
   type?: AlertType;

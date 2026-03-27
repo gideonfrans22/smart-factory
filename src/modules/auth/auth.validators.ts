@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { UserRole } from "../../../api_spec/types/common";
+import { UserRole } from "@api_spec/types/common";
 
 // Shared primitives
-const userRoleSchema = z.custom<UserRole>((val) =>
-  val === "admin" || val === "worker" || val === "monitor"
+const userRoleSchema = z.custom<UserRole>(
+  (val) => val === "admin" || val === "worker" || val === "monitor"
 );
 
 // Register
@@ -11,12 +11,7 @@ export const registerSchema = z
   .object({
     username: z.string().min(1).max(20).optional(),
     name: z.string().min(1).max(100),
-    email: z
-      .string()
-      .min(1)
-      .max(255)
-      .email()
-      .optional(),
+    email: z.string().min(1).max(255).email().optional(),
     password: z.string().min(6),
     role: userRoleSchema
   })
@@ -59,5 +54,3 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type WorkerLoginInput = z.infer<typeof workerLoginSchema>;
 export type MonitorLoginInput = z.infer<typeof monitorLoginSchema>;
-
-
