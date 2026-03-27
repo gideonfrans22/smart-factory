@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { Task } from "@/models";
+import { Task } from "@shared/models";
 import * as dotenv from "dotenv";
 
 dotenv.config(); // Load environment variables from .env file

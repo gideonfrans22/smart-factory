@@ -18,7 +18,7 @@ import {
   KPIData,
   Report,
   ActivityLog
-} from "@/models";
+} from "@shared/models";
 import { RawMaterial } from "@modules/raw-material";
 
 dotenv.config(); // Load environment variables from .env file
