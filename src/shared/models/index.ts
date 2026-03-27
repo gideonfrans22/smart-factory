@@ -1,5 +1,5 @@
 // User and Authentication
-export { User, IUser } from "../modules/user/user.model";
+export { User, IUser } from "@modules/user/user.model";
 
 // Projects and Tasks
 export {
@@ -40,6 +40,6 @@ export {
 export { Alert, AlertDocument as IAlert } from "@modules/alert";
 
 // Analytics and Reporting
-export { KPIData, IKPIData } from "./KPIData";
+export { KPIData, IKPIData } from "../../models/KPIData";
 export { Report, IReport } from "@modules/report";
 export { ActivityLog, IActivityLog } from "./ActivityLog";
