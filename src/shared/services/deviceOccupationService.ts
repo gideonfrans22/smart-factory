@@ -8,6 +8,10 @@ import { loggerService } from "@shared/services";
  */
 
 let redisClient: ReturnType<typeof createClient> | null = null;
+const REDIS_KEY_PREFIX = () =>
+  (process.env.REDIS_KEY_PREFIX || "dev").replace(/^:+|:+$/g, "");
+
+const prefixedKey = (key: string): string => `${REDIS_KEY_PREFIX}:${key}`;
 
 /**
  * Initialize Redis client for device occupation tracking
@@ -23,7 +27,10 @@ export const initializeDeviceOccupationService = async (): Promise<void> => {
   try {
     redisClient = createClient({ url: redisUrl });
     await redisClient.connect();
-    loggerService.info("Device occupation Redis client connected");
+    loggerService.info("Device occupation Redis client connected", {
+      redisUrl,
+      redisKeyPrefix: REDIS_KEY_PREFIX
+    });
   } catch (error) {
     loggerService.error("Failed to connect Redis for device occupation", {
       error: (error as Error).message
@@ -52,7 +59,7 @@ export const isDeviceOccupied = async (
 ): Promise<{ isOccupied: boolean; socketId?: string }> => {
   try {
     const client = getRedisClient();
-    const key = `device:occupied:${deviceId}`;
+    const key = prefixedKey(`device:occupied:${deviceId}`);
     const value = await client.get(key);
 
     if (!value) {
@@ -88,7 +95,7 @@ export const setDeviceOccupied = async (
 ): Promise<void> => {
   try {
     const client = getRedisClient();
-    const key = `device:occupied:${deviceId}`;
+    const key = prefixedKey(`device:occupied:${deviceId}`);
     const value = JSON.stringify({
       socketId,
       occupiedAt: new Date().toISOString()
@@ -117,7 +124,7 @@ export const setDeviceOccupied = async (
 export const releaseDevice = async (deviceId: string): Promise<void> => {
   try {
     const client = getRedisClient();
-    const key = `device:occupied:${deviceId}`;
+    const key = prefixedKey(`device:occupied:${deviceId}`);
     await client.del(key);
     loggerService.info("Device released", { deviceId });
   } catch (error) {
@@ -139,7 +146,7 @@ export const releaseDeviceBySocketId = async (
   try {
     const client = getRedisClient();
     // Scan for keys matching the pattern
-    const keys = await client.keys("device:occupied:*");
+    const keys = await client.keys(prefixedKey("device:occupied:*"));
 
     for (const key of keys) {
       const value = await client.get(key);
@@ -147,7 +154,7 @@ export const releaseDeviceBySocketId = async (
         const data = JSON.parse(value);
         if (data.socketId === socketId) {
           await client.del(key);
-          const deviceId = key.replace("device:occupied:", "");
+          const deviceId = key.replace(prefixedKey("device:occupied:"), "");
           loggerService.info("Device released (socket disconnected)", {
             deviceId,
             socketId
@@ -173,14 +180,14 @@ export const getAllOccupiedDevices = async (): Promise<
 > => {
   try {
     const client = getRedisClient();
-    const keys = await client.keys("device:occupied:*");
+    const keys = await client.keys(prefixedKey("device:occupied:*"));
     const devices = [];
 
     for (const key of keys) {
       const value = await client.get(key);
       if (value) {
         const data = JSON.parse(value);
-        const deviceId = key.replace("device:occupied:", "");
+        const deviceId = key.replace(prefixedKey("device:occupied:"), "");
         devices.push({
           deviceId,
           socketId: data.socketId,

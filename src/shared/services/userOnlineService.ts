@@ -10,8 +10,10 @@ import { loggerService } from "@shared/services";
 import { userOnlineService } from "../../modules/user/user-online.service";
 import { OnlineUser } from "../../modules/user/user.types";
 
-const REDIS_ONLINE_USERS_KEY = "online_users";
-const REDIS_SOCKET_TO_USER_KEY = "socket_to_user";
+const REDIS_KEY_PREFIX = () =>
+  (process.env.REDIS_KEY_PREFIX || "dev").replace(/^:+|:+$/g, "");
+const REDIS_ONLINE_USERS_KEY = `${REDIS_KEY_PREFIX}:online_users`;
+const REDIS_SOCKET_TO_USER_KEY = `${REDIS_KEY_PREFIX}:socket_to_user`;
 
 let redisClient: RedisClientType | null = null;
 let isRedisConnected = false;
@@ -44,7 +46,10 @@ export async function initializeUserOnlineService(): Promise<void> {
 
     await redisClient.connect();
     isRedisConnected = true;
-    loggerService.info("UserOnlineService Redis initialized");
+    loggerService.info("UserOnlineService Redis initialized", {
+      redisUrl,
+      redisKeyPrefix: REDIS_KEY_PREFIX
+    });
   } catch (error) {
     loggerService.error("Failed to connect to Redis for UserOnlineService", {
       error: (error as Error).message

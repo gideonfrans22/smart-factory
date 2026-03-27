@@ -39,6 +39,7 @@ export const initializeWebSocket = async (
 
   // Add Redis adapter for multi-worker support
   const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+  const socketIoRedisKey = process.env.SOCKET_IO_REDIS_KEY || "socket.io:dev";
 
   try {
     const pubClient = createClient({ url: redisUrl });
@@ -46,9 +47,16 @@ export const initializeWebSocket = async (
 
     await Promise.all([pubClient.connect(), subClient.connect()]);
 
-    io.adapter(createAdapter(pubClient, subClient));
+    io.adapter(
+      createAdapter(pubClient, subClient, {
+        key: socketIoRedisKey
+      })
+    );
 
-    loggerService.logWebSocketEvent("Redis adapter connected");
+    loggerService.logWebSocketEvent("Redis adapter connected", undefined, {
+      redisUrl,
+      socketIoRedisKey
+    });
   } catch (error) {
     loggerService.logWebSocketEvent(
       "Redis adapter connection failed",
