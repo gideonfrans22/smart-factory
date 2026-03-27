@@ -5,8 +5,8 @@ import { Recipe, RecipeSnapshot } from "@modules/recipe";
 import { DeviceType } from "@modules/device-type";
 import { RawMaterial } from "@modules/raw-material";
 import { Project } from "@modules/project";
-import { ActivityLog } from "../../models/ActivityLog";
-import { SnapshotService } from "../../services/snapshotService";
+import { ActivityLog } from "@shared/models/ActivityLog";
+import { SnapshotService } from "@shared/services/snapshotService";
 import {
   generateProductImportTemplate,
   parseProductImportWorkbook
@@ -148,8 +148,7 @@ export class ProductService {
       });
     }
 
-    const DESIGN_NUMBER_REGEX =
-      /^[A-Z0-9]{5}-[0-9]{2}-[0-9]{3}-[0-9]{2}$/;
+    const DESIGN_NUMBER_REGEX = /^[A-Z0-9]{5}-[0-9]{2}-[0-9]{3}-[0-9]{2}$/;
     if (!DESIGN_NUMBER_REGEX.test(designNumber)) {
       throw new ProductServiceError({
         statusCode: 400,
@@ -218,8 +217,7 @@ export class ProductService {
       });
     }
 
-    const DESIGN_NUMBER_REGEX =
-      /^[A-Z0-9]{5}-[0-9]{2}-[0-9]{3}-[0-9]{2}$/;
+    const DESIGN_NUMBER_REGEX = /^[A-Z0-9]{5}-[0-9]{2}-[0-9]{3}-[0-9]{2}$/;
     if (designNumber && !DESIGN_NUMBER_REGEX.test(designNumber)) {
       throw new ProductServiceError({
         statusCode: 400,
@@ -325,8 +323,7 @@ export class ProductService {
     }
 
     // Validate design number format: 00000-00-000 (5 chars - 2 digits - 3 digits)
-    const DESIGN_NUMBER_REGEX_DUP =
-      /^[A-Z0-9]{5}-[0-9]{2}-[0-9]{3}$/;
+    const DESIGN_NUMBER_REGEX_DUP = /^[A-Z0-9]{5}-[0-9]{2}-[0-9]{3}$/;
     if (!DESIGN_NUMBER_REGEX_DUP.test(newDesignNumber)) {
       throw new ProductServiceError({
         statusCode: 400,
@@ -349,8 +346,7 @@ export class ProductService {
 
     const duplicatedProduct = new Product({
       designNumber: newDesignNumber,
-      productName:
-        newProductName || `${originalProduct.productName} (Copy)`,
+      productName: newProductName || `${originalProduct.productName} (Copy)`,
       customerName: originalProduct.customerName,
       personInCharge: originalProduct.personInCharge,
       quantityUnit: originalProduct.quantityUnit,
@@ -590,7 +586,12 @@ export class ProductService {
       }
     };
 
-    return { result, hasHardErrors: hardErrors.length > 0, productsToCreate, productsToUpdate };
+    return {
+      result,
+      hasHardErrors: hardErrors.length > 0,
+      productsToCreate,
+      productsToUpdate
+    };
   }
 
   async importProducts(params: {
@@ -658,7 +659,10 @@ export class ProductService {
       materials.forEach((m) => materialMap.set(m.name, m));
 
       // Upsert Products
-      const productIdByDesignNumber = new Map<string, mongoose.Types.ObjectId>();
+      const productIdByDesignNumber = new Map<
+        string,
+        mongoose.Types.ObjectId
+      >();
       for (const p of parsed.products) {
         const updatedProduct = await Product.findOneAndUpdate(
           { designNumber: p.designNumber, deletedAt: null },

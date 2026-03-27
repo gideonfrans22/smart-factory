@@ -1,6 +1,6 @@
 import * as dotenv from "dotenv";
 import { connectDB, disconnectDB } from "@infra/config";
-import { initializeScheduler } from "../../services/schedulerService";
+import { initializeScheduler } from "./schedulerService";
 import { loggerService } from "@shared/services";
 
 // Load environment variables

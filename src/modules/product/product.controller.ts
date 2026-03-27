@@ -4,7 +4,7 @@ import { Product } from "./product.model";
 import { Recipe } from "@modules/recipe";
 import { DeviceType } from "@modules/device-type";
 import { RawMaterial } from "@modules/raw-material";
-import { ActivityLog } from "../../models/ActivityLog";
+import { ActivityLog } from "@shared/models/ActivityLog";
 import { parseProductImportWorkbook } from "./product.import.service";
 import { importUpload } from "@shared/middleware";
 import { runMiddleware } from "@shared/utils";

@@ -11,7 +11,7 @@ import {
 } from "./user.types";
 import { hashPassword, sanitizeInput, validateEmail } from "@shared/helpers";
 import { getOnlineCountByRole } from "@shared/services/userOnlineService";
-import { Device, Task } from "@/models";
+import { Device, Task } from "@/shared/models";
 
 export class UserService {
   async list(filters: UserFilters = {}): Promise<UserListResult> {

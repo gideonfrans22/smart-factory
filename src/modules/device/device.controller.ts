@@ -1,13 +1,12 @@
-import { Response, NextFunction } from "express";
-import mongoose from "mongoose";
-import { deviceService } from "./device.service";
-import { Device } from "./device.model";
-import { AuthenticatedRequest, APIResponse } from "@shared/types";
-import { Alert } from "../../models";
-import { GridLayout } from "../../models";
 import { DeviceType } from "@modules/device-type";
+import { Alert, GridLayout } from "@shared/models";
 import { realtimeService } from "@shared/services";
-import { isDeviceOccupied } from "../../services/deviceOccupationService";
+import { isDeviceOccupied } from "@shared/services/deviceOccupationService";
+import { APIResponse, AuthenticatedRequest } from "@shared/types";
+import { NextFunction, Response } from "express";
+import mongoose from "mongoose";
+import { Device } from "./device.model";
+import { deviceService } from "./device.service";
 
 export class DeviceController {
   async list(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -96,7 +95,10 @@ export class DeviceController {
       }
 
       const item = await deviceService.create(req.body);
-      const populatedItem = await item.populate("deviceType", "name description");
+      const populatedItem = await item.populate(
+        "deviceType",
+        "name description"
+      );
 
       const response: APIResponse = {
         success: true,
@@ -114,7 +116,9 @@ export class DeviceController {
       const { id } = req.params;
       const { name, deviceTypeId, status } = req.body;
 
-      const device = await Device.findById(id).setOptions({ includeDeleted: false });
+      const device = await Device.findById(id).setOptions({
+        includeDeleted: false
+      });
 
       if (!device) {
         const response: APIResponse = {
@@ -155,7 +159,11 @@ export class DeviceController {
       }
 
       const statusChanged = !!(status && status !== device.status);
-      if (statusChanged && device.status === "MAINTENANCE" && status !== "MAINTENANCE") {
+      if (
+        statusChanged &&
+        device.status === "MAINTENANCE" &&
+        status !== "MAINTENANCE"
+      ) {
         const alert = await Alert.findOne({
           device: device._id,
           level: { $in: ["CRITICAL", "HIGH"] },
@@ -192,10 +200,15 @@ export class DeviceController {
       if (statusChanged) {
         realtimeService
           .broadcastDeviceUpdate(item)
-          .catch((err) => console.error("Failed to broadcast device update:", err));
+          .catch((err) =>
+            console.error("Failed to broadcast device update:", err)
+          );
       }
 
-      const populatedItem = await item.populate("deviceType", "name description");
+      const populatedItem = await item.populate(
+        "deviceType",
+        "name description"
+      );
 
       const response: APIResponse = {
         success: true,
@@ -227,7 +240,9 @@ export class DeviceController {
       const layouts = await GridLayout.find({ "devices.deviceId": id });
       if (layouts.length > 0) {
         for (const layout of layouts) {
-          layout.devices = layout.devices.filter((d: any) => d.deviceId.toString() !== id);
+          layout.devices = layout.devices.filter(
+            (d: any) => d.deviceId.toString() !== id
+          );
           await layout.save();
         }
       }
@@ -251,7 +266,11 @@ export class DeviceController {
     }
   }
 
-  async getStatistics(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async getStatistics(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const result = await deviceService.getStatistics(req.query as any);
       const response: APIResponse = {
@@ -265,7 +284,11 @@ export class DeviceController {
     }
   }
 
-  async getDevicesByTask(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async getDevicesByTask(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const result = await deviceService.getDevicesByTask(req.query as any);
       const response: APIResponse = {
@@ -279,7 +302,11 @@ export class DeviceController {
     }
   }
 
-  async getMonitorData(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async getMonitorData(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const { id } = req.params;
 
@@ -342,7 +369,11 @@ export class DeviceController {
     }
   }
 
-  async workerLogin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async workerLogin(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const { id } = req.params;
 
@@ -356,7 +387,10 @@ export class DeviceController {
         return;
       }
 
-      const device = await deviceService.setCurrentUser(id, req.user._id as any);
+      const device = await deviceService.setCurrentUser(
+        id,
+        req.user._id as any
+      );
 
       if (!device) {
         const response: APIResponse = {
@@ -382,7 +416,11 @@ export class DeviceController {
     }
   }
 
-  async workerLogout(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async workerLogout(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const { id } = req.params;
 
@@ -412,7 +450,11 @@ export class DeviceController {
     }
   }
 
-  async checkAvailability(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async checkAvailability(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ) {
     try {
       const { id } = req.params;
 
@@ -426,7 +468,9 @@ export class DeviceController {
         return;
       }
 
-      const device = await Device.findById(id).setOptions({ includeDeleted: false });
+      const device = await Device.findById(id).setOptions({
+        includeDeleted: false
+      });
 
       if (!device) {
         const response: APIResponse = {

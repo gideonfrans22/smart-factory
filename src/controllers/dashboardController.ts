@@ -748,6 +748,133 @@ export const getTaskStatusDistribution = async (
 
 // ...existing code...
 
+// const newAggregation = [
+//   {
+//     $group: {
+//       _id: {
+//         projectId: "$projectId",
+//         productSnapshotId: "$productSnapshotId",
+//         recipeSnapshotId: "$recipeSnapshotId",
+//         stepOrder: "$stepOrder",
+//         priority: "$priority",
+//         deviceTypeId: "$deviceTypeId"
+//       },
+//       totalDuration: {
+//         $sum: "$actualDuration"
+//       },
+//       totalTaskCount: {
+//         $sum: 1
+//       },
+//       pendingTaskCount: {
+//         $sum: {
+//           $cond: [
+//             {
+//               $eq: ["$status", "PENDING"]
+//             },
+//             1,
+//             0
+//           ]
+//         }
+//       },
+//       completedTaskCount: {
+//         $sum: {
+//           $cond: [
+//             {
+//               $eq: ["$status", "COMPLETED"]
+//             },
+//             1,
+//             0
+//           ]
+//         }
+//       },
+//       deviceIds: {
+//         $addToSet: "$deviceId"
+//       }
+//     }
+//   },
+//   {
+//     $lookup: {
+//       from: "devices",
+//       localField: "deviceIds",
+//       foreignField: "_id",
+//       as: "devices",
+//       pipeline: [
+//         {
+//           $project: {
+//             name: 1
+//           }
+//         }
+//       ]
+//     }
+//   },
+//   {
+//     $lookup: {
+//       from: "devicetypes",
+//       localField: "_id.deviceTypeId",
+//       foreignField: "_id",
+//       as: "deviceType",
+//       pipeline: [
+//         {
+//           $project: {
+//             name: 1
+//           }
+//         }
+//       ]
+//     }
+//   },
+//   {
+//     $lookup: {
+//       from: "projects",
+//       localField: "_id.projectId",
+//       foreignField: "_id",
+//       as: "project"
+//     }
+//   },
+//   {
+//     $lookup: {
+//       from: "productsnapshots",
+//       localField: "_id.productSnapshotId",
+//       foreignField: "_id",
+//       as: "productSnapshot"
+//     }
+//   },
+//   {
+//     $lookup: {
+//       from: "recipesnapshots",
+//       localField: "_id.recipeSnapshotId",
+//       foreignField: "_id",
+//       as: "recipeSnapshot",
+//       pipeline: [
+//         {
+//           $project: {
+//             name: 1
+//           }
+//         }
+//       ]
+//     }
+//   },
+//   {
+//     $unwind: "$deviceType"
+//   },
+//   {
+//     $unwind: "$productSnapshot"
+//   },
+//   {
+//     $unwind: "$project"
+//   },
+//   {
+//     $unwind: "$recipeSnapshot"
+//   },
+//   {
+//     $project: {
+//       projectName: "$project.name",
+//       totalTaskCount: "$totalTaskCount",
+//       pendingTaskCount: "$pendingTaskCount",
+//       completedTaskCount: "$completedTaskCount"
+//     }
+//   }
+// ];
+
 /**
  * GET /api/dashboard/monitor-tasks
  * Get optimized task list for Monitor TV display

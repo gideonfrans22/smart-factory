@@ -11,10 +11,12 @@ import {
 } from "./recipe.types";
 import { Product, IProductRecipe } from "@modules/product";
 import { Project } from "@modules/project";
-import { SnapshotService } from "../../services/snapshotService";
+import { SnapshotService } from "@shared/services/snapshotService";
 
 export class RecipeService {
-  async list(filters: RecipeListFilters = {}): Promise<RecipeListResult<IRecipe>> {
+  async list(
+    filters: RecipeListFilters = {}
+  ): Promise<RecipeListResult<IRecipe>> {
     const { page = 1, limit = 10, recipeNumber, search } = filters;
 
     const query: any = {};
@@ -73,7 +75,10 @@ export class RecipeService {
         "steps.mediaIds",
         "filename originalName mimeType fileSize filePath"
       )
-      .populate("mediaIds", "filename originalName mimeType fileSize filePath") as any;
+      .populate(
+        "mediaIds",
+        "filename originalName mimeType fileSize filePath"
+      ) as any;
   }
 
   async getByRecipeNumber(
@@ -148,7 +153,9 @@ export class RecipeService {
     for (const rawMat of rawMaterials) {
       const material = await RawMaterial.findById(rawMat.materialId);
       if (!material) {
-        const error: any = new Error(`Raw material not found: ${rawMat.materialId}`);
+        const error: any = new Error(
+          `Raw material not found: ${rawMat.materialId}`
+        );
         error.code = "RAW_MATERIAL_NOT_FOUND";
         error.status = 404;
         throw error;
@@ -234,7 +241,8 @@ export class RecipeService {
     if (data.description !== undefined) recipe.description = data.description;
     if (data.dwgNo !== undefined) (recipe as any).dwgNo = data.dwgNo;
     if (data.unit !== undefined) (recipe as any).unit = data.unit;
-    if (data.outsourcing !== undefined) (recipe as any).outsourcing = data.outsourcing;
+    if (data.outsourcing !== undefined)
+      (recipe as any).outsourcing = data.outsourcing;
     if (data.remarks !== undefined) (recipe as any).remarks = data.remarks;
     if (data.mediaIds !== undefined) (recipe as any).mediaIds = data.mediaIds;
 
@@ -291,7 +299,9 @@ export class RecipeService {
     await RecipeService.prepareRecipeForSave(recipe, false);
     await recipe.save();
 
-    await SnapshotService.getOrCreateRecipeSnapshot(recipe._id as mongoose.Types.ObjectId);
+    await SnapshotService.getOrCreateRecipeSnapshot(
+      recipe._id as mongoose.Types.ObjectId
+    );
     await Product.findOneAndUpdate(
       { "recipes.recipeId": recipe._id },
       {
@@ -449,7 +459,9 @@ export class RecipeService {
     }
 
     if (topologicalOrder.length !== (recipe as any).steps.length) {
-      const error: any = new Error("Circular dependencies detected in recipe steps");
+      const error: any = new Error(
+        "Circular dependencies detected in recipe steps"
+      );
       error.code = "CYCLE_DETECTED";
       error.status = 400;
       throw error;

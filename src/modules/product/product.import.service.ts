@@ -10,7 +10,7 @@ import {
   enableAutoFilter,
   freezePanes,
   styleHeaderRow
-} from "../../services/excelFormatService";
+} from "@shared/services/excelFormatService";
 import { loggerService } from "@shared/services";
 
 export interface ParsedProduct {

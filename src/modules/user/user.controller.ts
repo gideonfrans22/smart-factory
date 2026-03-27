@@ -1,4 +1,4 @@
-import { Device } from "@/models";
+import { Device } from "@/shared/models";
 import { getOnlineCountByRole, realtimeService } from "@shared/services";
 import { Response } from "express";
 import { getIO } from "@infra/config";

@@ -6,7 +6,7 @@ import {
   enableAutoFilter,
   freezePanes,
   styleHeaderRow
-} from "../../services/excelFormatService";
+} from "@shared/services/excelFormatService";
 import { cellToNumber, cellToString, parseHeaderRow } from "@shared/utils";
 import { ImportRowError } from "@shared/types";
 
@@ -486,4 +486,3 @@ export async function parseRawMaterialWorkbook(
 
   return { materials, specifications, errors };
 }
-

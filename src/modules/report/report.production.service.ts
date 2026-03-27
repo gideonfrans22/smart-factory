@@ -4,8 +4,8 @@ import { RecipeSnapshot } from "@modules/recipe";
 import { Alert } from "@modules/alert";
 import { Project } from "@modules/project";
 import { Task } from "@modules/task";
-import * as ExcelFormatService from "@/services/excelFormatService";
-import { formatDateKorean } from "@/services/excelFormatService";
+import * as ExcelFormatService from "@/shared/services/excelFormatService";
+import { formatDateKorean } from "@/shared/services/excelFormatService";
 
 /**
  * Production Rate Report Data Aggregation Service
@@ -919,8 +919,9 @@ export async function calculateWeekOverWeekMetrics(
 
     weeklyMetrics.push({
       weekNumber: week + 1,
-      weekLabel: `Week ${week + 1
-        }: ${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`,
+      weekLabel: `Week ${
+        week + 1
+      }: ${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`,
       startDate: weekStart.toISOString().split("T")[0],
       endDate: weekEnd.toISOString().split("T")[0],
       productionVolume: stats.productionVolume,
@@ -2676,7 +2677,7 @@ export async function generateProductionTrendsSheet(
   const avgEfficiency =
     weeklyMetrics.length > 0
       ? weeklyMetrics.reduce((sum, w) => sum + w.efficiency, 0) /
-      weeklyMetrics.length
+        weeklyMetrics.length
       : 0;
 
   const totalProduction = weeklyMetrics.reduce(
@@ -2687,7 +2688,7 @@ export async function generateProductionTrendsSheet(
   const efficiencyTrend =
     weeklyMetrics.length > 1
       ? weeklyMetrics[weeklyMetrics.length - 1].efficiency -
-      weeklyMetrics[0].efficiency
+        weeklyMetrics[0].efficiency
       : 0;
 
   worksheet.mergeCells(`A${currentRow}:H${currentRow}`);
@@ -2710,8 +2711,8 @@ export async function generateProductionTrendsSheet(
       efficiencyTrend > 5
         ? "Improving ↑"
         : efficiencyTrend < -5
-          ? "Declining ↓"
-          : "Stable →"
+        ? "Declining ↓"
+        : "Stable →"
     ]
   ];
 
@@ -2830,8 +2831,8 @@ export async function generateRawProductionDataSheet(
 
     const efficiency =
       task.status === "COMPLETED" &&
-        task.actualDuration &&
-        task.estimatedDuration
+      task.actualDuration &&
+      task.estimatedDuration
         ? (task.estimatedDuration / task.actualDuration) * 100
         : 0;
 
@@ -3114,8 +3115,8 @@ export async function aggregateProductStatusData(
       deliveryDelays === 0 && project.deadline
         ? 100
         : deliveryDelays > 0
-          ? 0
-          : 100;
+        ? 0
+        : 100;
 
     const remainingQuantity = project.targetQuantity - project.producedQuantity;
     const completionRate =
@@ -3179,7 +3180,7 @@ export async function aggregateProductStatusData(
         if (!taskRecipeSnapId || !taskProductSnapId) return false;
         return (
           taskRecipeSnapId._id.toString() ===
-          recipeRef.recipeSnapshotId.toString() &&
+            recipeRef.recipeSnapshotId.toString() &&
           taskProductSnapId._id.toString() === productSnapshotId.toString()
         );
       });

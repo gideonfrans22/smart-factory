@@ -8,7 +8,7 @@ import {
   IProject,
   ITask,
   Task
-} from "@/models";
+} from "@/shared/models";
 import { loggerService } from "@shared/services";
 
 /**

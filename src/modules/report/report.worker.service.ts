@@ -1,9 +1,9 @@
-import ExcelJS from "exceljs";
-import mongoose from "mongoose";
 import { Task } from "@modules/task";
 import { User } from "@modules/user/user.model";
-import * as ExcelFormatService from "@/services/excelFormatService";
-import { formatDateKorean } from "@/services/excelFormatService";
+import * as ExcelFormatService from "@shared/services/excelFormatService";
+import { formatDateKorean } from "@shared/services/excelFormatService";
+import ExcelJS from "exceljs";
+import mongoose from "mongoose";
 
 /**
  * Worker Performance Report Data Aggregation Service
@@ -319,11 +319,11 @@ export interface WorkerPerformanceData {
   avgTaskEstimatedTime: number; // in minutes
   efficiency: number; // percentage
   performanceRating:
-  | "EXCELLENT"
-  | "GOOD"
-  | "AVERAGE"
-  | "BELOW_AVERAGE"
-  | "POOR";
+    | "EXCELLENT"
+    | "GOOD"
+    | "AVERAGE"
+    | "BELOW_AVERAGE"
+    | "POOR";
   performanceScore: number; // 0-100
   rank?: number;
 }
@@ -975,8 +975,8 @@ export async function getWorkerPerformanceData(
     const completionRate =
       worker.completedTasks + worker.failedTasks > 0
         ? (worker.completedTasks /
-          (worker.completedTasks + worker.failedTasks)) *
-        100
+            (worker.completedTasks + worker.failedTasks)) *
+          100
         : 0;
 
     const productivity =
@@ -1706,9 +1706,11 @@ export async function generateWorkerKPISheet(
     lang
   )}: ${formatDate(dateRange.startDate)} ~ ${formatDate(
     dateRange.endDate
-  )}\n${getTranslation("workerKPI.workerName", lang)}: ${kpiData.workerName || "N/A"
-    }\n${getTranslation("workerKPI.department", lang)}: ${kpiData.department || "N/A"
-    }`;
+  )}\n${getTranslation("workerKPI.workerName", lang)}: ${
+    kpiData.workerName || "N/A"
+  }\n${getTranslation("workerKPI.department", lang)}: ${
+    kpiData.department || "N/A"
+  }`;
   workerInfoCell.font = { size: 10, bold: true };
   workerInfoCell.alignment = {
     horizontal: "left",
@@ -1803,8 +1805,8 @@ export async function generateWorkerKPISheet(
         kpiData.proficiency.level === "advanced"
           ? getTranslation("workerKPI.advanced", lang)
           : kpiData.proficiency.level === "intermediate"
-            ? getTranslation("workerKPI.intermediate", lang)
-            : getTranslation("workerKPI.initial", lang),
+          ? getTranslation("workerKPI.intermediate", lang)
+          : getTranslation("workerKPI.initial", lang),
       type: "proficiencyLevel",
       level: kpiData.proficiency.level
     },

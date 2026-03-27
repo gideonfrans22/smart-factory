@@ -1,7 +1,4 @@
-import mongoose from "mongoose";
-import { SnapshotService } from "@/services/snapshotService";
-import { roundToTwoDecimals, parseDateAsKST } from "@shared/helpers";
-import { loggerService, realtimeService } from "@shared/services";
+import { parseDateAsKST, roundToTwoDecimals } from "@shared/helpers";
 import {
   Alert,
   Device,
@@ -10,8 +7,11 @@ import {
   ProductSnapshot,
   Project,
   Recipe
-} from "../../models";
-import { Task, ITask } from "./task.model";
+} from "@shared/models";
+import { loggerService, realtimeService } from "@shared/services";
+import { SnapshotService } from "@shared/services/snapshotService";
+import mongoose from "mongoose";
+import { ITask, Task } from "./task.model";
 import type {
   DeviceTaskQuery,
   TaskBatchUpdateDTO,
@@ -60,8 +60,7 @@ export class TaskService {
 
     if (productSnapshot) {
       for (const productRecipe of productSnapshot.recipes) {
-        const totalExecutions =
-          project.targetQuantity * productRecipe.quantity;
+        const totalExecutions = project.targetQuantity * productRecipe.quantity;
         const recipeSnapshotId = productRecipe.recipeSnapshotId;
         if (!recipeSnapshotId) continue;
 
@@ -538,7 +537,9 @@ export class TaskService {
 
     const { status, workerId, start, end, page = "1", limit = "10" } = query;
 
-    const device = await Device.findById(deviceId).select("deviceTypeId").lean();
+    const device = await Device.findById(deviceId)
+      .select("deviceTypeId")
+      .lean();
     if (!device) {
       throw new TaskServiceError({
         statusCode: 404,
@@ -843,21 +844,18 @@ export class TaskService {
           message: "First recipe in product not found"
         });
       }
-      const productSnapshot =
-        await SnapshotService.getOrCreateProductSnapshot(
-          new mongoose.Types.ObjectId(String(productId))
-        );
+      const productSnapshot = await SnapshotService.getOrCreateProductSnapshot(
+        new mongoose.Types.ObjectId(String(productId))
+      );
       productSnapshotId = productSnapshot._id;
-      const recipeSnapshot =
-        await SnapshotService.getOrCreateRecipeSnapshot(
-          new mongoose.Types.ObjectId(String(selectedRecipeId))
-        );
+      const recipeSnapshot = await SnapshotService.getOrCreateRecipeSnapshot(
+        new mongoose.Types.ObjectId(String(selectedRecipeId))
+      );
       recipeSnapshotId = recipeSnapshot._id;
       totalExecutions = 1;
       recipeStep = recipeSnapshot.steps[0];
       deviceTypeId = recipeStep.deviceTypeId;
-      taskEstimatedDuration =
-        estimatedDuration ?? recipeStep.estimatedDuration;
+      taskEstimatedDuration = estimatedDuration ?? recipeStep.estimatedDuration;
       stepOrder = recipeStep.order;
       const maxStepOrder = Math.max(
         ...recipeSnapshot.steps.map((s: { order: number }) => s.order)
@@ -878,8 +876,7 @@ export class TaskService {
       recipeSnapshotId = recipeSnapshot._id;
       recipeStep = recipeSnapshot.steps[0];
       deviceTypeId = recipeStep.deviceTypeId;
-      taskEstimatedDuration =
-        estimatedDuration ?? recipeStep.estimatedDuration;
+      taskEstimatedDuration = estimatedDuration ?? recipeStep.estimatedDuration;
       stepOrder = recipeStep.order;
       const maxStepOrder = Math.max(
         ...recipeSnapshot.steps.map((s: { order: number }) => s.order)
@@ -1237,7 +1234,9 @@ export class TaskService {
     const tasks = await Task.find({ _id: { $in: taskIds } });
     const foundIds = tasks.map((t) => String(t._id));
     const foundObjectIds = tasks.map((t) => t._id as mongoose.Types.ObjectId);
-    const notFoundIds = taskIds.filter((tid: string) => !foundIds.includes(tid));
+    const notFoundIds = taskIds.filter(
+      (tid: string) => !foundIds.includes(tid)
+    );
 
     const updateResult = await Task.updateMany(
       { _id: { $in: foundObjectIds } },
@@ -1315,7 +1314,9 @@ export class TaskService {
       throw new TaskServiceError({
         statusCode: 400,
         errorCode: "VALIDATION_ERROR",
-        message: `Task is already ${String(task.status).toLowerCase()}. Only PENDING tasks can be started.`
+        message: `Task is already ${String(
+          task.status
+        ).toLowerCase()}. Only PENDING tasks can be started.`
       });
     }
     if (!workerId) {
@@ -1627,7 +1628,9 @@ export class TaskService {
 
     task.status = "COMPLETED";
     task.workerId = workerId
-      ? (new mongoose.Types.ObjectId(String(workerId)) as unknown as typeof task.workerId)
+      ? (new mongoose.Types.ObjectId(
+          String(workerId)
+        ) as unknown as typeof task.workerId)
       : task.workerId;
     task.completedAt = new Date();
     task.progress = completionProgress;
@@ -1946,9 +1949,9 @@ export class TaskService {
     };
   }
 
-  async getTaskStatistics(query: TaskStatisticsQuery): Promise<
-    Record<string, unknown>
-  > {
+  async getTaskStatistics(
+    query: TaskStatisticsQuery
+  ): Promise<Record<string, unknown>> {
     const { projectId, deviceTypeId, workerId, startDate, endDate } = query;
 
     const baseQuery: Record<string, unknown> = {};
@@ -2210,16 +2213,24 @@ export class TaskService {
     const completionRate =
       totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(2) : "0";
 
-    const completionTimeStats = (avgCompletionTime as { avgDuration?: number; minDuration?: number; maxDuration?: number }[])[0] || {
+    const completionTimeStats = (
+      avgCompletionTime as {
+        avgDuration?: number;
+        minDuration?: number;
+        maxDuration?: number;
+      }[]
+    )[0] || {
       avgDuration: 0,
       minDuration: 0,
       maxDuration: 0
     };
 
-    const executionStats = (executionProgress as {
-      totalExecutions?: number;
-      completedExecutions?: number;
-    }[])[0] || {
+    const executionStats = (
+      executionProgress as {
+        totalExecutions?: number;
+        completedExecutions?: number;
+      }[]
+    )[0] || {
       totalExecutions: 0,
       completedExecutions: 0
     };
@@ -2254,11 +2265,13 @@ export class TaskService {
         max: completionTimeStats.maxDuration || 0,
         unit: "minutes"
       },
-      byDeviceType: (tasksByDeviceType as {
-        _id: unknown;
-        count: number;
-        completed: number;
-      }[]).map((item) => ({
+      byDeviceType: (
+        tasksByDeviceType as {
+          _id: unknown;
+          count: number;
+          completed: number;
+        }[]
+      ).map((item) => ({
         deviceTypeId: item._id,
         total: item.count,
         completed: item.completed,
@@ -2267,13 +2280,15 @@ export class TaskService {
             ? parseFloat(((item.completed / item.count) * 100).toFixed(2))
             : 0
       })),
-      byProject: (tasksByProject as {
-        _id: unknown;
-        count: number;
-        completed: number;
-        pending: number;
-        ongoing: number;
-      }[]).map((item) => ({
+      byProject: (
+        tasksByProject as {
+          _id: unknown;
+          count: number;
+          completed: number;
+          pending: number;
+          ongoing: number;
+        }[]
+      ).map((item) => ({
         projectId: item._id,
         total: item.count,
         completed: item.completed,
@@ -2467,7 +2482,8 @@ export class TaskService {
         g.summary.byStatus[task.status]++;
         g.summary.byPriority[task.priority]++;
 
-        const recipeSnapshot = task.recipeSnapshotId as unknown as IRecipeSnapshot;
+        const recipeSnapshot =
+          task.recipeSnapshotId as unknown as IRecipeSnapshot;
         const recipeSnapshotId = recipeSnapshot._id.toString();
 
         if (!g.recipes[recipeSnapshotId]) {
@@ -2497,14 +2513,25 @@ export class TaskService {
 
         const r = g.recipes[recipeSnapshotId] as {
           steps: Record<string, unknown>;
-          summary: { totalTasks: number; byStatus: Record<string, number>; completedExecutions: number };
+          summary: {
+            totalTasks: number;
+            byStatus: Record<string, number>;
+            completedExecutions: number;
+          };
         };
 
         const stepOrder = task.stepOrder.toString();
         if (!r.steps[stepOrder]) {
-          const step = (recipeSnapshot as { steps: { order: number; _id?: unknown; name?: string; description?: string }[] }).steps.find(
-            (s) => s.order === task.stepOrder
-          );
+          const step = (
+            recipeSnapshot as {
+              steps: {
+                order: number;
+                _id?: unknown;
+                name?: string;
+                description?: string;
+              }[];
+            }
+          ).steps.find((s) => s.order === task.stepOrder);
           r.steps[stepOrder] = {
             stepInfo: {
               _id: step?._id || task.recipeStepId,

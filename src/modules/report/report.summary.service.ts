@@ -4,8 +4,11 @@ import { Device } from "@modules/device";
 import { Project } from "@modules/project";
 import { Task } from "@modules/task";
 import { User } from "@modules/user/user.model";
-import * as ExcelFormatService from "@/services/excelFormatService";
-import { formatDateKorean, formatDateMM } from "@/services/excelFormatService";
+import * as ExcelFormatService from "@/shared/services/excelFormatService";
+import {
+  formatDateKorean,
+  formatDateMM
+} from "@/shared/services/excelFormatService";
 
 /**
  * Summary Report Service
@@ -299,7 +302,11 @@ export async function getProductionStatusData(
   for (let i = 2; i >= 0; i--) {
     const monthDate = new Date(endDate);
     monthDate.setMonth(endDate.getMonth() - i);
-    const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+    const monthStart = new Date(
+      monthDate.getFullYear(),
+      monthDate.getMonth(),
+      1
+    );
     const monthEnd = new Date(
       monthDate.getFullYear(),
       monthDate.getMonth() + 1,
@@ -397,7 +404,9 @@ export async function getDeliveryStatusData(
  * Get equipment utilization data
  */
 export async function getEquipmentUtilizationData(): Promise<EquipmentUtilization> {
-  const totalDevices = await Device.countDocuments({ isActive: { $ne: false } });
+  const totalDevices = await Device.countDocuments({
+    isActive: { $ne: false }
+  });
   const operatingDevices = await Device.countDocuments({
     status: "ONLINE",
     isActive: { $ne: false }
@@ -686,7 +695,9 @@ export async function getEquipmentUsageRanking(
     return {
       name: item.device.name || "Unknown",
       value: item.totalMinutes,
-      unit: `${hours.toString().padStart(2, "0")}시간 ${minutes.toString().padStart(2, "0")}분`
+      unit: `${hours.toString().padStart(2, "0")}시간 ${minutes
+        .toString()
+        .padStart(2, "0")}분`
     };
   });
 }
@@ -746,7 +757,10 @@ export async function generateSummaryReportSheet(
   // Reference Date/Time - left side
   worksheet.mergeCells(currentRow, 1, currentRow, 3);
   const refDateCell = worksheet.getCell(currentRow, 1);
-  refDateCell.value = `${getTranslation("summaryReport.referenceDateTime", langCode)}: ${formatDateKorean(dateRange.startDate)} 00:00~23:59`;
+  refDateCell.value = `${getTranslation(
+    "summaryReport.referenceDateTime",
+    langCode
+  )}: ${formatDateKorean(dateRange.startDate)} 00:00~23:59`;
   refDateCell.font = { size: 11 };
 
   // Approval section (작성/검토/승인) - right side
@@ -775,7 +789,10 @@ export async function generateSummaryReportSheet(
   worksheet.mergeCells(currentRow, 1, currentRow, 3);
   const genDateCell = worksheet.getCell(currentRow, 1);
   const today = new Date();
-  genDateCell.value = `${getTranslation("summaryReport.reportGenerationDate", langCode)}: ${formatDateKorean(today)}`;
+  genDateCell.value = `${getTranslation(
+    "summaryReport.reportGenerationDate",
+    langCode
+  )}: ${formatDateKorean(today)}`;
   genDateCell.font = { size: 11 };
 
   // Blank Signature cells - right side
@@ -809,7 +826,10 @@ export async function generateSummaryReportSheet(
   // Daily Production Status - left side
   worksheet.mergeCells(currentRow, 1, currentRow, 2);
   const dailyHeader = worksheet.getCell(currentRow, 1);
-  dailyHeader.value = getTranslation("summaryReport.dailyProductionStatus", langCode);
+  dailyHeader.value = getTranslation(
+    "summaryReport.dailyProductionStatus",
+    langCode
+  );
   dailyHeader.font = { size: 12, bold: true };
   dailyHeader.alignment = { horizontal: "center", vertical: "middle" };
   dailyHeader.border = {
@@ -827,7 +847,10 @@ export async function generateSummaryReportSheet(
   // Weekly Production Status - center side
   worksheet.mergeCells(currentRow, 3, currentRow, 4);
   const weeklyHeader = worksheet.getCell(currentRow, 3);
-  weeklyHeader.value = getTranslation("summaryReport.weeklyProductionStatus", langCode);
+  weeklyHeader.value = getTranslation(
+    "summaryReport.weeklyProductionStatus",
+    langCode
+  );
   weeklyHeader.font = { size: 12, bold: true };
   weeklyHeader.alignment = { horizontal: "center", vertical: "middle" };
   weeklyHeader.border = {
@@ -845,7 +868,10 @@ export async function generateSummaryReportSheet(
   // Monthly Production Status - right side
   worksheet.mergeCells(currentRow, 5, currentRow, 8);
   const monthlyHeader = worksheet.getCell(currentRow, 5);
-  monthlyHeader.value = getTranslation("summaryReport.monthlyProductionStatus", langCode);
+  monthlyHeader.value = getTranslation(
+    "summaryReport.monthlyProductionStatus",
+    langCode
+  );
   monthlyHeader.font = { size: 12, bold: true };
   monthlyHeader.alignment = { horizontal: "center", vertical: "middle" };
   monthlyHeader.border = {
@@ -863,9 +889,18 @@ export async function generateSummaryReportSheet(
 
   // Daily Production Status - headers - left side
   const dailyRows = [
-    { label: getTranslation("summaryReport.progressRate", langCode), value: `${productionStatus.daily.progressRate}%` },
-    { label: getTranslation("summaryReport.totalWorkCount", langCode), value: productionStatus.daily.totalWorkCount },
-    { label: getTranslation("summaryReport.completedWorkCount", langCode), value: productionStatus.daily.completedWorkCount },
+    {
+      label: getTranslation("summaryReport.progressRate", langCode),
+      value: `${productionStatus.daily.progressRate}%`
+    },
+    {
+      label: getTranslation("summaryReport.totalWorkCount", langCode),
+      value: productionStatus.daily.totalWorkCount
+    },
+    {
+      label: getTranslation("summaryReport.completedWorkCount", langCode),
+      value: productionStatus.daily.completedWorkCount
+    }
   ];
   dailyRows.forEach((row, idx) => {
     const labelCell = worksheet.getCell(currentRow + idx, 1);
@@ -892,9 +927,18 @@ export async function generateSummaryReportSheet(
 
   // Weekly Production Status - headers - center side
   const weeklyRows = [
-    { label: getTranslation("summaryReport.progressRate", langCode), value: `${productionStatus.weekly.progressRate}%` },
-    { label: getTranslation("summaryReport.totalWorkCount", langCode), value: productionStatus.weekly.totalWorkCount },
-    { label: getTranslation("summaryReport.completedWorkCount", langCode), value: productionStatus.weekly.completedWorkCount },
+    {
+      label: getTranslation("summaryReport.progressRate", langCode),
+      value: `${productionStatus.weekly.progressRate}%`
+    },
+    {
+      label: getTranslation("summaryReport.totalWorkCount", langCode),
+      value: productionStatus.weekly.totalWorkCount
+    },
+    {
+      label: getTranslation("summaryReport.completedWorkCount", langCode),
+      value: productionStatus.weekly.completedWorkCount
+    }
   ];
   weeklyRows.forEach((row, idx) => {
     const labelCell = worksheet.getCell(currentRow + idx, 3);
@@ -921,10 +965,24 @@ export async function generateSummaryReportSheet(
 
   // Monthly Production Status - headers - right side
   const monthlyRows = [
-    { label: getTranslation("summaryReport.month", langCode), value: productionStatus.monthly.map((month) => formatDateMM(month.month, langCode)) },
-    { label: getTranslation("summaryReport.progressRate", langCode), value: productionStatus.monthly.map((month) => `${month.progressRate}%`) },
-    { label: getTranslation("summaryReport.totalWorkCount", langCode), value: productionStatus.monthly.map((month) => month.totalWorkCount) },
-    { label: getTranslation("summaryReport.completedWorkCount", langCode), value: productionStatus.monthly.map((month) => month.completedWorkCount) },
+    {
+      label: getTranslation("summaryReport.month", langCode),
+      value: productionStatus.monthly.map((month) =>
+        formatDateMM(month.month, langCode)
+      )
+    },
+    {
+      label: getTranslation("summaryReport.progressRate", langCode),
+      value: productionStatus.monthly.map((month) => `${month.progressRate}%`)
+    },
+    {
+      label: getTranslation("summaryReport.totalWorkCount", langCode),
+      value: productionStatus.monthly.map((month) => month.totalWorkCount)
+    },
+    {
+      label: getTranslation("summaryReport.completedWorkCount", langCode),
+      value: productionStatus.monthly.map((month) => month.completedWorkCount)
+    }
   ];
   monthlyRows.forEach((row, idx) => {
     const labelCell = worksheet.getCell(currentRow + idx, 5);
@@ -956,7 +1014,10 @@ export async function generateSummaryReportSheet(
   // DELIVERY STATUS - headers - left side
   worksheet.mergeCells(currentRow, 1, currentRow, 2);
   const deliveryHeader = worksheet.getCell(currentRow, 1);
-  deliveryHeader.value = getTranslation("summaryReport.deliveryDateBasedStatus", langCode);
+  deliveryHeader.value = getTranslation(
+    "summaryReport.deliveryDateBasedStatus",
+    langCode
+  );
   deliveryHeader.font = { size: 12, bold: true };
   deliveryHeader.alignment = { horizontal: "center", vertical: "middle" };
   deliveryHeader.border = {
@@ -974,7 +1035,10 @@ export async function generateSummaryReportSheet(
   // EQUIPMENT UTILIZATION - headers - center side
   worksheet.mergeCells(currentRow, 3, currentRow, 4);
   const equipmentHeader = worksheet.getCell(currentRow, 3);
-  equipmentHeader.value = getTranslation("summaryReport.equipmentUtilizationRate", langCode);
+  equipmentHeader.value = getTranslation(
+    "summaryReport.equipmentUtilizationRate",
+    langCode
+  );
   equipmentHeader.font = { size: 12, bold: true };
   equipmentHeader.alignment = { horizontal: "center", vertical: "middle" };
   equipmentHeader.border = {
@@ -992,7 +1056,10 @@ export async function generateSummaryReportSheet(
   // ERROR FREQUENCIES - headers - center right side
   worksheet.mergeCells(currentRow, 5, currentRow, 6);
   const errorHeader = worksheet.getCell(currentRow, 5);
-  errorHeader.value = getTranslation("summaryReport.topErrorFrequencies", langCode);
+  errorHeader.value = getTranslation(
+    "summaryReport.topErrorFrequencies",
+    langCode
+  );
   errorHeader.font = { size: 12, bold: true };
   errorHeader.alignment = { horizontal: "center", vertical: "middle" };
   errorHeader.border = {
@@ -1006,7 +1073,6 @@ export async function generateSummaryReportSheet(
     pattern: "solid",
     fgColor: { argb: ExcelFormatService.COLORS.NEUTRAL }
   };
-
 
   // WORKER STATUS - headers - right side
   worksheet.mergeCells(currentRow, 7, currentRow, 8);
@@ -1029,9 +1095,18 @@ export async function generateSummaryReportSheet(
 
   // DELIVERY STATUS - values - left side
   const deliveryRows = [
-    { label: getTranslation("summaryReport.delayedDeliveries", langCode), value: deliveryStatus.delayed },
-    { label: getTranslation("summaryReport.imminentDeliveries", langCode), value: deliveryStatus.imminent },
-    { label: getTranslation("summaryReport.onTimeDeliveries", langCode), value: deliveryStatus.onTime }
+    {
+      label: getTranslation("summaryReport.delayedDeliveries", langCode),
+      value: deliveryStatus.delayed
+    },
+    {
+      label: getTranslation("summaryReport.imminentDeliveries", langCode),
+      value: deliveryStatus.imminent
+    },
+    {
+      label: getTranslation("summaryReport.onTimeDeliveries", langCode),
+      value: deliveryStatus.onTime
+    }
   ];
   deliveryRows.forEach((row, idx) => {
     const cell = worksheet.getCell(currentRow + idx, 1);
@@ -1057,9 +1132,18 @@ export async function generateSummaryReportSheet(
   });
 
   const equipmentRows = [
-    { label: getTranslation("summaryReport.equipmentUtilizationRate", langCode), value: `${equipmentUtilization.utilizationRate}%` },
-    { label: getTranslation("summaryReport.operatingEquipmentCount", langCode), value: equipmentUtilization.operatingCount },
-    { label: getTranslation("summaryReport.totalEquipmentCount", langCode), value: equipmentUtilization.totalCount }
+    {
+      label: getTranslation("summaryReport.equipmentUtilizationRate", langCode),
+      value: `${equipmentUtilization.utilizationRate}%`
+    },
+    {
+      label: getTranslation("summaryReport.operatingEquipmentCount", langCode),
+      value: equipmentUtilization.operatingCount
+    },
+    {
+      label: getTranslation("summaryReport.totalEquipmentCount", langCode),
+      value: equipmentUtilization.totalCount
+    }
   ];
   equipmentRows.forEach((row, idx) => {
     if (idx === 0) {
@@ -1114,12 +1198,21 @@ export async function generateSummaryReportSheet(
       bottom: { style: "thin" },
       right: { style: "thin" }
     };
-  })
+  });
 
   const workerRows = [
-    { label: getTranslation("summaryReport.overallStatus", langCode), value: `${workerStatus.overallStatus}%` },
-    { label: getTranslation("summaryReport.workersInProgress", langCode), value: workerStatus.workersInProgress },
-    { label: getTranslation("summaryReport.totalWorkers", langCode), value: workerStatus.totalWorkers }
+    {
+      label: getTranslation("summaryReport.overallStatus", langCode),
+      value: `${workerStatus.overallStatus}%`
+    },
+    {
+      label: getTranslation("summaryReport.workersInProgress", langCode),
+      value: workerStatus.workersInProgress
+    },
+    {
+      label: getTranslation("summaryReport.totalWorkers", langCode),
+      value: workerStatus.totalWorkers
+    }
   ];
   workerRows.forEach((row, idx) => {
     if (idx === 0) {
@@ -1159,13 +1252,22 @@ export async function generateSummaryReportSheet(
     }
   });
 
-  currentRow += Math.max(deliveryRows.length, equipmentRows.length, errorRows.length, workerRows.length) + 1;
+  currentRow +=
+    Math.max(
+      deliveryRows.length,
+      equipmentRows.length,
+      errorRows.length,
+      workerRows.length
+    ) + 1;
 
   // ===== RANKINGS =====
   // Top 10 Product Workload - headers - left side
   worksheet.mergeCells(currentRow, 1, currentRow, 2);
   const productRankHeader = worksheet.getCell(currentRow, 1);
-  productRankHeader.value = getTranslation("summaryReport.top10ProductWorkload", langCode);
+  productRankHeader.value = getTranslation(
+    "summaryReport.top10ProductWorkload",
+    langCode
+  );
   productRankHeader.font = { size: 12, bold: true };
   productRankHeader.alignment = { horizontal: "center", vertical: "middle" };
   productRankHeader.border = {
@@ -1183,7 +1285,10 @@ export async function generateSummaryReportSheet(
   // Top 10 Part Workload - headers - center left side
   worksheet.mergeCells(currentRow, 3, currentRow, 4);
   const partRankHeader = worksheet.getCell(currentRow, 3);
-  partRankHeader.value = getTranslation("summaryReport.top10PartWorkload", langCode);
+  partRankHeader.value = getTranslation(
+    "summaryReport.top10PartWorkload",
+    langCode
+  );
   partRankHeader.font = { size: 12, bold: true };
   partRankHeader.alignment = { horizontal: "center", vertical: "middle" };
   partRankHeader.border = {
@@ -1201,7 +1306,10 @@ export async function generateSummaryReportSheet(
   // Top 10 Customer Order Count - headers - center right side
   worksheet.mergeCells(currentRow, 5, currentRow, 6);
   const customerRankHeader = worksheet.getCell(currentRow, 5);
-  customerRankHeader.value = getTranslation("summaryReport.top10CustomerOrderCount", langCode);
+  customerRankHeader.value = getTranslation(
+    "summaryReport.top10CustomerOrderCount",
+    langCode
+  );
   customerRankHeader.font = { size: 12, bold: true };
   customerRankHeader.alignment = { horizontal: "center", vertical: "middle" };
   customerRankHeader.border = {
@@ -1219,7 +1327,10 @@ export async function generateSummaryReportSheet(
   // Top 10 Equipment Usage - headers - right side
   worksheet.mergeCells(currentRow, 7, currentRow, 8);
   const equipmentRankHeader = worksheet.getCell(currentRow, 7);
-  equipmentRankHeader.value = getTranslation("summaryReport.top10EquipmentUsage", langCode);
+  equipmentRankHeader.value = getTranslation(
+    "summaryReport.top10EquipmentUsage",
+    langCode
+  );
   equipmentRankHeader.font = { size: 12, bold: true };
   equipmentRankHeader.alignment = { horizontal: "center", vertical: "middle" };
   equipmentRankHeader.border = {
@@ -1261,7 +1372,7 @@ export async function generateSummaryReportSheet(
         bottom: { style: "thin" },
         right: { style: "thin" }
       };
-    })
+    });
   });
 
   // Set column widths

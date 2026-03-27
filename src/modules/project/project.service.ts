@@ -1,11 +1,11 @@
-import { Project } from "./project.model";
-import { DateTime } from "@shared/utils";
 import { Product, ProductSnapshot } from "@modules/product";
 import { Recipe } from "@modules/recipe";
-import { loggerService, realtimeService } from "@shared/services";
-import { SnapshotService } from "../../services/snapshotService";
 import { taskService } from "@modules/task";
-import { RecipeSnapshot, Task } from "../../models";
+import { RecipeSnapshot, Task } from "@shared/models";
+import { loggerService, realtimeService } from "@shared/services";
+import { SnapshotService } from "@shared/services/snapshotService";
+import { DateTime } from "@shared/utils";
+import { Project } from "./project.model";
 import { ProjectMonitoringData } from "./project.types";
 
 /**
@@ -217,12 +217,7 @@ export class ProjectService {
     createdBy?: string;
     modifiedBy?: string;
   }) {
-    const {
-      products = [],
-      recipes = [],
-      createdBy,
-      modifiedBy
-    } = params;
+    const { products = [], recipes = [], createdBy, modifiedBy } = params;
 
     if (!createdBy) {
       throw new ProjectServiceError({
@@ -245,8 +240,7 @@ export class ProjectService {
       throw new ProjectServiceError({
         statusCode: 400,
         errorCode: "VALIDATION_ERROR",
-        message:
-          "Batch size limit exceeded. Maximum 40 projects per request"
+        message: "Batch size limit exceeded. Maximum 40 projects per request"
       });
     }
 
@@ -400,11 +394,7 @@ export class ProjectService {
     };
   }
 
-  async updateProject(params: {
-    id: string;
-    body: any;
-    userId?: string;
-  }) {
+  async updateProject(params: { id: string; body: any; userId?: string }) {
     const { id, body, userId } = params;
     const {
       productId,
@@ -455,7 +445,9 @@ export class ProjectService {
     }
 
     if (isDeactivating) {
-      const deletedCount = await taskService.deleteProjectTasks(project._id as any);
+      const deletedCount = await taskService.deleteProjectTasks(
+        project._id as any
+      );
       loggerService.info(
         `Deleted ${deletedCount} tasks for project ${project._id}`
       );
@@ -520,8 +512,7 @@ export class ProjectService {
         }
         project.targetQuantity = targetQuantity;
 
-        const isProductProject =
-          !!productIdToUse || !!project.productSnapshot;
+        const isProductProject = !!productIdToUse || !!project.productSnapshot;
         if (isProductProject && productIdToUse) {
           const product = await Product.findById(productIdToUse);
           if (product) {
@@ -694,7 +685,9 @@ export class ProjectService {
       });
     }
 
-    const deletedTaskCount = await taskService.deleteProjectTasks(project._id as any);
+    const deletedTaskCount = await taskService.deleteProjectTasks(
+      project._id as any
+    );
 
     project.modifiedBy = userId as any;
     await project.save();

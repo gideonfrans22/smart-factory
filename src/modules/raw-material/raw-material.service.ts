@@ -6,7 +6,7 @@ import {
   RawMaterialUpdateDTO
 } from "./raw-material.types";
 import { ParsedRawMaterialData } from "./raw-material.import.service";
-import { ActivityLog } from "../../models/ActivityLog";
+import { ActivityLog } from "@shared/models/ActivityLog";
 
 export interface RawMaterialListResult {
   items: RawMaterialDocument[];
@@ -21,7 +21,9 @@ export interface RawMaterialListResult {
 }
 
 export class RawMaterialService {
-  async list(filters: RawMaterialListFilters = {}): Promise<RawMaterialListResult> {
+  async list(
+    filters: RawMaterialListFilters = {}
+  ): Promise<RawMaterialListResult> {
     const { supplier, search, page = 1, limit = 10 } = filters;
 
     const query: any = {};
