@@ -2,7 +2,7 @@ import * as mqtt from "mqtt";
 import * as dotenv from "dotenv";
 import { loggerService } from "@shared/services";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 interface MQTTConfig {
   brokerUrl: string;
@@ -39,14 +39,19 @@ class MQTTService {
     return topic.substring(this.config.topicPrefix.length + 1);
   }
 
-  private topicMatches(subscriptionTopic: string, receivedTopic: string): boolean {
+  private topicMatches(
+    subscriptionTopic: string,
+    receivedTopic: string
+  ): boolean {
     const escaped = subscriptionTopic.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
     const pattern = escaped.replace(/\\\+/g, "[^/]+").replace(/\\#/g, ".*");
     return new RegExp(`^${pattern}$`).test(receivedTopic);
   }
 
   constructor() {
-    const topicPrefix = this.normalizePrefix(process.env.MQTT_TOPIC_PREFIX || "dev");
+    const topicPrefix = this.normalizePrefix(
+      process.env.MQTT_TOPIC_PREFIX || "dev"
+    );
     this.config = {
       brokerUrl: process.env.MQTT_BROKER_URL || "mqtt://localhost:1883",
       username: process.env.MQTT_USERNAME,

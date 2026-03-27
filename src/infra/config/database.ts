@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import * as dotenv from "dotenv";
 import { loggerService } from "@shared/services";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const MONGODB_URI =
   process.env.MONGODB_URI || "mongodb://localhost:27017/smart_factory";

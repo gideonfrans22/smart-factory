@@ -4,8 +4,8 @@ import cluster, { Worker } from "cluster";
 import * as dotenv from "dotenv";
 import os from "os";
 
-// Load environment variables
-dotenv.config();
+// Load environment variables (quiet: avoids noisy tip logs per worker in cluster mode)
+dotenv.config({ quiet: true });
 
 const numWorkers =
   parseInt(process.env.CLUSTER_WORKERS || "0") || os.cpus().length;

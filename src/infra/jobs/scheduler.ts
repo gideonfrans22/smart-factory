@@ -4,7 +4,7 @@ import { initializeScheduler } from "./schedulerService";
 import { loggerService } from "@shared/services";
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ quiet: true });
 
 /**
  * Dedicated Scheduler Worker Process

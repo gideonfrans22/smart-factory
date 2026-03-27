@@ -3,7 +3,7 @@ import DailyRotateFile from "winston-daily-rotate-file";
 import path from "path";
 import * as dotenv from "dotenv";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 // Configuration
 const LOG_DIR = process.env.LOG_DIR || "./logs";

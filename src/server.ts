@@ -5,7 +5,7 @@ import { loggerService, realtimeService } from "@shared/services";
 import * as dotenv from "dotenv";
 import app from "./app";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const PORT = process.env.PORT || 3000;
 
