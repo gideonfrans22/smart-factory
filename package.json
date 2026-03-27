@@ -4,8 +4,8 @@
   "description": "Smart Factory Backend API built with Node.js and TypeScript",
   "main": "dist/server.js",
   "scripts": {
-    "start": "node dist/cluster.js",
-    "start:single": "node dist/server.js",
+    "start": "node dist/src/cluster.js",
+    "start:single": "node dist/src/server.js",
     "dev": "nodemon",
     "dev:cluster": "ts-node src/cluster.ts",
     "scheduler": "ts-node src/infra/jobs/scheduler.ts",
