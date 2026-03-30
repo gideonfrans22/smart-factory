@@ -75,11 +75,19 @@ export const projectIdParamSchema = z.object({
   id: objectIdSchema
 });
 
+/** PUT /api/projects/:id/device-configuration */
+export const projectDeviceConfigurationPutBodySchema = z.object({
+  byDeviceType: z.record(objectIdSchema, z.array(objectIdSchema))
+});
+
 // --- Infer TypeScript Types ---
 
 export type ProjectCreateBatchInput = z.infer<typeof projectCreateBatchSchema>;
 export type ProjectUpdateInput = z.infer<typeof projectUpdateSchema>;
 export type ProjectListQueryInput = z.infer<typeof projectListQuerySchema>;
 export type ProjectIdParamInput = z.infer<typeof projectIdParamSchema>;
+export type ProjectDeviceConfigurationPutBodyInput = z.infer<
+  typeof projectDeviceConfigurationPutBodySchema
+>;
 export type ProjectStatus = z.infer<typeof projectStatusSchema>;
 export type ProjectPriority = z.infer<typeof projectPrioritySchema>;
