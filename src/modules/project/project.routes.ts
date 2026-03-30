@@ -16,6 +16,60 @@ const router = Router();
 router.get("/", authenticateToken, projectController.getProjects);
 
 /**
+ * @route   POST /api/projects
+ * @desc    Create multiple projects in batch (products and/or recipes)
+ * @access  Private (Admin only)
+ */
+router.post(
+  "/",
+  authenticateToken,
+  requireAdmin,
+  projectController.createProjectsBatch
+);
+
+/**
+ * @route   GET /api/projects/monitor/active
+ * @desc    Get active project monitor data
+ * @access  Private
+ */
+router.get(
+  "/monitor/active",
+  authenticateToken,
+  projectController.getActiveProjectMonitorData
+);
+
+/**
+ * @route   GET /api/projects/:id
+ * @desc    Get project by ID
+ * @access  Private
+ */
+router.get("/:id", authenticateToken, projectController.getProjectById);
+
+/**
+ * @route   PUT /api/projects/:id
+ * @desc    Update project
+ * @access  Private (Admin only)
+ */
+router.put(
+  "/:id",
+  authenticateToken,
+  requireAdmin,
+  projectController.updateProject
+);
+
+/**
+ * @route   DELETE /api/projects/:id
+ * @desc    Delete project
+ * @access  Private (Admin only)
+ */
+router.delete(
+  "/:id",
+  authenticateToken,
+  requireAdmin,
+  projectController.deleteProject
+);
+
+/**
  * @route   GET /api/projects/:id/device-configuration
  * @desc    Get per-project device configuration (empty object if none)
  * @access  Private
@@ -53,40 +107,5 @@ router.delete(
   validate(projectIdParamSchema, "params"),
   projectController.deleteProjectDeviceConfiguration
 );
-
-/**
- * @route   GET /api/projects/:id
- * @desc    Get project by ID
- * @access  Private
- */
-router.get("/:id", authenticateToken, projectController.getProjectById);
-
-/**
- * @route   POST /api/projects
- * @desc    Create multiple projects in batch (products and/or recipes)
- * @access  Private (Admin only)
- */
-router.post("/", authenticateToken, requireAdmin, projectController.createProjectsBatch);
-
-/**
- * @route   PUT /api/projects/:id
- * @desc    Update project
- * @access  Private (Admin only)
- */
-router.put("/:id", authenticateToken, requireAdmin, projectController.updateProject);
-
-/**
- * @route   DELETE /api/projects/:id
- * @desc    Delete project
- * @access  Private (Admin only)
- */
-router.delete("/:id", authenticateToken, requireAdmin, projectController.deleteProject);
-
-/**
- * @route   GET /api/projects/monitor/active
- * @desc    Get active project monitor data
- * @access  Private
- */
-router.get("/monitor/active", authenticateToken, projectController.getActiveProjectMonitorData);
 
 export default router;
