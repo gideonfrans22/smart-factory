@@ -1,5 +1,5 @@
 /**
- * KST 기준으로 날짜 문자열을 파싱 (dashboardController / task statistics와 동일 기준)
+ * KST 기준으로 날짜 문자열을 파싱 (dashboard service / task statistics와 동일 기준)
  *
  * "2026-01-29" → 2026-01-29 00:00:00 KST = 2026-01-28T15:00:00.000Z
  * "2026-01-29" (end) → 2026-01-29 23:59:59.999 KST
