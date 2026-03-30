@@ -2,11 +2,11 @@ import ExcelJS from "exceljs";
 import fs from "fs";
 import path from "path";
 import { Report } from "./report.model";
-import * as EquipmentReportService from "./report.equipment.service";
+import * as EquipmentReportService from "./generators/report.equipment.generator";
 import { loggerService } from "@shared/services";
-import * as ProductionReportService from "./report.production.service";
-import * as SummaryReportService from "./report.summary.service";
-import * as WorkerReportService from "./report.worker.service";
+import * as ProductionReportService from "./generators/report.production.generator";
+import * as SummaryReportService from "./generators/report.summary.generator";
+import * as WorkerReportService from "./generators/report.worker.generator";
 
 /**
  * Main Report Generation Service
