@@ -1,5 +1,6 @@
 import { connectDB, disconnectDB } from "@infra/config";
-import { initializeScheduler, loggerService } from "@shared/services";
+import { initializeScheduler } from "@infra/jobs/schedulerService";
+import { loggerService } from "@shared/services";
 import cluster, { Worker } from "cluster";
 import * as dotenv from "dotenv";
 import os from "os";
