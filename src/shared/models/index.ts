@@ -19,7 +19,12 @@ export {
   IProductSnapshot,
   IProductRecipeSnapshotReference
 } from "@modules/product";
-export { Project, IProject } from "@modules/project";
+export {
+  Project,
+  IProject,
+  ProjectDeviceConfiguration,
+  IProjectDeviceConfiguration
+} from "@modules/project";
 export { Task, ITask } from "@modules/task";
 
 // Snapshots
@@ -40,6 +45,6 @@ export {
 export { Alert, AlertDocument as IAlert } from "@modules/alert";
 
 // Analytics and Reporting
-export { KPIData, IKPIData } from "../../models/KPIData";
+export { KPIData, IKPIData } from "@modules/kpi/kpi-data.model";
 export { Report, IReport } from "@modules/report";
 export { ActivityLog, IActivityLog } from "./ActivityLog";
