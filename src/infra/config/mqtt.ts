@@ -15,6 +15,11 @@ interface MQTTConfig {
 class MQTTService {
   private client: mqtt.MqttClient | null = null;
   private config: MQTTConfig;
+  private subscribers: Array<{
+    topic: string;
+    callback: (topic: string, message: string) => void;
+  }> = [];
+  private messageHandlerAttached = false;
 
   private normalizePrefix(prefix: string): string {
     return prefix.replace(/^\/+|\/+$/g, "");
@@ -172,15 +177,39 @@ class MQTTService {
       }
     });
 
-    this.client.on("message", (receivedTopic, message) => {
-      if (this.topicMatches(prefixedTopic, receivedTopic)) {
-        const unprefixedTopic = this.stripTopicPrefix(receivedTopic);
-        loggerService.debug(`MQTT Message received: ${prefixedTopic}`, {
-          payload: message.toString().substring(0, 200)
-        });
-        callback(unprefixedTopic, message.toString());
-      }
-    });
+    // Track subscriber for centralized dispatch
+    this.subscribers.push({ topic: prefixedTopic, callback });
+
+    // Attach a single message handler that dispatches to all subscribers
+    if (!this.messageHandlerAttached) {
+      this.client.on("message", (receivedTopic, message) => {
+        const payload = message.toString();
+
+        for (const subscriber of this.subscribers) {
+          if (this.topicMatches(subscriber.topic, receivedTopic)) {
+            const unprefixedTopic = this.stripTopicPrefix(receivedTopic);
+            loggerService.debug(
+              `MQTT Message received on ${receivedTopic} (subscriber: ${subscriber.topic})`,
+              {
+                payload: payload.substring(0, 200)
+              }
+            );
+            try {
+              subscriber.callback(unprefixedTopic, payload);
+            } catch (err) {
+              loggerService.logMQTTEvent(
+                "Subscriber callback error",
+                receivedTopic,
+                payload.substring(0, 200),
+                err as Error
+              );
+            }
+          }
+        }
+      });
+
+      this.messageHandlerAttached = true;
+    }
   }
 
   public isConnected(): boolean {
