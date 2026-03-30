@@ -60,7 +60,9 @@ export class ProjectDeviceConfigurationServiceError extends Error {
   }
 }
 
-function toObjectId(id: string | mongoose.Types.ObjectId): mongoose.Types.ObjectId {
+function toObjectId(
+  id: string | mongoose.Types.ObjectId
+): mongoose.Types.ObjectId {
   return typeof id === "string" ? new mongoose.Types.ObjectId(id) : id;
 }
 
@@ -104,7 +106,9 @@ export class ProjectDeviceConfigurationService {
       );
     }
 
-    const existing = await ProjectDeviceConfiguration.findOne({ projectId: pid });
+    const existing = await ProjectDeviceConfiguration.findOne({
+      projectId: pid
+    });
     if (existing) {
       existing.byDeviceType = map;
       existing.updatedBy = uid;
@@ -127,13 +131,55 @@ export class ProjectDeviceConfigurationService {
   }
 
   /**
+   * When a recipe document is updated: remove device configuration for every
+   * PLANNING project that references this recipe directly (`project.recipe`) or
+   * through a product that lists this recipe (`product.recipes.recipeId`).
+   * Idempotent when no configuration documents exist.
+   */
+  async deleteForPlanningProjectsReferencingRecipe(
+    recipeId: string | mongoose.Types.ObjectId
+  ): Promise<void> {
+    const rid = toObjectId(recipeId);
+
+    const productsWithRecipe = await Product.find({
+      "recipes.recipeId": rid
+    })
+      .select("_id")
+      .lean();
+
+    const productIds = productsWithRecipe.map((p) => p._id);
+
+    const orConditions: Array<Record<string, unknown>> = [{ recipe: rid }];
+    if (productIds.length > 0) {
+      orConditions.push({ product: { $in: productIds } });
+    }
+
+    const projects = await Project.find({
+      status: ProjectStatus.PLANNING,
+      $or: orConditions
+    })
+      .select("_id")
+      .lean();
+
+    if (projects.length === 0) {
+      return;
+    }
+
+    await ProjectDeviceConfiguration.deleteMany({
+      projectId: { $in: projects.map((p) => p._id) }
+    });
+  }
+
+  /**
    * Required device type ids from live Recipe (project.recipe) or union of live
    * Product recipes (project.product). Throws if any step lacks deviceTypeId.
    */
   async computeRequiredDeviceTypesFromLiveProject(
     projectId: string
   ): Promise<Set<string>> {
-    const project = await Project.findById(projectId).select("product recipe").lean();
+    const project = await Project.findById(projectId)
+      .select("product recipe")
+      .lean();
     if (!project) {
       throw new ProjectDeviceConfigurationServiceError({
         statusCode: 404,
@@ -145,7 +191,9 @@ export class ProjectDeviceConfigurationService {
     const ids = new Set<string>();
 
     if (project.recipe) {
-      const recipe = await Recipe.findById(project.recipe).select("steps").lean();
+      const recipe = await Recipe.findById(project.recipe)
+        .select("steps")
+        .lean();
       if (!recipe) {
         throw new ProjectDeviceConfigurationServiceError({
           statusCode: 404,
@@ -154,8 +202,11 @@ export class ProjectDeviceConfigurationService {
         });
       }
       for (const id of collectDeviceTypeIdsFromRecipeSteps(
-        (recipe as { steps?: Array<{ deviceTypeId?: mongoose.Types.ObjectId }> }).steps ||
-          []
+        (
+          recipe as {
+            steps?: Array<{ deviceTypeId?: mongoose.Types.ObjectId }>;
+          }
+        ).steps || []
       )) {
         ids.add(id);
       }
@@ -163,7 +214,10 @@ export class ProjectDeviceConfigurationService {
     }
 
     if (project.product) {
-      const product = await Product.findById(project.product).select("recipes");
+      const product = await Product.findById(project.product)
+        .select("recipes")
+        .setOptions({ populateFields: false })
+        .lean();
       if (!product) {
         throw new ProjectDeviceConfigurationServiceError({
           statusCode: 404,
@@ -182,8 +236,9 @@ export class ProjectDeviceConfigurationService {
           "steps" in ref &&
           Array.isArray((ref as { steps: unknown }).steps)
         ) {
-          steps = (ref as { steps: Array<{ deviceTypeId?: mongoose.Types.ObjectId }> })
-            .steps;
+          steps = (
+            ref as { steps: Array<{ deviceTypeId?: mongoose.Types.ObjectId }> }
+          ).steps;
         } else {
           const recipeId =
             ref instanceof mongoose.Types.ObjectId
@@ -194,8 +249,11 @@ export class ProjectDeviceConfigurationService {
             continue;
           }
           steps =
-            (recipe as { steps?: Array<{ deviceTypeId?: mongoose.Types.ObjectId }> })
-              .steps || [];
+            (
+              recipe as {
+                steps?: Array<{ deviceTypeId?: mongoose.Types.ObjectId }>;
+              }
+            ).steps || [];
         }
 
         for (const id of collectDeviceTypeIdsFromRecipeSteps(steps)) {
@@ -215,7 +273,9 @@ export class ProjectDeviceConfigurationService {
   async getRequiredDeviceTypesWithNames(
     projectId: string
   ): Promise<{ deviceTypeId: string; name: string }[]> {
-    const idSet = await this.computeRequiredDeviceTypesFromLiveProject(projectId);
+    const idSet = await this.computeRequiredDeviceTypesFromLiveProject(
+      projectId
+    );
     const orderedIds = [...idSet];
     if (orderedIds.length === 0) {
       return [];
@@ -253,7 +313,8 @@ export class ProjectDeviceConfigurationService {
       throw new ProjectDeviceConfigurationServiceError({
         statusCode: 400,
         errorCode: DeviceConfigurationErrorCode.NOT_IN_PLANNING,
-        message: "Device configuration can only be changed while the project is in PLANNING."
+        message:
+          "Device configuration can only be changed while the project is in PLANNING."
       });
     }
 
@@ -292,7 +353,9 @@ export class ProjectDeviceConfigurationService {
         }
         seen.add(rawId);
 
-        const device = await Device.findById(rawId).select("deviceTypeId isActive").lean();
+        const device = await Device.findById(rawId)
+          .select("deviceTypeId isActive")
+          .lean();
         if (!device) {
           throw new ProjectDeviceConfigurationServiceError({
             statusCode: 400,
@@ -309,7 +372,8 @@ export class ProjectDeviceConfigurationService {
           });
         }
 
-        const dtid = (device as { deviceTypeId: mongoose.Types.ObjectId }).deviceTypeId;
+        const dtid = (device as { deviceTypeId: mongoose.Types.ObjectId })
+          .deviceTypeId;
         if (dtid.toString() !== deviceTypeKey) {
           throw new ProjectDeviceConfigurationServiceError({
             statusCode: 400,
@@ -329,7 +393,9 @@ export class ProjectDeviceConfigurationService {
     projectId: string,
     byDeviceType: DeviceConfigurationByDeviceType
   ): Promise<void> {
-    const required = await this.computeRequiredDeviceTypesFromLiveProject(projectId);
+    const required = await this.computeRequiredDeviceTypesFromLiveProject(
+      projectId
+    );
 
     for (const deviceTypeId of required) {
       const list = byDeviceType[deviceTypeId];
@@ -337,11 +403,13 @@ export class ProjectDeviceConfigurationService {
         throw new ProjectDeviceConfigurationServiceError({
           statusCode: 400,
           errorCode: DeviceConfigurationErrorCode.INCOMPLETE,
-          message: "Device configuration is incomplete for required device types."
+          message:
+            "Device configuration is incomplete for required device types."
         });
       }
     }
   }
 }
 
-export const projectDeviceConfigurationService = new ProjectDeviceConfigurationService();
+export const projectDeviceConfigurationService =
+  new ProjectDeviceConfigurationService();
