@@ -233,7 +233,7 @@ RecipeSchema.pre<IRecipe>("find", function (next) {
 RecipeSchema.index({ name: 1 });
 RecipeSchema.index({ recipeNumber: 1 });
 RecipeSchema.index({ deletedAt: 1 });
-RecipeSchema.index({ Product: 1 });
+RecipeSchema.index({ product: 1 });
 RecipeSchema.index({ version: 1 });
 
 function validateStepDependencies(steps: IRecipeStep[]): {
