@@ -11,6 +11,7 @@ import {
 } from "./recipe.types";
 import { Product, IProductRecipe } from "@modules/product";
 import { Project } from "@modules/project";
+import { projectDeviceConfigurationService } from "../project/project-device-configuration.service";
 import { SnapshotService } from "@shared/services/snapshotService";
 
 export class RecipeService {
@@ -298,6 +299,10 @@ export class RecipeService {
 
     await RecipeService.prepareRecipeForSave(recipe, false);
     await recipe.save();
+
+    await projectDeviceConfigurationService.deleteForPlanningProjectsReferencingRecipe(
+      id
+    );
 
     await SnapshotService.getOrCreateRecipeSnapshot(
       recipe._id as mongoose.Types.ObjectId
