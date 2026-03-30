@@ -454,26 +454,6 @@ Client                  Server                   File System
   │                       │                         │
 ```
 
-### Example 3: Get Dependency Graph
-
-```
-Client                  Server
-  │                       │
-  │  GET /dependency-graph│
-  ├─────────────────────>│
-  │                       │
-  │                       │ Fetch recipe
-  │                       │ Build dependency map
-  │                       │ Run Kahn's algorithm
-  │                       │ Calculate levels
-  │                       │
-  │  200 OK               │
-  │  { topologicalOrder,  │
-  │    dependencyGraph }  │
-  │<─────────────────────┤
-  │                       │
-```
-
 ---
 
 ## Error Handling Flow

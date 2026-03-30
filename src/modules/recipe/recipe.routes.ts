@@ -16,19 +16,17 @@ const router = Router();
 
 router.use(authenticateToken);
 
-router.get("/", validate(recipeListQuerySchema, "query"), recipeController.list);
+router.get(
+  "/",
+  validate(recipeListQuerySchema, "query"),
+  recipeController.list
+);
 
 router.get(
   "/number/:recipeNumber",
   validate(recipeNumberParamSchema, "params"),
   validate(recipeByNumberQuerySchema, "query"),
   recipeController.getByRecipeNumber
-);
-
-router.get(
-  "/:id/dependency-graph",
-  validate(recipeIdParamSchema, "params"),
-  recipeController.getDependencyGraph
 );
 
 router.get(

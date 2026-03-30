@@ -207,42 +207,5 @@ export class RecipeController {
       next(error);
     }
   }
-
-  async getDependencyGraph(
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-  ) {
-    try {
-      const result = await recipeService.getDependencyGraph(req.params.id);
-      if (!result) {
-        const response: APIResponse = {
-          success: false,
-          error: "NOT_FOUND",
-          message: "Recipe not found"
-        };
-        res.status(404).json(response);
-        return;
-      }
-
-      const response: APIResponse = {
-        success: true,
-        message: "Dependency graph retrieved successfully",
-        data: result
-      };
-      res.json(response);
-    } catch (error: any) {
-      if (error?.status && error?.code) {
-        const response: APIResponse = {
-          success: false,
-          error: "VALIDATION_ERROR",
-          message: error.message
-        };
-        res.status(error.status).json(response);
-        return;
-      }
-      next(error);
-    }
-  }
 }
 export const recipeController = new RecipeController();
