@@ -125,10 +125,7 @@ ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
     this.populate("modifiedBy", "name email");
     this.populate({
       path: "recipes.recipeId",
-      options: { sort: { createdAt: 1 } }
-    });
-    this.populate({
-      path: "recipes.recipeId",
+      options: { sort: { createdAt: 1 } },
       populate: {
         path: "rawMaterials.materialId",
         select: "materialCode name specifications supplier unit"
