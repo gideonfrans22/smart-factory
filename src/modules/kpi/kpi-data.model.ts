@@ -55,7 +55,6 @@ const KPIDataSchema: Schema = new Schema(
   }
 );
 
-// Indexes
 KPIDataSchema.index({ metricName: 1 });
 KPIDataSchema.index({ recordedAt: -1 });
 KPIDataSchema.index({ deviceId: 1 });

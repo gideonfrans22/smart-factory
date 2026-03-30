@@ -1,17 +1,33 @@
-import { Request, Response } from "express";
-import { KPIData } from "../models/KPIData";
+import { Alert } from "@modules/alert";
 import { Project } from "@modules/project";
 import { Task } from "@modules/task";
-import { Alert } from "@modules/alert";
-import { APIResponse } from "@shared/types";
 import { realtimeService } from "@shared/services";
+import { KPIData } from "./kpi-data.model";
+import type { KpiCreateInput } from "./kpi.validators";
 
-export const getRealtimeKPI = async (
-  _req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    // Get counts
+export interface RealtimeKpiPayload {
+  timestamp: string;
+  uptime: number;
+  productivity: number;
+  activeTasks: number;
+  defectRate: number;
+  onTimeRate: number;
+  equipmentUptime: number;
+  activeProjects: number;
+  completedTasks: number;
+  pendingTasks: number;
+  emergencyAlerts: number;
+  trends: Array<{
+    timestamp: string;
+    onTimeRate: number;
+    defectRate: number;
+    productivity: number;
+    equipmentUptime: number;
+  }>;
+}
+
+export class KpiService {
+  async getRealtimeData(): Promise<RealtimeKpiPayload> {
     const activeProjects = await Project.countDocuments({ status: "ACTIVE" });
     const completedTasks = await Task.countDocuments({ status: "COMPLETED" });
     const pendingTasks = await Task.countDocuments({ status: "PENDING" });
@@ -23,14 +39,12 @@ export const getRealtimeKPI = async (
       status: { $in: ["UNREAD", "READ", "ACKNOWLEDGED"] }
     });
 
-    // Calculate rates from recent KPI data (last 24 hours)
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const recentKPI = await KPIData.find({
       recordedAt: { $gte: oneDayAgo }
     }).sort({ recordedAt: -1 });
 
-    // Calculate averages
     let onTimeRate = 0;
     let defectRate = 0;
     let productivity = 0;
@@ -71,14 +85,12 @@ export const getRealtimeKPI = async (
             uptimeData.length
           : 95;
     } else {
-      // Default values if no data
       onTimeRate = 85;
       defectRate = 2.5;
       productivity = 92;
       equipmentUptime = 95;
     }
 
-    // Generate trend data (last 24 hours, hourly)
     const trends = [];
     for (let i = 23; i >= 0; i--) {
       const hourAgo = new Date(Date.now() - i * 60 * 60 * 1000);
@@ -91,84 +103,37 @@ export const getRealtimeKPI = async (
       });
     }
 
-    const response: APIResponse = {
-      success: true,
-      message: "Real-time KPI data retrieved successfully",
-      data: {
-        timestamp: new Date().toISOString(),
-        uptime: Math.round(equipmentUptime * 100) / 100, // Factory uptime percentage
-        productivity: Math.round(productivity * 100) / 100, // Productivity percentage
-        activeTasks, // Currently active tasks (ONGOING + PAUSED)
-        defectRate: Math.round((defectRate / 100) * 10000) / 10000, // Convert to 0-1 format (e.g., 0.025 = 2.5%)
-        onTimeRate: Math.round(onTimeRate * 100) / 100,
-        equipmentUptime: Math.round(equipmentUptime * 100) / 100,
-        activeProjects,
-        completedTasks,
-        pendingTasks,
-        emergencyAlerts,
-        trends
-      }
+    return {
+      timestamp: new Date().toISOString(),
+      uptime: Math.round(equipmentUptime * 100) / 100,
+      productivity: Math.round(productivity * 100) / 100,
+      activeTasks,
+      defectRate: Math.round((defectRate / 100) * 10000) / 10000,
+      onTimeRate: Math.round(onTimeRate * 100) / 100,
+      equipmentUptime: Math.round(equipmentUptime * 100) / 100,
+      activeProjects,
+      completedTasks,
+      pendingTasks,
+      emergencyAlerts,
+      trends
     };
-
-    res.json(response);
-  } catch (error) {
-    console.error("Get realtime KPI error:", error);
-    const response: APIResponse = {
-      success: false,
-      error: "INTERNAL_SERVER_ERROR",
-      message: "Internal server error"
-    };
-    res.status(500).json(response);
   }
-};
 
-export const createKPIData = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const { metricName, metricValue, unit, deviceId, projectId, metadata } =
-      req.body;
-
-    if (!metricName || metricValue === undefined) {
-      const response: APIResponse = {
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Metric name and value are required"
-      };
-      res.status(400).json(response);
-      return;
-    }
-
+  async create(input: KpiCreateInput) {
     const kpiData = new KPIData({
-      metricName,
-      metricValue,
-      unit,
-      deviceId,
-      projectId,
-      metadata,
+      metricName: input.metricName,
+      metricValue: input.metricValue,
+      unit: input.unit,
+      deviceId: input.deviceId,
+      projectId: input.projectId,
+      metadata: input.metadata ?? {},
       recordedAt: new Date()
     });
 
     await kpiData.save();
-
-    // 🆕 Broadcast KPI update in real-time
     await realtimeService.broadcastKPIUpdate(kpiData.toObject());
-
-    const response: APIResponse = {
-      success: true,
-      message: "KPI data created successfully",
-      data: kpiData
-    };
-
-    res.status(201).json(response);
-  } catch (error) {
-    console.error("Create KPI data error:", error);
-    const response: APIResponse = {
-      success: false,
-      error: "INTERNAL_SERVER_ERROR",
-      message: "Internal server error"
-    };
-    res.status(500).json(response);
+    return kpiData;
   }
-};
+}
+
+export const kpiService = new KpiService();
