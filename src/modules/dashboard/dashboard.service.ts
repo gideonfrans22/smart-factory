@@ -1,29 +1,16 @@
-import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Task } from "@modules/task";
 import { Alert } from "@modules/alert";
 import { Device } from "@modules/device";
-import { User } from "../modules/user/user.model";
+import { User } from "@modules/user";
 import { Project } from "@modules/project";
 import { GridLayout } from "@modules/grid-layout";
-import { APIResponse } from "@shared/types";
 
-/**
- * GET /api/dashboard/monitor-overview
- * Get aggregated metrics for Monitor TV display
- *
- * 수정 기준:
- * - 전체 작업 진행률: 금일 완료 + 미완료(ONGOING/PENDING/PAUSED) 기준
- * - 납품일 기준 현황: 납기 임박(6시간 이내) + 납기 지연(납기일 지남)
- * - 작업인원: role="worker"인 사용자만
- * - 에러유형 Top 5: 항상 5가지 유형 표시 (0건이어도)
- * - 생산성: 일간(오늘), 주간(월~일), 월간(월초~월말) 현재까지 기준
- */
-export const getMonitorOverview = async (
-  _req: Request,
-  res: Response
-): Promise<void> => {
-  try {
+export class DashboardService {
+  /**
+   * Aggregated metrics for Monitor TV display (KST boundaries, monitor layouts, etc.).
+   */
+  async getMonitorOverview(): Promise<Record<string, unknown>> {
     // Use Korea Standard Time (KST = UTC+9)
     const now = new Date();
     const KST_OFFSET = 9 * 60 * 60 * 1000; // 9 hours in milliseconds
@@ -549,10 +536,7 @@ export const getMonitorOverview = async (
           : 0
     }));
 
-    const response: APIResponse = {
-      success: true,
-      message: "Monitor overview data retrieved successfully",
-      data: {
+    return {
         // === 전체 작업 진행률 (하이브리드: 완료=completedAt, 진행/정지=전체, 대기=createdAt) ===
         taskProgress: {
           percentage: taskProgressPercentage,
@@ -639,30 +623,13 @@ export const getMonitorOverview = async (
           dayOfWeek: dayOfWeek
         },
         timestamp: new Date().toISOString()
-      }
     };
-
-    res.json(response);
-  } catch (error) {
-    console.error("Get monitor overview error:", error);
-    const response: APIResponse = {
-      success: false,
-      error: "INTERNAL_SERVER_ERROR",
-      message: "Failed to retrieve monitor overview data"
-    };
-    res.status(500).json(response);
   }
-};
 
-/**
- * GET /api/dashboard/task-status-distribution
- * Get task count by status for donut chart
- */
-export const getTaskStatusDistribution = async (
-  _req: Request,
-  res: Response
-): Promise<void> => {
-  try {
+  async getTaskStatusDistribution(): Promise<{
+    total: number;
+    distribution: Array<{ status: unknown; count: number; percentage: number }>;
+  }> {
     // 일간: 현재 날짜 기준 (KST AM00:00~PM11:59)
     const KST_OFFSET = 9 * 60 * 60 * 1000; // UTC+9
     const now = new Date();
@@ -725,173 +692,16 @@ export const getTaskStatusDistribution = async (
       percentage: total > 0 ? Math.round((item.count / total) * 100) : 0
     }));
 
-    const response: APIResponse = {
-      success: true,
-      message: "Task status distribution retrieved successfully",
-      data: {
-        total,
-        distribution: formattedDistribution
-      }
+    return {
+      total,
+      distribution: formattedDistribution
     };
-
-    res.json(response);
-  } catch (error) {
-    console.error("Get task status distribution error:", error);
-    const response: APIResponse = {
-      success: false,
-      error: "INTERNAL_SERVER_ERROR",
-      message: "Failed to retrieve task status distribution"
-    };
-    res.status(500).json(response);
   }
-};
 
-// ...existing code...
-
-// const newAggregation = [
-//   {
-//     $group: {
-//       _id: {
-//         projectId: "$projectId",
-//         productSnapshotId: "$productSnapshotId",
-//         recipeSnapshotId: "$recipeSnapshotId",
-//         stepOrder: "$stepOrder",
-//         priority: "$priority",
-//         deviceTypeId: "$deviceTypeId"
-//       },
-//       totalDuration: {
-//         $sum: "$actualDuration"
-//       },
-//       totalTaskCount: {
-//         $sum: 1
-//       },
-//       pendingTaskCount: {
-//         $sum: {
-//           $cond: [
-//             {
-//               $eq: ["$status", "PENDING"]
-//             },
-//             1,
-//             0
-//           ]
-//         }
-//       },
-//       completedTaskCount: {
-//         $sum: {
-//           $cond: [
-//             {
-//               $eq: ["$status", "COMPLETED"]
-//             },
-//             1,
-//             0
-//           ]
-//         }
-//       },
-//       deviceIds: {
-//         $addToSet: "$deviceId"
-//       }
-//     }
-//   },
-//   {
-//     $lookup: {
-//       from: "devices",
-//       localField: "deviceIds",
-//       foreignField: "_id",
-//       as: "devices",
-//       pipeline: [
-//         {
-//           $project: {
-//             name: 1
-//           }
-//         }
-//       ]
-//     }
-//   },
-//   {
-//     $lookup: {
-//       from: "devicetypes",
-//       localField: "_id.deviceTypeId",
-//       foreignField: "_id",
-//       as: "deviceType",
-//       pipeline: [
-//         {
-//           $project: {
-//             name: 1
-//           }
-//         }
-//       ]
-//     }
-//   },
-//   {
-//     $lookup: {
-//       from: "projects",
-//       localField: "_id.projectId",
-//       foreignField: "_id",
-//       as: "project"
-//     }
-//   },
-//   {
-//     $lookup: {
-//       from: "productsnapshots",
-//       localField: "_id.productSnapshotId",
-//       foreignField: "_id",
-//       as: "productSnapshot"
-//     }
-//   },
-//   {
-//     $lookup: {
-//       from: "recipesnapshots",
-//       localField: "_id.recipeSnapshotId",
-//       foreignField: "_id",
-//       as: "recipeSnapshot",
-//       pipeline: [
-//         {
-//           $project: {
-//             name: 1
-//           }
-//         }
-//       ]
-//     }
-//   },
-//   {
-//     $unwind: "$deviceType"
-//   },
-//   {
-//     $unwind: "$productSnapshot"
-//   },
-//   {
-//     $unwind: "$project"
-//   },
-//   {
-//     $unwind: "$recipeSnapshot"
-//   },
-//   {
-//     $project: {
-//       projectName: "$project.name",
-//       totalTaskCount: "$totalTaskCount",
-//       pendingTaskCount: "$pendingTaskCount",
-//       completedTaskCount: "$completedTaskCount"
-//     }
-//   }
-// ];
-
-/**
- * GET /api/dashboard/monitor-tasks
- * Get optimized task list for Monitor TV display
- *
- * Optimized for performance:
- * - Server-side filtering (exclude old COMPLETED tasks)
- * - Flattened data structure (no deep populates)
- * - Limited to 100 tasks max
- */
-export const getMonitorTasks = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const { limit = 100 } = req.query;
-    const limitNum = Math.min(parseInt(limit as string) || 100, 200); // Cap at 200
-
+  async getMonitorTasks(limitNum: number): Promise<{
+    items: unknown[];
+    total: number;
+  }> {
     // KST timezone: Today start at AM00:00 KST
     const KST_OFFSET = 9 * 60 * 60 * 1000; // UTC+9
     const now = new Date();
@@ -1165,23 +975,11 @@ export const getMonitorTasks = async (
       }
     ]);
 
-    const response: APIResponse = {
-      success: true,
-      message: "Monitor tasks retrieved successfully",
-      data: {
-        items: tasks,
-        total: tasks.length
-      }
+    return {
+      items: tasks,
+      total: tasks.length
     };
-
-    res.json(response);
-  } catch (error) {
-    console.error("Get monitor tasks error:", error);
-    const response: APIResponse = {
-      success: false,
-      error: "INTERNAL_SERVER_ERROR",
-      message: "Failed to retrieve monitor tasks"
-    };
-    res.status(500).json(response);
   }
-};
+}
+
+export const dashboardService = new DashboardService();
