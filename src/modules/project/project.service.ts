@@ -428,6 +428,19 @@ export class ProjectService {
       status === "PLANNING" &&
       (oldStatus === "ACTIVE" || oldStatus === "ON_HOLD");
 
+    const oldProductId = project.product?.toString() || "";
+    const oldRecipeId = project.recipe?.toString() || "";
+
+    if (isPlanning) {
+      const productChanged =
+        productId !== undefined && String(productId) !== oldProductId;
+      const recipeChanged =
+        recipeId !== undefined && String(recipeId) !== oldRecipeId;
+      if (productChanged || recipeChanged) {
+        await projectDeviceConfigurationService.deleteByProjectId(id);
+      }
+    }
+
     if (description !== undefined) project.description = description;
     if (deadline !== undefined) {
       project.deadline = deadline ? new Date(deadline) : undefined;
