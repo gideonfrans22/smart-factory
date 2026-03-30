@@ -4,6 +4,14 @@ import {
   projectService,
   ProjectServiceError
 } from "./project.service";
+import { DeviceConfigurationErrorCode } from "./project-device-configuration.types";
+import {
+  projectDeviceConfigurationService,
+  ProjectDeviceConfigurationServiceError,
+  serializeDeviceConfigurationByDeviceType
+} from "./project-device-configuration.service";
+import { Project } from "./project.model";
+import { ProjectStatus } from "./project.types";
 
 /**
  * Get all projects with optional filtering and pagination
@@ -271,6 +279,189 @@ export const getActiveProjectMonitorData = async (
   } catch (error: any) {
     console.error("Get active project monitor data error:", error);
     if (error instanceof ProjectServiceError) {
+      const response: APIResponse = {
+        success: false,
+        error: error.errorCode,
+        message: error.message,
+        ...(error.data !== undefined && { data: error.data })
+      };
+      res.status(error.statusCode).json(response);
+      return;
+    }
+
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: error.message || "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * GET /api/projects/:id/device-configuration
+ */
+export const getProjectDeviceConfiguration = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const project = await Project.findById(id).select("_id").lean();
+    if (!project) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Project not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    const [doc, requiredDeviceTypes] = await Promise.all([
+      projectDeviceConfigurationService.getByProjectId(id),
+      projectDeviceConfigurationService.getRequiredDeviceTypesWithNames(id)
+    ]);
+
+    const byDeviceType = doc
+      ? serializeDeviceConfigurationByDeviceType(doc.byDeviceType)
+      : {};
+
+    const response: APIResponse = {
+      success: true,
+      message: "Device configuration retrieved successfully",
+      data: { byDeviceType, requiredDeviceTypes }
+    };
+    res.json(response);
+  } catch (error: any) {
+    console.error("Get project device configuration error:", error);
+    if (error instanceof ProjectDeviceConfigurationServiceError) {
+      const response: APIResponse = {
+        success: false,
+        error: error.errorCode,
+        message: error.message,
+        ...(error.data !== undefined && { data: error.data })
+      };
+      res.status(error.statusCode).json(response);
+      return;
+    }
+
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: error.message || "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * PUT /api/projects/:id/device-configuration — full replace of byDeviceType
+ */
+export const putProjectDeviceConfiguration = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { byDeviceType } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      const response: APIResponse = {
+        success: false,
+        error: "UNAUTHORIZED",
+        message: "Authentication required"
+      };
+      res.status(401).json(response);
+      return;
+    }
+
+    const { configuration, created } =
+      await projectDeviceConfigurationService.upsertFull(
+        id,
+        byDeviceType,
+        userId
+      );
+
+    const response: APIResponse = {
+      success: true,
+      message: created
+        ? "Device configuration created successfully"
+        : "Device configuration updated successfully",
+      data: {
+        byDeviceType: serializeDeviceConfigurationByDeviceType(
+          configuration.byDeviceType
+        )
+      }
+    };
+
+    res.status(created ? 201 : 200).json(response);
+  } catch (error: any) {
+    console.error("Put project device configuration error:", error);
+    if (error instanceof ProjectDeviceConfigurationServiceError) {
+      const response: APIResponse = {
+        success: false,
+        error: error.errorCode,
+        message: error.message,
+        ...(error.data !== undefined && { data: error.data })
+      };
+      res.status(error.statusCode).json(response);
+      return;
+    }
+
+    const response: APIResponse = {
+      success: false,
+      error: "INTERNAL_SERVER_ERROR",
+      message: error.message || "Internal server error"
+    };
+    res.status(500).json(response);
+  }
+};
+
+/**
+ * DELETE /api/projects/:id/device-configuration
+ */
+export const deleteProjectDeviceConfiguration = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const project = await Project.findById(id).select("status").lean();
+    if (!project) {
+      const response: APIResponse = {
+        success: false,
+        error: "NOT_FOUND",
+        message: "Project not found"
+      };
+      res.status(404).json(response);
+      return;
+    }
+
+    if (project.status !== ProjectStatus.PLANNING) {
+      const response: APIResponse = {
+        success: false,
+        error: DeviceConfigurationErrorCode.NOT_IN_PLANNING,
+        message:
+          "Device configuration can only be deleted while the project is in PLANNING."
+      };
+      res.status(400).json(response);
+      return;
+    }
+
+    await projectDeviceConfigurationService.deleteByProjectId(id);
+
+    const response: APIResponse = {
+      success: true,
+      message: "Device configuration removed successfully"
+    };
+    res.json(response);
+  } catch (error: any) {
+    console.error("Delete project device configuration error:", error);
+    if (error instanceof ProjectDeviceConfigurationServiceError) {
       const response: APIResponse = {
         success: false,
         error: error.errorCode,

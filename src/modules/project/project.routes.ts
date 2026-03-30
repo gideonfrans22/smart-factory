@@ -1,6 +1,10 @@
 import { Router } from "express";
 import * as projectController from "./project.controller";
-import { authenticateToken, requireAdmin } from "@shared/middleware";
+import { authenticateToken, requireAdmin, validate } from "@shared/middleware";
+import {
+  projectDeviceConfigurationPutBodySchema,
+  projectIdParamSchema
+} from "./project.validators";
 
 const router = Router();
 
@@ -10,6 +14,45 @@ const router = Router();
  * @access  Private
  */
 router.get("/", authenticateToken, projectController.getProjects);
+
+/**
+ * @route   GET /api/projects/:id/device-configuration
+ * @desc    Get per-project device configuration (empty object if none)
+ * @access  Private
+ */
+router.get(
+  "/:id/device-configuration",
+  authenticateToken,
+  validate(projectIdParamSchema, "params"),
+  projectController.getProjectDeviceConfiguration
+);
+
+/**
+ * @route   PUT /api/projects/:id/device-configuration
+ * @desc    Full replace of device configuration (PLANNING only; admin)
+ * @access  Private (Admin only)
+ */
+router.put(
+  "/:id/device-configuration",
+  authenticateToken,
+  requireAdmin,
+  validate(projectIdParamSchema, "params"),
+  validate(projectDeviceConfigurationPutBodySchema),
+  projectController.putProjectDeviceConfiguration
+);
+
+/**
+ * @route   DELETE /api/projects/:id/device-configuration
+ * @desc    Remove device configuration document (PLANNING only; admin)
+ * @access  Private (Admin only)
+ */
+router.delete(
+  "/:id/device-configuration",
+  authenticateToken,
+  requireAdmin,
+  validate(projectIdParamSchema, "params"),
+  projectController.deleteProjectDeviceConfiguration
+);
 
 /**
  * @route   GET /api/projects/:id
