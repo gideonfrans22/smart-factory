@@ -54,8 +54,9 @@ export const authenticateToken = async (
 };
 
 /**
- * TEMPORARY: Role-based authorization is disabled
- * This middleware now passes through all requests without validation
+ * Requires an authenticated user (`authenticateToken` must run first) whose
+ * `role` is one of the allowed values. Responds with 401 if unauthenticated,
+ * 403 if the role is not permitted.
  */
 export const requireRole = (roles: string[]) => {
   return (
