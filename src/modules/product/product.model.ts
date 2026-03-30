@@ -119,31 +119,35 @@ ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
     this.where({ deletedAt: null });
   }
 
-  this.populate("modifiedBy", "name email");
-  this.populate({
-    path: "recipes.recipeId",
-    options: { sort: { createdAt: 1 } }
-  });
-  this.populate({
-    path: "recipes.recipeId",
-    populate: {
-      path: "rawMaterials.materialId",
-      select: "materialCode name specifications supplier unit"
-    }
-  });
-  this.populate({
-    path: "recipes.recipeId",
-    populate: [
-      { path: "modifiedBy", select: "name email" },
-      {
-        path: "mediaIds"
-      },
-      {
-        path: "steps.deviceTypeId"
+  if ((options as any).populateFields === false) {
+    next();
+  } else {
+    this.populate("modifiedBy", "name email");
+    this.populate({
+      path: "recipes.recipeId",
+      options: { sort: { createdAt: 1 } }
+    });
+    this.populate({
+      path: "recipes.recipeId",
+      populate: {
+        path: "rawMaterials.materialId",
+        select: "materialCode name specifications supplier unit"
       }
-    ]
-  });
-  next();
+    });
+    this.populate({
+      path: "recipes.recipeId",
+      populate: [
+        { path: "modifiedBy", select: "name email" },
+        {
+          path: "mediaIds"
+        },
+        {
+          path: "steps.deviceTypeId"
+        }
+      ]
+    });
+    next();
+  }
 });
 
 // Pre-delete hook to soft delete product
