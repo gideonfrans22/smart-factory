@@ -25,8 +25,8 @@ import { recipeRoutes } from "@modules/recipe";
 import { reportRoutes } from "@modules/report";
 import { taskRoutes } from "@modules/task";
 import { userRoutes } from "@modules/user";
-import dashboardRoutes from "./routes/dashboard";
-import kpiRoutes from "./routes/kpi";
+import { dashboardRoutes } from "@modules/dashboard";
+import { kpiRoutes } from "@modules/kpi";
 
 const app = express();
 
