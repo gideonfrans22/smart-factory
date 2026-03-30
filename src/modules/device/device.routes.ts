@@ -4,7 +4,7 @@ import { authenticateToken, requireAdmin } from "@shared/middleware";
 
 const router = Router();
 
-router.get("/", deviceController.list);
+router.get("/", authenticateToken, deviceController.list);
 
 router.get("/statistics", authenticateToken, requireAdmin, deviceController.getStatistics);
 
@@ -24,6 +24,10 @@ router.post("/:id/worker-login", authenticateToken, deviceController.workerLogin
 
 router.post("/:id/worker-logout", authenticateToken, deviceController.workerLogout);
 
-router.get("/:id/availability", deviceController.checkAvailability);
+router.get(
+  "/:id/availability",
+  authenticateToken,
+  deviceController.checkAvailability
+);
 
 export default router;

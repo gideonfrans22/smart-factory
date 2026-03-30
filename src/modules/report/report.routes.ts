@@ -27,6 +27,7 @@ router.get(
 
 router.get(
   "/download/:id",
+  authenticateToken,
   validate(reportDownloadParamSchema, "params"),
   reportController.downloadReport
 );

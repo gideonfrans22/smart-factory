@@ -26,6 +26,8 @@ router.get("/", authenticateToken, getTasks);
 router.get("/statistics", authenticateToken, getTaskStatistics);
 router.get("/grouped", authenticateToken, getGroupedTasks);
 router.get("/standalone", authenticateToken, getStandaloneTasks);
+router.get("/device/:deviceId", authenticateToken, getDeviceTasks);
+router.get("/worker/:workerId", authenticateToken, getWorkerTasks);
 router.get("/:id", authenticateToken, getTaskById);
 
 router.post("/", authenticateToken, requireAdmin, createTask);
@@ -40,8 +42,5 @@ router.patch("/batch", authenticateToken, batchUpdateTasks);
 router.patch("/:id", authenticateToken, updateTask);
 
 router.delete("/:id", authenticateToken, requireAdmin, deleteTask);
-
-router.get("/device/:deviceId", getDeviceTasks);
-router.get("/worker/:workerId", getWorkerTasks);
 
 export default router;
