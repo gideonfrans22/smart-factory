@@ -51,12 +51,85 @@ export class TaskServiceError extends Error {
 }
 
 export class TaskService {
+  /**
+   * Build lookup from stored project device configuration (Map or plain object from lean).
+   */
+  private normalizeProjectDeviceConfigurationMap(
+    byDeviceType: unknown
+  ): Map<string, mongoose.Types.ObjectId[]> {
+    const m = new Map<string, mongoose.Types.ObjectId[]>();
+    if (byDeviceType == null) {
+      return m;
+    }
+
+    const toOid = (id: unknown): mongoose.Types.ObjectId => {
+      if (id instanceof mongoose.Types.ObjectId) {
+        return id;
+      }
+      if (typeof id === "string" && mongoose.Types.ObjectId.isValid(id)) {
+        return new mongoose.Types.ObjectId(id);
+      }
+      return new mongoose.Types.ObjectId(String(id));
+    };
+
+    if (byDeviceType instanceof Map) {
+      byDeviceType.forEach((ids, key) => {
+        const arr = Array.isArray(ids) ? ids : [];
+        m.set(String(key), arr.map(toOid));
+      });
+      return m;
+    }
+
+    if (typeof byDeviceType === "object") {
+      for (const [k, v] of Object.entries(
+        byDeviceType as Record<string, unknown>
+      )) {
+        const arr = Array.isArray(v) ? v : [];
+        m.set(k, arr.map(toOid));
+      }
+    }
+    return m;
+  }
+
+  /**
+   * Round-robin per device type: index increments for each task created with that type
+   * (follows deterministic generation order in generateTasksForProject).
+   */
+  private createDeviceRoundRobinPicker(
+    byDeviceType: Map<string, mongoose.Types.ObjectId[]>
+  ): (
+    deviceTypeId: mongoose.Types.ObjectId
+  ) => mongoose.Types.ObjectId | undefined {
+    const roundRobinByType = new Map<string, number>();
+    return (deviceTypeId: mongoose.Types.ObjectId) => {
+      const key = deviceTypeId.toString();
+      const list = byDeviceType.get(key);
+      if (!list?.length) {
+        return undefined;
+      }
+      const i = roundRobinByType.get(key) ?? 0;
+      roundRobinByType.set(key, i + 1);
+      return list[i % list.length];
+    };
+  }
+
   async generateTasksForProject(
     project: any,
     productSnapshot?: any,
     recipeSnapshot?: any
   ): Promise<any[]> {
     const createdTasks: any[] = [];
+
+    const ProjectDeviceConfigurationModel = mongoose.model(
+      "ProjectDeviceConfiguration"
+    );
+    const configLean = (await ProjectDeviceConfigurationModel.findOne({
+      projectId: project._id
+    }).lean()) as { byDeviceType?: unknown } | null;
+    const byDeviceTypeMap = this.normalizeProjectDeviceConfigurationMap(
+      configLean?.byDeviceType
+    );
+    const nextDeviceId = this.createDeviceRoundRobinPicker(byDeviceTypeMap);
 
     if (productSnapshot) {
       for (const productRecipe of productSnapshot.recipes) {
@@ -87,6 +160,8 @@ export class TaskService {
 
             const isLastStep = step.order === maxStepOrder;
 
+            const deviceId = nextDeviceId(step.deviceTypeId);
+
             const newTask = new Task({
               title: `${step.name} - Exec ${execution}/${totalExecutions} - ${productSnapshot.name}`,
               description: step.description,
@@ -102,6 +177,7 @@ export class TaskService {
               stepOrder: step.order,
               isLastStepInRecipe: isLastStep,
               deviceTypeId: step.deviceTypeId,
+              ...(deviceId ? { deviceId } : {}),
               status: "PENDING",
               priority: project.priority,
               estimatedDuration: step.estimatedDuration,
@@ -144,6 +220,8 @@ export class TaskService {
 
           const isLastStep = step.order === maxStepOrder;
 
+          const deviceId = nextDeviceId(step.deviceTypeId);
+
           const newTask = new Task({
             title: `${step.name} - Exec ${execution}/${totalExecutions} - ${project.name}`,
             description: step.description,
@@ -157,6 +235,7 @@ export class TaskService {
             stepOrder: step.order,
             isLastStepInRecipe: isLastStep,
             deviceTypeId: step.deviceTypeId,
+            ...(deviceId ? { deviceId } : {}),
             status: "PENDING",
             priority: project.priority,
             estimatedDuration: step.estimatedDuration,
@@ -174,9 +253,10 @@ export class TaskService {
     }
 
     if (createdTasks.length > 0) {
+      const projectIdStr = (project._id as mongoose.Types.ObjectId).toString();
       await realtimeService.broadcastTasksGeneratedForDeviceTypes(
         createdTasks,
-        (project._id as mongoose.Types.ObjectId).toString(),
+        projectIdStr,
         project.name
       );
     }
