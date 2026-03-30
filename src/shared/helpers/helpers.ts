@@ -1,9 +1,10 @@
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
 import { JWTPayload } from "@shared/types";
+import { randomUUID } from "crypto";
 
 const getSaltRounds = () => parseInt(process.env.BCRYPT_SALT_ROUNDS || "12");
-const getJwtSecret = () => process.env.JWT_SECRET || "fallback-secret-key";
+const getJwtSecret = () => process.env.JWT_SECRET || randomUUID();
 const getJwtAccessTokenExpires = () =>
   process.env.JWT_ACCESS_TOKEN_EXPIRES || "24h"; // 24 hours for access tokens
 
