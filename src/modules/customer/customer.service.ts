@@ -67,9 +67,14 @@ export class CustomerService {
     data: CustomerDTO,
     userId?: mongoose.Types.ObjectId
   ): Promise<CustomerDocument> {
-    const existing = await Customer.findOne({ name: data.name });
+    const existing = await Customer.findOne({
+      name: data.name,
+      personInCharge: data.personInCharge
+    });
     if (existing) {
-      const error: any = new Error("Customer with this name already exists");
+      const error: any = new Error(
+        "Customer with this name and person in charge already exists"
+      );
       error.code = "DUPLICATE_NAME";
       throw error;
     }
@@ -95,10 +100,13 @@ export class CustomerService {
     if (data.name && data.name !== customer.name) {
       const existing = await Customer.findOne({
         name: data.name,
+        personInCharge: data.personInCharge,
         _id: { $ne: id }
       });
       if (existing) {
-        const error: any = new Error("Customer with this name already exists");
+        const error: any = new Error(
+          "Customer with this name and person in charge already exists"
+        );
         error.code = "DUPLICATE_NAME";
         throw error;
       }
@@ -128,4 +136,3 @@ export class CustomerService {
 }
 
 export const customerService = new CustomerService();
-
