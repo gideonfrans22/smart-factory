@@ -7,6 +7,11 @@ import { SnapshotService } from "@shared/services/snapshotService";
 import { DateTime } from "@shared/utils";
 import { Project } from "./project.model";
 import { ProjectMonitoringData } from "./project.types";
+import {
+  projectDeviceConfigurationService,
+  ProjectDeviceConfigurationServiceError,
+  serializeDeviceConfigurationByDeviceType
+} from "./project-device-configuration.service";
 
 /**
  * Generate project name with quantity suffix
@@ -543,6 +548,28 @@ export class ProjectService {
     let tasksDeleted = false;
 
     if (isActivating) {
+      const configDoc =
+        await projectDeviceConfigurationService.getByProjectId(id);
+      const byDeviceTypeForStart = configDoc
+        ? serializeDeviceConfigurationByDeviceType(configDoc.byDeviceType)
+        : {};
+
+      try {
+        await projectDeviceConfigurationService.validateCoverageForStart(
+          id,
+          byDeviceTypeForStart
+        );
+      } catch (err) {
+        if (err instanceof ProjectDeviceConfigurationServiceError) {
+          throw new ProjectServiceError({
+            statusCode: err.statusCode,
+            errorCode: err.errorCode,
+            message: err.message
+          });
+        }
+        throw err;
+      }
+
       if (!project.startDate) {
         project.startDate = new Date();
       }
