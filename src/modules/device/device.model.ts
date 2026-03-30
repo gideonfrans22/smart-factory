@@ -120,7 +120,8 @@ DeviceSchema.pre(
   /^find/,
   function (this: Query<DeviceDocument[], DeviceDocument>, next) {
     const options = this.getOptions();
-    const includeDeleted = (options as any).includeDeleted === false ? false : true;
+    const includeDeleted =
+      (options as any).includeDeleted === false ? false : true;
     if (!includeDeleted) {
       this.where({
         isActive: {
@@ -151,30 +152,9 @@ function autoPopulateDeviceTypeAndUser(
 DeviceSchema.pre("find", autoPopulateDeviceTypeAndUser);
 DeviceSchema.pre("findOne", autoPopulateDeviceTypeAndUser);
 
-DeviceSchema.pre("findOneAndDelete", async function (next) {
-  try {
-    const deviceId = this.getQuery()._id;
-    const Recipe = mongoose.model("Recipe");
-    const recipesWithDevice = await Recipe.findOne({
-      "steps.deviceId": deviceId
-    });
-
-    if (recipesWithDevice) {
-      return next(
-        new Error(
-          `Cannot delete device: It is referenced by recipe steps in recipe "${(recipesWithDevice as any).name}"`
-        )
-      );
-    }
-
-    next();
-  } catch (error) {
-    next(error as Error);
-  }
-});
-
 DeviceSchema.post("save", async function (doc: DeviceDocument) {
-  const realtimeService = require("@shared/services/realtimeService").realtimeService;
+  const realtimeService =
+    require("@shared/services/realtimeService").realtimeService;
   realtimeService.broadcastDeviceUpdate(doc.toObject()).catch((err: any) => {
     console.error("Broadcast device update error:", err);
   });
