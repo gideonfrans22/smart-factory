@@ -31,7 +31,7 @@ export async function generateTasksForProject(
   const createdTasks: TaskPersisted[] = [];
 
   const configLean = await deps.projectDeviceConfigurationRepo.findByProjectId(
-    input.project._id
+    String(input.project._id)
   );
   const byDeviceTypeMap = input.normalizeProjectDeviceConfigurationMap(
     configLean?.byDeviceType
