@@ -3,9 +3,9 @@ import ExcelJS from "exceljs";
 import fs from "fs";
 import path from "path";
 import * as EquipmentReportService from "./equipment/equipment.sheet-builder";
-import * as SummaryReportService from "./generators/report.summary.generator";
 import { ProductionSheetBuilder } from "./production/production.sheet-builder";
 import { Report } from "./report.model";
+import { SummarySheetBuilder } from "./summary/summary.sheet-builder";
 import { aggregateWorkerPerformanceSummary } from "./worker/worker.data-loaders";
 import { WorkerSheetBuilder } from "./worker/worker.sheet-builder";
 
@@ -451,7 +451,7 @@ export async function generateSummaryReport(
     const sheetsGenerated: string[] = [];
     const dateRange = { startDate, endDate };
 
-    await SummaryReportService.generateSummaryReportSheet(
+    await SummarySheetBuilder.generateSummaryReportSheet(
       workbook,
       dateRange,
       lang
