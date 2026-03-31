@@ -3,6 +3,7 @@ import { Task } from "../../task.model";
 import type { TaskPriority, TaskStatus } from "../../task.types";
 import type {
   TaskBatchPersistResult,
+  TaskCreateManyDoc,
   TaskCompletePersistState,
   TaskCompleteReadModel,
   TaskFailDependentPersistInput,
@@ -59,6 +60,60 @@ function deviceIdRef(task: InstanceType<typeof Task>): string | undefined {
 }
 
 export class MongoTaskRepository implements TaskRepo {
+  async createMany(tasks: TaskCreateManyDoc[]): Promise<TaskPersisted[]> {
+    if (tasks.length === 0) {
+      return [];
+    }
+    const mapped = tasks.map((t) => {
+      const doc = { ...(t as Record<string, unknown>) };
+      if (typeof doc._id === "string" && mongoose.Types.ObjectId.isValid(doc._id)) {
+        doc._id = new mongoose.Types.ObjectId(doc._id);
+      }
+      if (
+        typeof doc.dependentTask === "string" &&
+        mongoose.Types.ObjectId.isValid(doc.dependentTask)
+      ) {
+        doc.dependentTask = new mongoose.Types.ObjectId(doc.dependentTask);
+      }
+      return doc;
+    });
+    const created = await Task.insertMany(mapped, { ordered: true });
+    return created as unknown as TaskPersisted[];
+  }
+
+  async listByProjectIdForMetrics(
+    projectId: string
+  ): Promise<Array<{ status: TaskStatus; isLastStepInRecipe?: boolean }>> {
+    const tasks = await Task.find({ projectId })
+      .select({ status: 1, isLastStepInRecipe: 1 })
+      .lean();
+    return tasks.map((t) => ({
+      status: (t as { status: TaskStatus }).status,
+      isLastStepInRecipe: (t as { isLastStepInRecipe?: boolean })
+        .isLastStepInRecipe
+    }));
+  }
+
+  async countCompletedLastStepsByRecipeSnapshot(
+    projectId: string,
+    recipeSnapshotId: string
+  ): Promise<number> {
+    return Task.countDocuments({
+      projectId,
+      recipeSnapshotId,
+      isLastStepInRecipe: true,
+      status: "COMPLETED"
+    });
+  }
+
+  async countCompletedLastSteps(projectId: string): Promise<number> {
+    return Task.countDocuments({
+      projectId,
+      isLastStepInRecipe: true,
+      status: "COMPLETED"
+    });
+  }
+
   async loadForPause(id: string): Promise<TaskPauseState | null> {
     const task = await Task.findById(id);
     if (!task) {

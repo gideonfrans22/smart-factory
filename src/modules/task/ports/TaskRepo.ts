@@ -108,6 +108,9 @@ export interface TaskBatchUpdateSummary {
 /** Mongoose task document after save + populate (opaque at the port boundary). */
 export type TaskPersisted = object;
 
+/** Data required to create a Task in bulk (adapter decides exact schema). */
+export type TaskCreateManyDoc = Record<string, unknown>;
+
 export interface TaskBatchUpdateResult {
   updated: TaskPersisted[];
   summary: TaskBatchUpdateSummary;
@@ -123,6 +126,17 @@ export interface TaskBatchPersistResult {
 }
 
 export interface TaskRepo {
+  createMany(tasks: TaskCreateManyDoc[]): Promise<TaskPersisted[]>;
+
+  listByProjectIdForMetrics(
+    projectId: string
+  ): Promise<Array<{ status: TaskStatus; isLastStepInRecipe?: boolean }>>;
+  countCompletedLastStepsByRecipeSnapshot(
+    projectId: string,
+    recipeSnapshotId: string
+  ): Promise<number>;
+  countCompletedLastSteps(projectId: string): Promise<number>;
+
   loadForPause(id: string): Promise<TaskPauseState | null>;
   persistPause(state: TaskPauseState): Promise<TaskPersisted>;
 
