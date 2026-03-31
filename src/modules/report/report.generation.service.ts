@@ -4,9 +4,10 @@ import fs from "fs";
 import path from "path";
 import * as EquipmentReportService from "./equipment/equipment.sheet-builder";
 import * as SummaryReportService from "./generators/report.summary.generator";
-import * as WorkerReportService from "./generators/report.worker.generator";
 import { ProductionSheetBuilder } from "./production/production.sheet-builder";
 import { Report } from "./report.model";
+import { aggregateWorkerPerformanceSummary } from "./worker/worker.data-loaders";
+import { WorkerSheetBuilder } from "./worker/worker.sheet-builder";
 
 /**
  * Main Report Generation Service
@@ -135,7 +136,7 @@ export async function generateWorkerPerformanceKPIReport(
     const sheetsGenerated: string[] = [];
     const dateRange = { startDate, endDate };
 
-    await WorkerReportService.generateWorkerPerformanceSummarySheet(
+    await WorkerSheetBuilder.generateWorkerPerformanceSummarySheet(
       workbook,
       dateRange,
       lang
@@ -143,8 +144,7 @@ export async function generateWorkerPerformanceKPIReport(
     sheetsGenerated.push("Worker Performance Summary");
 
     // Get record count
-    const summaryData =
-      await WorkerReportService.getWorkerPerformanceSummaryData(dateRange);
+    const summaryData = await aggregateWorkerPerformanceSummary(dateRange);
     const recordCount = summaryData.length;
 
     // Save workbook to file
