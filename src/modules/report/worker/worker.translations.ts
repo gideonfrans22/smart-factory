@@ -5,6 +5,20 @@ export const workerReportTranslations = {
     en: "Worker Performance Summary",
     ko: "작업자 성과 KPI 리포트"
   },
+  periods: {
+    daily: {
+      en: "Daily",
+      ko: "일간"
+    },
+    weekly: {
+      en: "Weekly",
+      ko: "주간"
+    },
+    monthly: {
+      en: "Monthly",
+      ko: "월간"
+    }
+  },
   // Main Report Titles
   titles: {
     workerPerformanceReport: {
