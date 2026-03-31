@@ -1,5 +1,5 @@
-import type { TaskPausePersisted } from "./TaskRepo";
+import type { TaskPersisted } from "./TaskRepo";
 
 export interface TaskNotifier {
-  broadcastTaskStatusChange(task: TaskPausePersisted): Promise<void>;
+  broadcastTaskStatusChange(task: TaskPersisted): Promise<void>;
 }
