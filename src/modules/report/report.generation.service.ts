@@ -1,12 +1,12 @@
+import { loggerService } from "@shared/services";
 import ExcelJS from "exceljs";
 import fs from "fs";
 import path from "path";
-import { Report } from "./report.model";
-import * as EquipmentReportService from "./generators/report.equipment.generator";
-import { loggerService } from "@shared/services";
-import * as ProductionReportService from "./generators/report.production.generator";
+import * as EquipmentReportService from "./equipment/equipment.sheet-builder";
 import * as SummaryReportService from "./generators/report.summary.generator";
 import * as WorkerReportService from "./generators/report.worker.generator";
+import { ProductionSheetBuilder } from "./production/production.sheet-builder";
+import { Report } from "./report.model";
 
 /**
  * Main Report Generation Service
@@ -240,7 +240,7 @@ export async function generateProductionRateReport(
     const dateRange = { startDate, endDate };
 
     // Single comprehensive KPI sheet
-    await ProductionReportService.generateProductionRateKPISheet(
+    await ProductionSheetBuilder.generateProductionRateKPISheet(
       workbook,
       dateRange,
       period,
