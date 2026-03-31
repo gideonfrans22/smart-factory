@@ -18,7 +18,8 @@ import type {
   TaskStatusUpdateBody,
   TaskUpdateDTO,
   DeviceTaskQuery,
-  WorkerTaskQuery
+  WorkerTaskQuery,
+  TaskStartBatchBody
 } from "./task.types";
 
 function handleTaskError(
@@ -178,6 +179,28 @@ export const startTask = async (
     res.json(response);
   } catch (error) {
     handleTaskError(res, error, "Start task error");
+  }
+};
+
+export const startTasksBatch = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const tasks = await taskService.startTasksBatch(
+      req.body as TaskStartBatchBody
+    );
+    const response: APIResponse = {
+      success: true,
+      message: "Tasks started successfully",
+      data: {
+        items: tasks,
+        total: tasks.length
+      }
+    };
+    res.json(response);
+  } catch (error) {
+    handleTaskError(res, error, "Start tasks batch error");
   }
 };
 

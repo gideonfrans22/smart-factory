@@ -7,6 +7,7 @@ import {
   updateTaskStatus,
   deleteTask,
   startTask,
+  startTasksBatch,
   resumeTask,
   pauseTask,
   failTask,
@@ -32,6 +33,7 @@ router.get("/:id", authenticateToken, getTaskById);
 
 router.post("/", authenticateToken, requireAdmin, createTask);
 router.post("/:id/start", authenticateToken, startTask);
+router.post("/start-batch", authenticateToken, startTasksBatch);
 router.post("/:id/resume", authenticateToken, resumeTask);
 router.post("/:id/pause", authenticateToken, pauseTask);
 router.post("/:id/complete", authenticateToken, completeTask);
