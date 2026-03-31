@@ -1,13 +1,14 @@
-import fs from "fs";
-import path from "path";
-import { Response } from "express";
-import mongoose from "mongoose";
-import { Report } from "./report.model";
-import * as reportGenerationService from "./report.generation.service";
-import type { ReportGenerateBody, ReportListQuery } from "./report.types";
 import type { APIResponse } from "@shared/types";
-import { WorkerReportGenerator } from "./worker/worker.report-generator";
+import { Response } from "express";
+import fs from "fs";
+import mongoose from "mongoose";
+import path from "path";
+import { EquipmentReportGenerator } from "./equipment/equipment.report-generator";
+import * as reportGenerationService from "./report.generation.service";
+import { Report } from "./report.model";
+import type { ReportGenerateBody, ReportListQuery } from "./report.types";
 import { SummaryReportGenerator } from "./summary/summary.report-generator";
+import { WorkerReportGenerator } from "./worker/worker.report-generator";
 
 export async function listReports(
   query: ReportListQuery
@@ -195,7 +196,7 @@ export async function generateReport(
       );
       break;
     case "EQUIPMENT_PERFORMANCE":
-      result = await reportGenerationService.generateEquipmentPerformanceReport(
+      result = await EquipmentReportGenerator.generateReport(
         start,
         end,
         userIdStr,

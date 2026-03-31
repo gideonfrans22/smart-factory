@@ -1,19 +1,20 @@
-import * as cron from "node-cron";
+import { EquipmentReportGenerator } from "@/modules/report/equipment/equipment.report-generator";
+import { WorkerReportGenerator } from "@/modules/report/worker/worker.report-generator";
 import {
   Report,
   reportGenerationService as ReportGenerationService
 } from "@modules/report";
 import { ActivityLog } from "@shared/models/ActivityLog";
+import { loggerService } from "@shared/services";
 import {
-  getPreviousDayRange,
-  getPreviousWeekRange,
-  getPreviousMonthRange,
+  DateRange,
   formatDateRange,
-  DateRange
+  getPreviousDayRange,
+  getPreviousMonthRange,
+  getPreviousWeekRange
 } from "@shared/utils";
 import { DateTime } from "luxon";
-import { loggerService } from "@shared/services";
-import { WorkerReportGenerator } from "@/modules/report/worker/worker.report-generator";
+import * as cron from "node-cron";
 
 /**
  * Scheduler Service for Auto-Generating Reports
@@ -352,15 +353,14 @@ async function generateScheduledReport(
         );
         break;
       case "EQUIPMENT_PERFORMANCE":
-        result =
-          await ReportGenerationService.generateEquipmentPerformanceReport(
-            dateRange.startDate,
-            dateRange.endDate,
-            SYSTEM_USER_ID,
-            reportIdStr,
-            lang as "en" | "ko",
-            period as "daily" | "weekly" | "monthly"
-          );
+        result = await EquipmentReportGenerator.generateReport(
+          dateRange.startDate,
+          dateRange.endDate,
+          SYSTEM_USER_ID,
+          reportIdStr,
+          lang as "en" | "ko",
+          period as "daily" | "weekly" | "monthly"
+        );
         break;
       case "WORKER_PERFORMANCE_KPI":
         result = await WorkerReportGenerator.generateKPIReport(

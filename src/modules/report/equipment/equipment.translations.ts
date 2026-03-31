@@ -1,6 +1,24 @@
 import { getTranslation } from "../helpers/getTranslation";
 
 export const equipmentReportTranslations = {
+  equipmentPerformance: {
+    en: "Equipment Performance",
+    ko: "장비 성능 리포트"
+  },
+  periods: {
+    daily: {
+      en: "Daily",
+      ko: "일간"
+    },
+    weekly: {
+      en: "Weekly",
+      ko: "주간"
+    },
+    monthly: {
+      en: "Monthly",
+      ko: "월간"
+    }
+  },
   // Equipment Report
   equipmentReport: {
     title: {
