@@ -3,18 +3,20 @@ import {
   Device,
   IRecipeSnapshot,
   Product,
-  ProductSnapshot,
   Project,
   Recipe
 } from "@shared/models";
-import { loggerService, realtimeService } from "@shared/services";
+import { realtimeService } from "@shared/services";
 import { SnapshotService } from "@shared/services/snapshotService";
 import mongoose from "mongoose";
 import { mongoAlertRepository } from "./adapters/mongo/alert.repository";
 import { mongoDeviceRepository } from "./adapters/mongo/device.repository";
+import { mongoProjectRepository } from "./adapters/mongo/project.repository";
 import { mongoTaskRepository } from "./adapters/mongo/task.repository";
 import { realtimeTaskNotifier } from "./adapters/realtime/task.notifier";
 import { batchUpdateTasks as batchUpdateTasksDomain } from "./domain/task.batch-update";
+import { completeTask as completeTaskDomain } from "./domain/task.complete";
+import { failTask as failTaskDomain } from "./domain/task.fail";
 import { pauseTask as pauseTaskDomain } from "./domain/task.pause";
 import { patchTask as patchTaskDomain } from "./domain/task.patch";
 import { resumeTask as resumeTaskDomain } from "./domain/task.resume";
@@ -1224,88 +1226,25 @@ export class TaskService {
     } | null;
     message: string;
   }> {
-    const task = await Task.findById(id);
-    if (!task) {
-      throw new TaskServiceError({
-        statusCode: 404,
-        errorCode: "NOT_FOUND",
-        message: "Task not found"
-      });
-    }
-    task.status = "FAILED";
-    if (notes) {
-      task.notes = notes;
-    }
-    await task.save();
-    await task.populate([
-      { path: "projectId", select: "name status priority" },
-      { path: "workerId", select: "name username email" },
-      { path: "deviceId", select: "name deviceName ipAddress status" },
-      { path: "recipeSnapshotId", select: "name version steps" },
-      {
-        path: "productSnapshotId",
-        select:
-          "name version productNumber customerName personInCharge department"
-      }
-    ]);
-
-    const failedTaskIds: string[] = [];
-    let project: InstanceType<typeof Project> | null = null;
-
-    if (task._id) {
-      failedTaskIds.push(task._id.toString());
-      const failDependentTasksRecursively = async (taskId: string) => {
-        const dependentTasks = await Task.find({
-          dependentTask: taskId,
-          status: { $in: ["PENDING", "ONGOING", "PAUSED"] }
-        });
-        for (const depTask of dependentTasks) {
-          depTask.status = "FAILED";
-          depTask.notes = `Automatically failed due to dependency failure: Task ${task.title}`;
-          await depTask.save();
-          await realtimeService.broadcastTaskStatusChange(depTask.toObject());
-          if (depTask._id) {
-            failedTaskIds.push(depTask._id.toString());
-            await failDependentTasksRecursively(depTask._id.toString());
-          }
-        }
+    try {
+      const result = await failTaskDomain(
+        {
+          taskRepo: mongoTaskRepository,
+          projectRepo: mongoProjectRepository,
+          notifier: realtimeTaskNotifier
+        },
+        { taskId: id, notes }
+      );
+      return {
+        ...result,
+        failedTask: result.failedTask as InstanceType<typeof Task>
       };
-      await failDependentTasksRecursively(task._id.toString());
-
-      const projectId = task.projectId;
-      if (projectId) {
-        project = await Project.findById(projectId);
-        if (project && project.status !== "COMPLETED") {
-          const projectTasks = await Task.find({ projectId });
-          const allTasksFinished = projectTasks.every(
-            (t) => t.status === "COMPLETED" || t.status === "FAILED"
-          );
-          if (allTasksFinished) {
-            project.status = "COMPLETED";
-            project.endDate = new Date();
-            await project.save();
-            await realtimeService.broadcastProjectUpdate(project.toObject());
-          }
-        }
+    } catch (error) {
+      if (error instanceof TaskDomainError) {
+        throw mapTaskDomainErrorToServiceError(error);
       }
+      throw error;
     }
-
-    await realtimeService.broadcastTaskStatusChange(task.toObject());
-
-    return {
-      failedTask: task,
-      totalFailedTasks: failedTaskIds.length,
-      project: project
-        ? {
-            _id: project._id,
-            status: project.status,
-            progress: project.progress
-          }
-        : null,
-      message: `Task marked as failed. ${
-        failedTaskIds.length - 1
-      } dependent task(s) also marked as failed.`
-    };
   }
 
   async completeTask(
@@ -1316,213 +1255,22 @@ export class TaskService {
     message: string;
     data: Record<string, unknown>;
   }> {
-    const { workerId, notes, qualityData, actualDuration } = body;
-    const task = await Task.findById(id).populate("recipeSnapshotId");
-    if (!task) {
-      throw new TaskServiceError({
-        statusCode: 404,
-        errorCode: "NOT_FOUND",
-        message: "Task not found"
-      });
-    }
-    if (!workerId && !task.workerId) {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: "workerId is required to complete a task"
-      });
-    }
-    if (!task.recipeSnapshotId) {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: "Task does not have a recipe snapshot reference"
-      });
-    }
-
-    const completionProgress =
-      (qualityData as { progress?: number } | undefined)?.progress ?? 100;
-
-    task.status = "COMPLETED";
-    task.workerId = workerId
-      ? (new mongoose.Types.ObjectId(
-          String(workerId)
-        ) as unknown as typeof task.workerId)
-      : task.workerId;
-    task.completedAt = new Date();
-    task.progress = completionProgress;
-    if (notes) task.notes = notes;
-    if (qualityData) task.qualityData = qualityData;
-    if (actualDuration) task.actualDuration = actualDuration;
-
-    if (task.pauseHistory && task.pauseHistory.length > 0) {
-      const lastPause = task.pauseHistory[task.pauseHistory.length - 1];
-      if (lastPause && !lastPause.resumedAt && task.completedAt) {
-        lastPause.resumedAt = task.completedAt;
-        lastPause.resolvedBy = context.userName || "System";
-        const lastPauseDuration = Math.floor(
-          (task.completedAt.getTime() -
-            new Date(lastPause.pausedAt).getTime()) /
-            (1000 * 60)
-        );
-        task.pausedDuration = (task.pausedDuration || 0) + lastPauseDuration;
-      }
-    }
-
-    if (!actualDuration && task.startedAt && task.completedAt) {
-      const totalDuration = Math.floor(
-        (task.completedAt.getTime() - task.startedAt.getTime()) / 60000
+    try {
+      return await completeTaskDomain(
+        {
+          taskRepo: mongoTaskRepository,
+          deviceRepo: mongoDeviceRepository,
+          projectRepo: mongoProjectRepository,
+          notifier: realtimeTaskNotifier
+        },
+        { taskId: id, body, userName: context.userName }
       );
-      task.actualDuration = Math.max(
-        0,
-        totalDuration - (task.pausedDuration || 0)
-      );
-    }
-
-    await task.save();
-
-    if (task.deviceId) {
-      const device = await Device.findById(task.deviceId);
-      if (device) {
-        device.currentTask = undefined;
-        device.currentUser = undefined;
-        await device.save();
+    } catch (error) {
+      if (error instanceof TaskDomainError) {
+        throw mapTaskDomainErrorToServiceError(error);
       }
+      throw error;
     }
-
-    let nextTask: InstanceType<typeof Task> | null = null;
-    let project: InstanceType<typeof Project> | null = null;
-
-    if (task.projectId) {
-      const projectTasks = await Task.find({ projectId: task.projectId });
-      const allTasksFinishedEarly = projectTasks.every(
-        (t) => t.status === "COMPLETED" || t.status === "FAILED"
-      );
-      if (allTasksFinishedEarly) {
-        project = await Project.findById(task.projectId);
-        if (project && project.status !== "COMPLETED") {
-          project.status = "COMPLETED";
-          await project.save();
-          await realtimeService.broadcastProjectUpdate(project.toObject());
-        }
-      }
-    }
-
-    nextTask = await Task.findOne({ dependentTask: task._id });
-
-    if (task.projectId) {
-      project = await Project.findById(task.projectId);
-      if (project) {
-        const allProjectTasks = await Task.find({ projectId: task.projectId });
-        const totalTasks = allProjectTasks.length;
-        const completedTasks = allProjectTasks.filter(
-          (t) => t.status === "COMPLETED"
-        ).length;
-
-        project.progress = roundToTwoDecimals(
-          totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
-        );
-
-        loggerService.info(`📊 Project Progress Updated:`, {
-          projectId: project._id,
-          projectName: project.name,
-          completedTasks,
-          totalTasks,
-          progress: project.progress,
-          producedQuantity: project.producedQuantity,
-          targetQuantity: project.targetQuantity
-        });
-
-        await realtimeService.broadcastProjectProgress(project);
-
-        if (task.isLastStepInRecipe) {
-          if (task.productId) {
-            const productSnapshot = await ProductSnapshot.findById(
-              project.productSnapshot
-            );
-            if (productSnapshot) {
-              let minCompletedSets = Infinity;
-              for (const recipeRef of productSnapshot.recipes) {
-                const recipeSnapshotId = recipeRef.recipeSnapshotId.toString();
-                const requiredQuantity = recipeRef.quantity;
-                const completedExecutions = await Task.countDocuments({
-                  projectId: task.projectId,
-                  recipeSnapshotId: recipeSnapshotId,
-                  isLastStepInRecipe: true,
-                  status: "COMPLETED"
-                });
-                const completedSets = Math.floor(
-                  completedExecutions / requiredQuantity
-                );
-                if (completedSets < minCompletedSets) {
-                  minCompletedSets = completedSets;
-                }
-              }
-              project.producedQuantity =
-                minCompletedSets === Infinity ? 0 : minCompletedSets;
-            }
-          } else {
-            project.producedQuantity += 1;
-          }
-        }
-
-        const allTasksFinished = allProjectTasks.every(
-          (t) => t.status === "COMPLETED" || t.status === "FAILED"
-        );
-
-        if (allTasksFinished) {
-          project.status = "COMPLETED";
-          project.endDate = new Date();
-        } else if (project.producedQuantity >= project.targetQuantity) {
-          project.status = "COMPLETED";
-          project.progress = 100;
-        }
-
-        await project.save();
-        await realtimeService.broadcastProjectUpdate(project.toObject());
-      }
-    }
-
-    await task.populate("projectId workerId");
-
-    await realtimeService.broadcastTaskCompletion(
-      task.toObject(),
-      nextTask?.toObject() || null,
-      project?.progress
-    );
-
-    if (nextTask) {
-      await realtimeService.broadcastTaskStatusChange(nextTask.toObject());
-    }
-
-    const responseData: Record<string, unknown> = {
-      completedTask: task,
-      nextTask: nextTask || null,
-      isLastStep: task.isLastStepInRecipe,
-      executionInfo: {
-        executionNumber: task.recipeExecutionNumber,
-        totalExecutions: task.totalRecipeExecutions,
-        isLastStepInRecipe: task.isLastStepInRecipe
-      }
-    };
-
-    if (task.projectId && project) {
-      responseData.project = {
-        _id: project._id,
-        progress: project.progress
-      };
-      await realtimeService.broadcastProjectUpdate(project.toObject());
-    }
-
-    const message = nextTask
-      ? `Task completed. Next step ready for execution ${task.recipeExecutionNumber}.`
-      : task.isLastStepInRecipe
-      ? `Recipe execution ${task.recipeExecutionNumber}/${task.totalRecipeExecutions} completed!`
-      : "Task completed";
-
-    await realtimeService.broadcastTaskStatusChange(task.toObject());
-
-    return { message, data: responseData };
   }
 
   async deleteTask(
