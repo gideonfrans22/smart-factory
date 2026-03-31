@@ -13,12 +13,8 @@ router.get(
 );
 
 router.get("/", authenticateToken, requireAdmin, userController.list);
-router.get(
-  "/workers",
-  authenticateToken,
-  requireAdmin,
-  userController.listWorkers
-);
+// Temporarily remove authentication for workers list
+router.get("/workers", userController.listWorkers);
 
 router.get("/:id", authenticateToken, requireAdmin, userController.getById);
 
