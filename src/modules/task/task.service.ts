@@ -1,4 +1,4 @@
-import { parseDateAsKST, roundToTwoDecimals } from "@shared/helpers";
+import { parseDateAsKST } from "@shared/helpers";
 import {
   Device,
   IRecipeSnapshot,
@@ -11,18 +11,24 @@ import { SnapshotService } from "@shared/services/snapshotService";
 import mongoose from "mongoose";
 import { mongoAlertRepository } from "./adapters/mongo/alert.repository";
 import { mongoDeviceRepository } from "./adapters/mongo/device.repository";
+import { mongoIdFactory } from "./adapters/mongo/id.factory";
+import { mongoRecipeSnapshotRepository } from "./adapters/mongo/recipe-snapshot.repository";
+import { mongoProductSnapshotRepository } from "./adapters/mongo/product-snapshot.repository";
+import { mongoProjectDeviceConfigurationRepository } from "./adapters/mongo/project-device-configuration.repository";
 import { mongoProjectRepository } from "./adapters/mongo/project.repository";
 import { mongoTaskRepository } from "./adapters/mongo/task.repository";
 import { realtimeTaskNotifier } from "./adapters/realtime/task.notifier";
+import { TaskDomainError } from "./domain/errors";
 import { batchUpdateTasks as batchUpdateTasksDomain } from "./domain/task.batch-update";
 import { completeTask as completeTaskDomain } from "./domain/task.complete";
 import { failTask as failTaskDomain } from "./domain/task.fail";
-import { pauseTask as pauseTaskDomain } from "./domain/task.pause";
+import { generateTasksForProject as generateTasksForProjectDomain } from "./domain/task.generator";
+import { recalculateProjectMetrics as recalculateProjectMetricsDomain } from "./domain/task.metrics";
 import { patchTask as patchTaskDomain } from "./domain/task.patch";
+import { pauseTask as pauseTaskDomain } from "./domain/task.pause";
 import { resumeTask as resumeTaskDomain } from "./domain/task.resume";
 import { startTask as startTaskDomain } from "./domain/task.start";
 import { updateTaskStatus as updateTaskStatusDomain } from "./domain/task.status.update";
-import { TaskDomainError } from "./domain/errors";
 import { ITask, Task } from "./task.model";
 import type {
   DeviceTaskQuery,
@@ -79,26 +85,18 @@ export class TaskService {
    */
   private normalizeProjectDeviceConfigurationMap(
     byDeviceType: unknown
-  ): Map<string, mongoose.Types.ObjectId[]> {
-    const m = new Map<string, mongoose.Types.ObjectId[]>();
+  ): Map<string, string[]> {
+    const m = new Map<string, string[]>();
     if (byDeviceType == null) {
       return m;
     }
 
-    const toOid = (id: unknown): mongoose.Types.ObjectId => {
-      if (id instanceof mongoose.Types.ObjectId) {
-        return id;
-      }
-      if (typeof id === "string" && mongoose.Types.ObjectId.isValid(id)) {
-        return new mongoose.Types.ObjectId(id);
-      }
-      return new mongoose.Types.ObjectId(String(id));
-    };
+    const toId = (id: unknown): string => String(id);
 
     if (byDeviceType instanceof Map) {
       byDeviceType.forEach((ids, key) => {
         const arr = Array.isArray(ids) ? ids : [];
-        m.set(String(key), arr.map(toOid));
+        m.set(String(key), arr.map(toId));
       });
       return m;
     }
@@ -108,7 +106,7 @@ export class TaskService {
         byDeviceType as Record<string, unknown>
       )) {
         const arr = Array.isArray(v) ? v : [];
-        m.set(k, arr.map(toOid));
+        m.set(k, arr.map(toId));
       }
     }
     return m;
@@ -119,13 +117,11 @@ export class TaskService {
    * (follows deterministic generation order in generateTasksForProject).
    */
   private createDeviceRoundRobinPicker(
-    byDeviceType: Map<string, mongoose.Types.ObjectId[]>
-  ): (
-    deviceTypeId: mongoose.Types.ObjectId
-  ) => mongoose.Types.ObjectId | undefined {
+    byDeviceType: Map<string, string[]>
+  ): (deviceTypeId: string) => string | undefined {
     const roundRobinByType = new Map<string, number>();
-    return (deviceTypeId: mongoose.Types.ObjectId) => {
-      const key = deviceTypeId.toString();
+    return (deviceTypeId: string) => {
+      const key = String(deviceTypeId);
       const list = byDeviceType.get(key);
       if (!list?.length) {
         return undefined;
@@ -141,150 +137,25 @@ export class TaskService {
     productSnapshot?: any,
     recipeSnapshot?: any
   ): Promise<any[]> {
-    const createdTasks: any[] = [];
-
-    const ProjectDeviceConfigurationModel = mongoose.model(
-      "ProjectDeviceConfiguration"
+    return await generateTasksForProjectDomain(
+      {
+        taskRepo: mongoTaskRepository,
+        projectDeviceConfigurationRepo:
+          mongoProjectDeviceConfigurationRepository,
+        recipeSnapshotRepo: mongoRecipeSnapshotRepository,
+        idFactory: mongoIdFactory,
+        notifier: realtimeTaskNotifier
+      },
+      {
+        project,
+        productSnapshot,
+        recipeSnapshot,
+        normalizeProjectDeviceConfigurationMap:
+          this.normalizeProjectDeviceConfigurationMap.bind(this),
+        createDeviceRoundRobinPicker:
+          this.createDeviceRoundRobinPicker.bind(this),
+      }
     );
-    const configLean = (await ProjectDeviceConfigurationModel.findOne({
-      projectId: project._id
-    }).lean()) as { byDeviceType?: unknown } | null;
-    const byDeviceTypeMap = this.normalizeProjectDeviceConfigurationMap(
-      configLean?.byDeviceType
-    );
-    const nextDeviceId = this.createDeviceRoundRobinPicker(byDeviceTypeMap);
-
-    if (productSnapshot) {
-      for (const productRecipe of productSnapshot.recipes) {
-        const totalExecutions = project.targetQuantity * productRecipe.quantity;
-        const recipeSnapshotId = productRecipe.recipeSnapshotId;
-        if (!recipeSnapshotId) continue;
-
-        const RecipeSnapshot = mongoose.model("RecipeSnapshot");
-        const recipeSnap = await RecipeSnapshot.findById(recipeSnapshotId);
-        if (!recipeSnap) continue;
-
-        const steps = (recipeSnap as any).steps.sort(
-          (a: any, b: any) => a.order - b.order
-        );
-        if (steps.length === 0) continue;
-
-        const maxStepOrder = steps[steps.length - 1].order;
-
-        for (let execution = 1; execution <= totalExecutions; execution++) {
-          let previousTaskId: mongoose.Types.ObjectId | undefined = undefined;
-
-          for (const step of steps) {
-            if (!step.deviceTypeId) {
-              throw new Error(
-                `Step ${step.order} of recipe in product "${productSnapshot.name}" does not have a deviceTypeId`
-              );
-            }
-
-            const isLastStep = step.order === maxStepOrder;
-
-            const deviceId = nextDeviceId(step.deviceTypeId);
-
-            const newTask = new Task({
-              title: `${step.name} - Exec ${execution}/${totalExecutions} - ${productSnapshot.name}`,
-              description: step.description,
-              projectId: project._id,
-              projectNumber: project.projectNumber,
-              productId: productSnapshot.originalProductId,
-              productSnapshotId: productSnapshot._id,
-              recipeId: (recipeSnap as any).originalRecipeId,
-              recipeSnapshotId: recipeSnapshotId,
-              recipeStepId: step._id,
-              recipeExecutionNumber: execution,
-              totalRecipeExecutions: totalExecutions,
-              stepOrder: step.order,
-              isLastStepInRecipe: isLastStep,
-              deviceTypeId: step.deviceTypeId,
-              ...(deviceId ? { deviceId } : {}),
-              status: "PENDING",
-              priority: project.priority,
-              estimatedDuration: step.estimatedDuration,
-              deadline: project.deadline,
-              progress: 0,
-              pausedDuration: 0,
-              dependentTask: previousTaskId
-            });
-
-            await newTask.save();
-            createdTasks.push(newTask);
-            previousTaskId = newTask._id as mongoose.Types.ObjectId;
-          }
-        }
-      }
-    }
-
-    if (recipeSnapshot) {
-      const totalExecutions = project.targetQuantity;
-      const steps = recipeSnapshot.steps.sort(
-        (a: any, b: any) => a.order - b.order
-      );
-      if (steps.length === 0) {
-        throw new Error(
-          `Recipe "${recipeSnapshot.name}" does not have any steps`
-        );
-      }
-
-      const maxStepOrder = steps[steps.length - 1].order;
-
-      for (let execution = 1; execution <= totalExecutions; execution++) {
-        let previousTaskId: mongoose.Types.ObjectId | undefined = undefined;
-
-        for (const step of steps) {
-          if (!step.deviceTypeId) {
-            throw new Error(
-              `Step ${step.order} of recipe "${recipeSnapshot.name}" does not have a deviceTypeId`
-            );
-          }
-
-          const isLastStep = step.order === maxStepOrder;
-
-          const deviceId = nextDeviceId(step.deviceTypeId);
-
-          const newTask = new Task({
-            title: `${step.name} - Exec ${execution}/${totalExecutions} - ${project.name}`,
-            description: step.description,
-            projectId: project._id,
-            projectNumber: project.projectNumber,
-            recipeId: recipeSnapshot.originalRecipeId,
-            recipeSnapshotId: recipeSnapshot._id,
-            recipeStepId: step._id,
-            recipeExecutionNumber: execution,
-            totalRecipeExecutions: totalExecutions,
-            stepOrder: step.order,
-            isLastStepInRecipe: isLastStep,
-            deviceTypeId: step.deviceTypeId,
-            ...(deviceId ? { deviceId } : {}),
-            status: "PENDING",
-            priority: project.priority,
-            estimatedDuration: step.estimatedDuration,
-            deadline: project.deadline,
-            progress: 0,
-            pausedDuration: 0,
-            dependentTask: previousTaskId
-          });
-
-          await newTask.save();
-          createdTasks.push(newTask);
-          previousTaskId = newTask._id as mongoose.Types.ObjectId;
-        }
-      }
-    }
-
-    if (createdTasks.length > 0) {
-      const projectIdStr = (project._id as mongoose.Types.ObjectId).toString();
-      await realtimeService.broadcastTasksGeneratedForDeviceTypes(
-        createdTasks,
-        projectIdStr,
-        project.name
-      );
-    }
-
-    return createdTasks;
   }
 
   async deleteProjectTasks(
@@ -297,86 +168,14 @@ export class TaskService {
   async recalculateProjectMetrics(
     projectId: string | mongoose.Types.ObjectId
   ): Promise<any> {
-    const Project = mongoose.model("Project");
-    const ProductSnapshot = mongoose.model("ProductSnapshot");
-    const project = await Project.findById(projectId);
-
-    if (!project) {
-      return null;
-    }
-
-    const allProjectTasks = await Task.find({ projectId });
-    const totalTasks = allProjectTasks.length;
-    const completedTasks = allProjectTasks.filter(
-      (t) => t.status === "COMPLETED"
-    ).length;
-
-    project.progress = roundToTwoDecimals(
-      totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
+    return await recalculateProjectMetricsDomain(
+      {
+        projectRepo: mongoProjectRepository,
+        taskRepo: mongoTaskRepository,
+        productSnapshotRepo: mongoProductSnapshotRepository
+      },
+      String(projectId)
     );
-
-    if (project.productSnapshot) {
-      const productSnapshot = await ProductSnapshot.findById(
-        project.productSnapshot
-      );
-      if (productSnapshot) {
-        let minCompletedSets = Infinity;
-
-        for (const recipeRef of productSnapshot.recipes) {
-          const recipeSnapshotId = recipeRef.recipeSnapshotId.toString();
-          const requiredQuantity = recipeRef.quantity;
-
-          const completedExecutions = await Task.countDocuments({
-            projectId: project._id,
-            recipeSnapshotId: recipeSnapshotId,
-            isLastStepInRecipe: true,
-            status: "COMPLETED"
-          });
-
-          const completedSets = Math.floor(
-            completedExecutions / requiredQuantity
-          );
-
-          if (completedSets < minCompletedSets) {
-            minCompletedSets = completedSets;
-          }
-        }
-
-        project.producedQuantity =
-          minCompletedSets === Infinity ? 0 : minCompletedSets;
-      }
-    } else if (project.recipeSnapshot) {
-      const completedExecutions = await Task.countDocuments({
-        projectId: project._id,
-        isLastStepInRecipe: true,
-        status: "COMPLETED"
-      });
-      project.producedQuantity = completedExecutions;
-    }
-
-    const allTasksFinished = allProjectTasks.every(
-      (t) => t.status === "COMPLETED" || t.status === "FAILED"
-    );
-
-    if (allTasksFinished && project.status !== "COMPLETED") {
-      project.status = "COMPLETED";
-      project.endDate = new Date();
-    } else if (!allTasksFinished && project.status === "COMPLETED") {
-      project.status = "ACTIVE";
-      project.endDate = undefined;
-    } else if (
-      project.producedQuantity >= project.targetQuantity &&
-      project.status !== "COMPLETED"
-    ) {
-      project.status = "COMPLETED";
-      project.progress = 100;
-      if (!project.endDate) {
-        project.endDate = new Date();
-      }
-    }
-
-    await project.save();
-    return project;
   }
 
   async listTasks(query: TaskListQuery): Promise<{
