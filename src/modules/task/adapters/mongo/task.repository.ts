@@ -3,6 +3,10 @@ import { Task } from "../../task.model";
 import type { TaskPriority, TaskStatus } from "../../task.types";
 import type {
   TaskBatchPersistResult,
+  TaskCompletePersistState,
+  TaskCompleteReadModel,
+  TaskFailDependentPersistInput,
+  TaskFailReadModel,
   TaskPauseState,
   TaskPatchPersistState,
   TaskPatchReadModel,
@@ -376,6 +380,154 @@ export class MongoTaskRepository implements TaskRepo {
       }
     }
     return [...seen];
+  }
+
+  async loadForFail(id: string): Promise<TaskFailReadModel | null> {
+    const task = await Task.findById(id);
+    if (!task) {
+      return null;
+    }
+    return {
+      id: task.id,
+      title: task.title,
+      projectId: refIdToString(task.projectId) ?? null
+    };
+  }
+
+  async persistFailRoot(input: {
+    id: string;
+    notes?: string;
+  }): Promise<TaskPersisted> {
+    const task = await Task.findById(input.id);
+    if (!task) {
+      throw new Error("Task disappeared during fail");
+    }
+    task.status = "FAILED";
+    if (input.notes) {
+      task.notes = input.notes;
+    }
+    await task.save();
+    await task.populate([...LIFECYCLE_TASK_POPULATE]);
+    return task as TaskPersisted;
+  }
+
+  async findActiveDependentsForFail(
+    taskId: string
+  ): Promise<Array<{ id: string; title: string }>> {
+    const dependents = await Task.find({
+      dependentTask: new mongoose.Types.ObjectId(taskId),
+      status: { $in: ["PENDING", "ONGOING", "PAUSED"] }
+    });
+    return dependents.map((t) => ({
+      id: t.id,
+      title: t.title
+    }));
+  }
+
+  async persistFailDependent(
+    input: TaskFailDependentPersistInput
+  ): Promise<TaskPersisted> {
+    const depTask = await Task.findById(input.id);
+    if (!depTask) {
+      throw new Error("Dependent task disappeared during fail");
+    }
+    depTask.status = "FAILED";
+    depTask.notes = `Automatically failed due to dependency failure: Task ${input.rootTaskTitle}`;
+    await depTask.save();
+    await depTask.populate([...LIFECYCLE_TASK_POPULATE]);
+    return depTask as TaskPersisted;
+  }
+
+  async listTasksByProjectId(
+    projectId: string
+  ): Promise<Array<{ id: string; status: TaskStatus }>> {
+    const tasks = await Task.find({ projectId });
+    return tasks.map((t) => ({
+      id: t.id,
+      status: t.status as TaskStatus
+    }));
+  }
+
+  async loadForComplete(id: string): Promise<TaskCompleteReadModel | null> {
+    const task = await Task.findById(id).populate("recipeSnapshotId");
+    if (!task) {
+      return null;
+    }
+    const history = task.pauseHistory ?? [];
+    const recipeSnapshotIdStr = refIdToString(task.recipeSnapshotId as unknown) ?? null;
+    return {
+      id: task.id,
+      status: task.status as TaskStatus,
+      workerId: refIdToString(task.workerId) ?? null,
+      recipeSnapshotId: recipeSnapshotIdStr,
+      projectId: refIdToString(task.projectId) ?? null,
+      deviceId: deviceIdRef(task),
+      pauseHistory: history.map((e) => ({
+        pausedAt: e.pausedAt,
+        resumedAt: e.resumedAt,
+        reason: e.reason,
+        pausedBy: e.pausedBy,
+        resolvedBy: e.resolvedBy
+      })),
+      pausedDuration: task.pausedDuration ?? 0,
+      startedAt: task.startedAt ?? null,
+      isLastStepInRecipe: task.isLastStepInRecipe,
+      recipeExecutionNumber: task.recipeExecutionNumber,
+      totalRecipeExecutions: task.totalRecipeExecutions,
+      productId: refIdToString(task.productId) ?? null,
+      title: task.title
+    };
+  }
+
+  async persistComplete(state: TaskCompletePersistState): Promise<TaskPersisted> {
+    const task = await Task.findById(state.id);
+    if (!task) {
+      throw new Error("Task disappeared during complete");
+    }
+    task.status = state.status;
+    task.workerId = state.workerId
+      ? (state.workerId as unknown as mongoose.Types.ObjectId)
+      : task.workerId;
+    task.completedAt = state.completedAt;
+    task.progress = state.progress;
+    if (state.notes !== undefined) {
+      task.notes = state.notes;
+    }
+    if (state.qualityData !== undefined) {
+      task.qualityData = state.qualityData;
+    }
+    if (state.actualDuration !== undefined && state.actualDuration !== null) {
+      task.actualDuration = state.actualDuration;
+    }
+    if (state.pausedDuration !== undefined && state.pausedDuration !== null) {
+      task.pausedDuration = state.pausedDuration;
+    }
+    task.pauseHistory = state.pauseHistory.map((e) => ({
+      pausedAt: e.pausedAt,
+      resumedAt: e.resumedAt,
+      reason: e.reason,
+      pausedBy: e.pausedBy,
+      resolvedBy: e.resolvedBy
+    }));
+    await task.save();
+    return task as TaskPersisted;
+  }
+
+  async populateTaskForCompleteResponse(taskId: string): Promise<TaskPersisted> {
+    const task = await Task.findById(taskId).populate("projectId workerId");
+    if (!task) {
+      throw new Error("Task disappeared during complete populate");
+    }
+    return task as TaskPersisted;
+  }
+
+  async findNextByDependentTask(
+    completedTaskId: string
+  ): Promise<TaskPersisted | null> {
+    const next = await Task.findOne({
+      dependentTask: new mongoose.Types.ObjectId(completedTaskId)
+    });
+    return next ? (next as TaskPersisted) : null;
   }
 }
 

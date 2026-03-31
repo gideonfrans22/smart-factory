@@ -149,4 +149,60 @@ export interface TaskRepo {
   ): Promise<TaskBatchPersistResult>;
   /** Distinct device ids (string) for tasks in `taskIds` that have a non-null `deviceId`. */
   findDeviceIdsForTasks(taskIds: string[]): Promise<string[]>;
+
+  loadForFail(id: string): Promise<TaskFailReadModel | null>;
+  persistFailRoot(input: { id: string; notes?: string }): Promise<TaskPersisted>;
+  findActiveDependentsForFail(
+    taskId: string
+  ): Promise<Array<{ id: string; title: string }>>;
+  persistFailDependent(input: TaskFailDependentPersistInput): Promise<TaskPersisted>;
+  listTasksByProjectId(
+    projectId: string
+  ): Promise<Array<{ id: string; status: TaskStatus }>>;
+
+  loadForComplete(id: string): Promise<TaskCompleteReadModel | null>;
+  persistComplete(state: TaskCompletePersistState): Promise<TaskPersisted>;
+  populateTaskForCompleteResponse(taskId: string): Promise<TaskPersisted>;
+  findNextByDependentTask(completedTaskId: string): Promise<TaskPersisted | null>;
+}
+
+export interface TaskFailReadModel {
+  id: string;
+  title: string;
+  projectId?: string | null;
+}
+
+export interface TaskFailDependentPersistInput {
+  id: string;
+  rootTaskTitle: string;
+}
+
+export interface TaskCompleteReadModel {
+  id: string;
+  status: TaskStatus;
+  workerId?: string | null;
+  recipeSnapshotId: string | null;
+  projectId?: string | null;
+  deviceId?: string | null;
+  pauseHistory: TaskPauseHistoryEntry[];
+  pausedDuration: number;
+  startedAt?: Date | null;
+  isLastStepInRecipe: boolean;
+  recipeExecutionNumber: number;
+  totalRecipeExecutions: number;
+  productId?: string | null;
+  title: string;
+}
+
+export interface TaskCompletePersistState {
+  id: string;
+  status: TaskStatus;
+  workerId?: string | null;
+  completedAt: Date;
+  progress: number;
+  notes?: string;
+  qualityData?: unknown;
+  actualDuration?: number | null;
+  pausedDuration?: number | null;
+  pauseHistory: TaskPauseHistoryEntry[];
 }
