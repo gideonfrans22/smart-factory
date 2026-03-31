@@ -11,6 +11,10 @@ import {
 import { loggerService, realtimeService } from "@shared/services";
 import { SnapshotService } from "@shared/services/snapshotService";
 import mongoose from "mongoose";
+import { mongoTaskRepository } from "./adapters/mongo/task.repository";
+import { realtimeTaskNotifier } from "./adapters/realtime/task.notifier";
+import { pauseTask as pauseTaskDomain } from "./domain/task.pause";
+import { TaskDomainError } from "./domain/errors";
 import { ITask, Task } from "./task.model";
 import type {
   DeviceTaskQuery,
@@ -48,6 +52,17 @@ export class TaskServiceError extends Error {
     this.errorCode = options.errorCode;
     this.data = options.data;
   }
+}
+
+function mapTaskDomainErrorToServiceError(
+  error: TaskDomainError
+): TaskServiceError {
+  return new TaskServiceError({
+    statusCode: error.statusCode,
+    errorCode: error.errorCode,
+    message: error.message,
+    data: error.data
+  });
 }
 
 export class TaskService {
@@ -1531,47 +1546,28 @@ export class TaskService {
     body: TaskPauseBody,
     context: { userName?: string }
   ): Promise<InstanceType<typeof Task>> {
-    const { reason, notes, reportedBy, isEmergency } = body;
-    const task = await Task.findById(id);
-    if (!task) {
-      throw new TaskServiceError({
-        statusCode: 404,
-        errorCode: "NOT_FOUND",
-        message: "Task not found"
-      });
-    }
-    if (task.status !== "ONGOING") {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: `Cannot pause task with status ${task.status}. Only ONGOING tasks can be paused.`
-      });
-    }
-    task.status = isEmergency ? "PAUSED_EMERGENCY" : "PAUSED";
-    if (!task.pauseHistory) {
-      task.pauseHistory = [];
-    }
-    const pauseReason =
-      reason || notes || (isEmergency ? "Emergency pause" : "Manual pause");
-    task.pauseHistory.push({
-      pausedAt: new Date(),
-      reason: pauseReason,
-      pausedBy: reportedBy || context.userName || "System"
-    });
-    await task.save();
-    await task.populate([
-      { path: "projectId", select: "name status priority" },
-      { path: "workerId", select: "name username email" },
-      { path: "deviceId", select: "name deviceName ipAddress status" },
-      { path: "recipeSnapshotId", select: "name version steps" },
-      {
-        path: "productSnapshotId",
-        select:
-          "name version productNumber customerName personInCharge department"
+    try {
+      const result = await pauseTaskDomain(
+        {
+          taskRepo: mongoTaskRepository,
+          notifier: realtimeTaskNotifier
+        },
+        {
+          taskId: id,
+          reason: body.reason,
+          notes: body.notes,
+          reportedBy: body.reportedBy,
+          isEmergency: body.isEmergency,
+          userName: context.userName
+        }
+      );
+      return result as InstanceType<typeof Task>;
+    } catch (error) {
+      if (error instanceof TaskDomainError) {
+        throw mapTaskDomainErrorToServiceError(error);
       }
-    ]);
-    await realtimeService.broadcastTaskStatusChange(task.toObject());
-    return task;
+      throw error;
+    }
   }
 
   async failTask(
