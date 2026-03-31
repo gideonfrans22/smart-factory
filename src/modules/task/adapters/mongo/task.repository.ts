@@ -289,6 +289,7 @@ export class MongoTaskRepository implements TaskRepo {
     return {
       id: task.id,
       status: task.status as TaskStatus,
+      projectId: task.projectId ? String(task.projectId) : undefined,
       progress: task.progress ?? undefined,
       notes: task.notes == null ? undefined : task.notes,
       startedAt: task.startedAt ?? undefined,

@@ -1,4 +1,5 @@
 import type { DeviceRepo } from "../ports/DeviceRepo";
+import type { ProjectRepo } from "../ports/ProjectRepo";
 import type { TaskNotifier } from "../ports/TaskNotifier";
 import type {
   TaskBatchUpdateResult,
@@ -14,6 +15,7 @@ export interface BatchUpdateTasksDeps {
   taskRepo: TaskRepo;
   deviceRepo: DeviceRepo;
   notifier: TaskNotifier;
+  projectRepo: ProjectRepo;
 }
 
 export function buildBatchUpdateFields(
@@ -197,6 +199,8 @@ export async function batchUpdateTasks(
     }
 
     if (isCompleteStatus) {
+      const completedProjectIds = new Set<string>();
+
       for (const task of loadedTasks) {
         if (!task) continue;
 
@@ -251,6 +255,10 @@ export async function batchUpdateTasks(
         const persisted = await deps.taskRepo.persistStatusUpdate(state);
         updatedTasks.push(persisted);
         await deps.notifier.broadcastTaskStatusChange(persisted);
+
+        if (task.projectId) {
+          completedProjectIds.add(String(task.projectId));
+        }
       }
 
       if (foundIds.length > 0) {
@@ -258,6 +266,18 @@ export async function batchUpdateTasks(
         for (const deviceIdToClear of deviceIds) {
           await deps.deviceRepo.clearCurrentAssignment(deviceIdToClear);
         }
+      }
+
+      // After batch completion, recalculate project progress/metrics for affected projects.
+      for (const projectId of completedProjectIds) {
+        await deps.projectRepo.applyProjectUpdatesAfterTaskCompletion(
+          {
+            projectId,
+            isLastStepInRecipe: false,
+            productId: undefined
+          },
+          deps.notifier
+        );
       }
 
       const modifiedCount = updatedTasks.length;

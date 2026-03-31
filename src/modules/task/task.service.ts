@@ -912,7 +912,8 @@ export class TaskService {
         {
           taskRepo: mongoTaskRepository,
           deviceRepo: mongoDeviceRepository,
-          notifier: realtimeTaskNotifier
+          notifier: realtimeTaskNotifier,
+          projectRepo: mongoProjectRepository
         },
         dto
       );

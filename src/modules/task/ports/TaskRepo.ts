@@ -47,6 +47,7 @@ export interface TaskResumePersistState {
 export interface TaskStatusUpdateReadModel {
   id: string;
   status: TaskStatus;
+  projectId?: string | null;
   progress?: number | null;
   notes?: string | null;
   startedAt?: Date | null;
