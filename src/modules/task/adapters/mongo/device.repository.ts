@@ -26,6 +26,16 @@ export class MongoDeviceRepository implements DeviceRepo {
     }
     return { status: device.status };
   }
+
+  async clearCurrentAssignment(deviceId: string): Promise<void> {
+    const device = await Device.findById(deviceId);
+    if (!device) {
+      return;
+    }
+    device.currentTask = undefined;
+    device.currentUser = undefined;
+    await device.save();
+  }
 }
 
 export const mongoDeviceRepository = new MongoDeviceRepository();

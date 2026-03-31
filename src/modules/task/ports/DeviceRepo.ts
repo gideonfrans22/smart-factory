@@ -5,4 +5,5 @@ export interface DeviceRepo {
     workerId: string;
   }): Promise<void>;
   findForResumeCheck(deviceId: string): Promise<{ status: string } | null>;
+  clearCurrentAssignment(deviceId: string): Promise<void>;
 }
