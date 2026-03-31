@@ -28,6 +28,7 @@ import { patchTask as patchTaskDomain } from "./domain/task.patch";
 import { pauseTask as pauseTaskDomain } from "./domain/task.pause";
 import { resumeTask as resumeTaskDomain } from "./domain/task.resume";
 import { startTask as startTaskDomain } from "./domain/task.start";
+import { startTasksBatch as startTasksBatchDomain } from "./domain/task.start-batch";
 import { updateTaskStatus as updateTaskStatusDomain } from "./domain/task.status.update";
 import { ITask, Task } from "./task.model";
 import type {
@@ -946,6 +947,36 @@ export class TaskService {
         }
       );
       return result as InstanceType<typeof Task>;
+    } catch (error) {
+      if (error instanceof TaskDomainError) {
+        throw mapTaskDomainErrorToServiceError(error);
+      }
+      throw error;
+    }
+  }
+
+  async startTasksBatch(
+    body: import("./task.types").TaskStartBatchBody
+  ): Promise<InstanceType<typeof Task>[]> {
+    try {
+      const { projectId, recipeSnapshotId, stepOrder, limit, workerId, deviceId } =
+        body;
+      const result = await startTasksBatchDomain(
+        {
+          taskRepo: mongoTaskRepository,
+          deviceRepo: mongoDeviceRepository,
+          notifier: realtimeTaskNotifier
+        },
+        {
+          projectId,
+          recipeSnapshotId,
+          stepOrder,
+          limit,
+          workerId,
+          deviceId
+        }
+      );
+      return result.tasks as InstanceType<typeof Task>[];
     } catch (error) {
       if (error instanceof TaskDomainError) {
         throw mapTaskDomainErrorToServiceError(error);
