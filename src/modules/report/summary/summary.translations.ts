@@ -1,6 +1,24 @@
 import { getTranslation } from "../helpers/getTranslation";
 
 export const summaryReportTranslations = {
+  summary: {
+    en: "Summary Report",
+    ko: "요약 보고서"
+  },
+  periods: {
+    daily: {
+      en: "Daily",
+      ko: "일간"
+    },
+    weekly: {
+      en: "Weekly",
+      ko: "주간"
+    },
+    monthly: {
+      en: "Monthly",
+      ko: "월간"
+    }
+  },
   summaryReport: {
     title: {
       en: "Production/Manufacturing Comprehensive Status Summary Report",

@@ -7,6 +7,7 @@ import * as reportGenerationService from "./report.generation.service";
 import type { ReportGenerateBody, ReportListQuery } from "./report.types";
 import type { APIResponse } from "@shared/types";
 import { WorkerReportGenerator } from "./worker/worker.report-generator";
+import { SummaryReportGenerator } from "./summary/summary.report-generator";
 
 export async function listReports(
   query: ReportListQuery
@@ -214,7 +215,7 @@ export async function generateReport(
       );
       break;
     case "SUMMARY_REPORT":
-      result = await reportGenerationService.generateSummaryReport(
+      result = await SummaryReportGenerator.generateReport(
         start,
         end,
         userIdStr,
