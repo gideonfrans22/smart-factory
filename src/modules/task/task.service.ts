@@ -14,9 +14,12 @@ import { mongoAlertRepository } from "./adapters/mongo/alert.repository";
 import { mongoDeviceRepository } from "./adapters/mongo/device.repository";
 import { mongoTaskRepository } from "./adapters/mongo/task.repository";
 import { realtimeTaskNotifier } from "./adapters/realtime/task.notifier";
+import { batchUpdateTasks as batchUpdateTasksDomain } from "./domain/task.batch-update";
 import { pauseTask as pauseTaskDomain } from "./domain/task.pause";
+import { patchTask as patchTaskDomain } from "./domain/task.patch";
 import { resumeTask as resumeTaskDomain } from "./domain/task.resume";
 import { startTask as startTaskDomain } from "./domain/task.start";
+import { updateTaskStatus as updateTaskStatusDomain } from "./domain/task.status.update";
 import { TaskDomainError } from "./domain/errors";
 import { ITask, Task } from "./task.model";
 import type {
@@ -1046,83 +1049,25 @@ export class TaskService {
     body: TaskStatusUpdateBody,
     context: { userName?: string }
   ): Promise<InstanceType<typeof Task>> {
-    const { status, notes, startTime, endTime, progress, workerId, deviceId } =
-      body;
-
-    const task = await Task.findById(id);
-    if (!task) {
-      throw new TaskServiceError({
-        statusCode: 404,
-        errorCode: "NOT_FOUND",
-        message: "Task not found"
-      });
-    }
-
-    if (status === "ONGOING" && !workerId && !task.workerId) {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: "workerId is required to set task status to ONGOING"
-      });
-    }
-    if (status === "ONGOING" && !deviceId && !task.deviceId) {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: "deviceId is required to set task status to ONGOING"
-      });
-    }
-
-    if (status) task.status = status;
-    if (notes) task.notes = notes;
-    if (startTime) task.startedAt = new Date(startTime);
-    if (endTime) task.completedAt = new Date(endTime);
-    if (progress !== undefined) task.progress = progress;
-
-    if (
-      status === "COMPLETED" &&
-      task.pauseHistory &&
-      task.pauseHistory.length > 0
-    ) {
-      const lastPause = task.pauseHistory[task.pauseHistory.length - 1];
-      if (lastPause && !lastPause.resumedAt) {
-        const completedAt = task.completedAt || new Date();
-        lastPause.resumedAt = completedAt;
-        lastPause.resolvedBy = context.userName || "System";
-        const lastPauseDuration = Math.floor(
-          (new Date(completedAt).getTime() -
-            new Date(lastPause.pausedAt).getTime()) /
-            (1000 * 60)
-        );
-        task.pausedDuration = (task.pausedDuration || 0) + lastPauseDuration;
-      }
-    }
-
-    if (status === "COMPLETED" && task.startedAt && task.completedAt) {
-      const totalDuration = Math.floor(
-        (task.completedAt.getTime() - task.startedAt.getTime()) / 60000
-      );
-      task.actualDuration = Math.max(
-        0,
-        totalDuration - (task.pausedDuration || 0)
-      );
-    }
-
-    await task.save();
-    await task.populate("projectId workerId");
-
-    if (status === "COMPLETED" || status === "FAILED") {
-      if (task.deviceId) {
-        const device = await Device.findById(task.deviceId);
-        if (device) {
-          device.currentTask = undefined;
-          device.currentUser = undefined;
-          await device.save();
+    try {
+      const result = await updateTaskStatusDomain(
+        {
+          taskRepo: mongoTaskRepository,
+          deviceRepo: mongoDeviceRepository
+        },
+        {
+          taskId: id,
+          body,
+          userName: context.userName
         }
+      );
+      return result as InstanceType<typeof Task>;
+    } catch (error) {
+      if (error instanceof TaskDomainError) {
+        throw mapTaskDomainErrorToServiceError(error);
       }
+      throw error;
     }
-
-    return task;
   }
 
   async patchTask(
@@ -1130,95 +1075,24 @@ export class TaskService {
     dto: TaskUpdateDTO,
     _options?: { userName?: string }
   ): Promise<InstanceType<typeof Task>> {
-    const {
-      status,
-      priority,
-      notes,
-      mediaFiles,
-      deviceId,
-      workerId,
-      pausedDuration,
-      startedAt,
-      completedAt,
-      progress
-    } = dto;
-
-    const task = await Task.findById(id);
-    if (!task) {
-      throw new TaskServiceError({
-        statusCode: 404,
-        errorCode: "NOT_FOUND",
-        message: "Task not found"
-      });
-    }
-
-    if (task.status === "ONGOING") {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: "작업이 이미 진행 중입니다, 업데이트 불가!"
-      });
-    }
-
-    if (status === "ONGOING" && !workerId && !task.workerId) {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: "workerId is required to set task status to ONGOING"
-      });
-    }
-    if (status === "ONGOING" && !deviceId && !task.deviceId) {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: "deviceId is required to set task status to ONGOING"
-      });
-    }
-
-    if (status !== undefined) task.status = status;
-    if (priority !== undefined) task.priority = priority;
-    if (notes !== undefined) task.notes = notes;
-    if (mediaFiles !== undefined)
-      task.mediaFiles = mediaFiles as unknown as mongoose.Types.ObjectId[];
-    if (deviceId !== undefined)
-      task.deviceId = deviceId as unknown as mongoose.Types.ObjectId;
-    if (workerId !== undefined)
-      task.workerId = workerId as unknown as mongoose.Types.ObjectId;
-    if (pausedDuration !== undefined) task.pausedDuration = pausedDuration;
-    if (startedAt !== undefined)
-      task.startedAt = startedAt ? new Date(startedAt) : undefined;
-    if (completedAt !== undefined)
-      task.completedAt = completedAt ? new Date(completedAt) : undefined;
-    if (progress !== undefined) task.progress = progress;
-
-    if (task.startedAt && task.completedAt) {
-      const totalDuration = Math.floor(
-        (task.completedAt.getTime() - task.startedAt.getTime()) / 60000
+    try {
+      const result = await patchTaskDomain(
+        {
+          taskRepo: mongoTaskRepository,
+          notifier: realtimeTaskNotifier
+        },
+        {
+          taskId: id,
+          dto
+        }
       );
-      task.actualDuration = Math.max(
-        0,
-        totalDuration - (task.pausedDuration || 0)
-      );
-    }
-
-    await task.save();
-    await task.populate([
-      { path: "projectId", select: "name status" },
-      { path: "workerId", select: "name username email" },
-      { path: "deviceId", select: "name deviceName" },
-      { path: "recipeSnapshotId", select: "name version" },
-      {
-        path: "productSnapshotId",
-        select:
-          "name version productNumber customerName personInCharge department"
+      return result as InstanceType<typeof Task>;
+    } catch (error) {
+      if (error instanceof TaskDomainError) {
+        throw mapTaskDomainErrorToServiceError(error);
       }
-    ]);
-
-    if (status !== undefined) {
-      await realtimeService.broadcastTaskStatusChange(task.toObject());
+      throw error;
     }
-
-    return task;
   }
 
   async batchUpdateTasks(dto: TaskBatchUpdateDTO): Promise<{
@@ -1231,168 +1105,25 @@ export class TaskService {
     };
     message: string;
   }> {
-    const { taskIds, updates } = dto;
-
-    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: "taskIds must be a non-empty array"
-      });
-    }
-
-    if (!updates || typeof updates !== "object") {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: "updates must be an object"
-      });
-    }
-
-    const OngoingTasks = await Task.find({
-      _id: { $in: taskIds },
-      status: "ONGOING"
-    });
-    if (OngoingTasks.length > 0) {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: "일부 선택된 작업이 현재 진행 중입니다, 업데이트 불가!"
-      });
-    }
-
-    const {
-      status,
-      priority,
-      notes,
-      mediaFiles,
-      deviceId,
-      workerId,
-      pausedDuration,
-      startedAt,
-      completedAt,
-      progress
-    } = updates;
-
-    if (status === "ONGOING") {
-      if (!workerId) {
-        const tasksWithoutWorker = await Task.find({
-          _id: { $in: taskIds },
-          $or: [{ workerId: { $exists: false } }, { workerId: null }]
-        });
-        if (tasksWithoutWorker.length > 0) {
-          throw new TaskServiceError({
-            statusCode: 400,
-            errorCode: "VALIDATION_ERROR",
-            message:
-              "workerId is required to set task status to ONGOING. Some tasks do not have a workerId assigned."
-          });
-        }
-      }
-      if (!deviceId) {
-        const tasksWithoutDevice = await Task.find({
-          _id: { $in: taskIds },
-          $or: [{ deviceId: { $exists: false } }, { deviceId: null }]
-        });
-        if (tasksWithoutDevice.length > 0) {
-          throw new TaskServiceError({
-            statusCode: 400,
-            errorCode: "VALIDATION_ERROR",
-            message:
-              "deviceId is required to set task status to ONGOING. Some tasks do not have a deviceId assigned."
-          });
-        }
-      }
-    }
-
-    const updateFields: Record<string, unknown> = {};
-    if (status !== undefined) updateFields.status = status;
-    if (priority !== undefined) updateFields.priority = priority;
-    if (notes !== undefined) updateFields.notes = notes;
-    if (mediaFiles !== undefined) updateFields.mediaFiles = mediaFiles;
-    if (deviceId !== undefined) updateFields.deviceId = deviceId;
-    if (workerId !== undefined) updateFields.workerId = workerId;
-    if (pausedDuration !== undefined)
-      updateFields.pausedDuration = pausedDuration;
-    if (startedAt !== undefined)
-      updateFields.startedAt = startedAt ? new Date(startedAt) : undefined;
-    if (completedAt !== undefined)
-      updateFields.completedAt = completedAt
-        ? new Date(completedAt)
-        : undefined;
-    if (progress !== undefined) updateFields.progress = progress;
-
-    if (startedAt && completedAt) {
-      updateFields.actualDuration = Math.floor(
-        (new Date(completedAt).getTime() - new Date(startedAt).getTime()) /
-          60000
-      );
-    }
-
-    const tasks = await Task.find({ _id: { $in: taskIds } });
-    const foundIds = tasks.map((t) => String(t._id));
-    const foundObjectIds = tasks.map((t) => t._id as mongoose.Types.ObjectId);
-    const notFoundIds = taskIds.filter(
-      (tid: string) => !foundIds.includes(tid)
-    );
-
-    const updateResult = await Task.updateMany(
-      { _id: { $in: foundObjectIds } },
-      { $set: updateFields }
-    );
-
-    const updatedTasks = await Task.find({ _id: { $in: foundObjectIds } })
-      .populate([
-        { path: "projectId", select: "name status" },
-        { path: "workerId", select: "name username email" },
-        { path: "deviceId", select: "name deviceName" },
-        { path: "recipeSnapshotId", select: "name version" },
+    try {
+      const result = await batchUpdateTasksDomain(
         {
-          path: "productSnapshotId",
-          select:
-            "name version productNumber customerName personInCharge department"
-        }
-      ])
-      .sort({ createdAt: -1 });
-
-    if (status !== undefined) {
-      for (const task of updatedTasks) {
-        await realtimeService.broadcastTaskStatusChange(task.toObject());
+          taskRepo: mongoTaskRepository,
+          deviceRepo: mongoDeviceRepository,
+          notifier: realtimeTaskNotifier
+        },
+        dto
+      );
+      return {
+        ...result,
+        updated: result.updated as InstanceType<typeof Task>[]
+      };
+    } catch (error) {
+      if (error instanceof TaskDomainError) {
+        throw mapTaskDomainErrorToServiceError(error);
       }
+      throw error;
     }
-
-    if (status === "COMPLETED" || status === "FAILED") {
-      const tasksToClear = await Task.find({
-        _id: { $in: foundObjectIds },
-        deviceId: { $exists: true, $ne: null }
-      });
-      for (const task of tasksToClear) {
-        if (task.deviceId) {
-          const device = await Device.findById(task.deviceId);
-          if (device) {
-            device.currentTask = undefined;
-            device.currentUser = undefined;
-            await device.save();
-          }
-        }
-      }
-    }
-
-    let message = `Batch update completed. ${updateResult.modifiedCount} task(s) updated successfully.`;
-    if (notFoundIds.length > 0) {
-      message += ` ${notFoundIds.length} task(s) not found.`;
-    }
-
-    return {
-      updated: updatedTasks,
-      summary: {
-        totalRequested: taskIds.length,
-        found: foundIds.length,
-        updated: updateResult.modifiedCount ?? 0,
-        notFound: notFoundIds
-      },
-      message
-    };
   }
 
   async startTask(
