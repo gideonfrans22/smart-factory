@@ -11,7 +11,7 @@ export class WorkerSheetBuilder {
    * Generate Worker Performance Summary Sheet
    * New format: List of all workers with performance metrics
    */
-  public static async generateWorkerPerformanceSummarySheet(
+  public static async buildPerformanceSummary(
     workbook: ExcelJS.Workbook,
     dateRange: DateRangeFilter,
     lang: string = "ko"

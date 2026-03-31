@@ -13,6 +13,7 @@ import {
 } from "@shared/utils";
 import { DateTime } from "luxon";
 import { loggerService } from "@shared/services";
+import { WorkerReportGenerator } from "@/modules/report/worker/worker.report-generator";
 
 /**
  * Scheduler Service for Auto-Generating Reports
@@ -362,15 +363,14 @@ async function generateScheduledReport(
           );
         break;
       case "WORKER_PERFORMANCE_KPI":
-        result =
-          await ReportGenerationService.generateWorkerPerformanceKPIReport(
-            dateRange.startDate,
-            dateRange.endDate,
-            SYSTEM_USER_ID,
-            reportIdStr,
-            lang as "en" | "ko",
-            period as "daily" | "weekly" | "monthly"
-          );
+        result = await WorkerReportGenerator.generateKPIReport(
+          dateRange.startDate,
+          dateRange.endDate,
+          SYSTEM_USER_ID,
+          reportIdStr,
+          lang as "en" | "ko",
+          period as "daily" | "weekly" | "monthly"
+        );
         break;
       default:
         throw new Error(`Unknown report type: ${type}`);

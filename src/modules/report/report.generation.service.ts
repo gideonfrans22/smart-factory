@@ -1,14 +1,12 @@
 import { loggerService } from "@shared/services";
 import ExcelJS from "exceljs";
 import fs from "fs";
-import path from "path";
 import * as EquipmentReportService from "./equipment/equipment.sheet-builder";
+import { generateReportFileName } from "./helpers/generateReportFileName";
+import { saveWorkbook } from "./helpers/saveWorkbook";
 import { ProductionSheetBuilder } from "./production/production.sheet-builder";
 import { Report } from "./report.model";
 import { SummarySheetBuilder } from "./summary/summary.sheet-builder";
-import { aggregateWorkerPerformanceSummary } from "./worker/worker.data-loaders";
-import { WorkerSheetBuilder } from "./worker/worker.sheet-builder";
-
 /**
  * Main Report Generation Service
  * Orchestrates the generation of all report types
@@ -16,10 +14,6 @@ import { WorkerSheetBuilder } from "./worker/worker.sheet-builder";
 
 // Translations
 const TRANSLATIONS = {
-  workerPerformanceSummary: {
-    en: "Worker Performance Summary",
-    ko: "작업자 성과 KPI 리포트"
-  },
   productionRate: {
     en: "Production Rate",
     ko: "생산율 리포트"
@@ -106,107 +100,6 @@ export interface ReportGenerationResult {
 }
 
 // ==================== MAIN REPORT GENERATION FUNCTIONS ====================
-
-/**
- * Generate Worker Performance KPI Report
- * Summary sheet with performance data for all workers
- */
-export async function generateWorkerPerformanceKPIReport(
-  startDate: Date,
-  endDate: Date,
-  _userId: string,
-  reportId?: string,
-  lang: "en" | "ko" = "ko",
-  period?: "daily" | "weekly" | "monthly"
-): Promise<ReportGenerationResult> {
-  const startTime = Date.now();
-
-  try {
-    loggerService.info(
-      `[WorkerKPIReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}`
-    );
-
-    // Create new workbook
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "Smart Factory System";
-    workbook.created = new Date();
-    workbook.modified = new Date();
-
-    // Generate summary sheet
-    const sheetsGenerated: string[] = [];
-    const dateRange = { startDate, endDate };
-
-    await WorkerSheetBuilder.generateWorkerPerformanceSummarySheet(
-      workbook,
-      dateRange,
-      lang
-    );
-    sheetsGenerated.push("Worker Performance Summary");
-
-    // Get record count
-    const summaryData = await aggregateWorkerPerformanceSummary(dateRange);
-    const recordCount = summaryData.length;
-
-    // Save workbook to file
-    const fileName = generateReportFileName(
-      `${getTranslation("workerPerformanceSummary", lang)}_${getTranslation(
-        `periods.${period}`,
-        lang
-      )}`,
-      startDate,
-      endDate
-    );
-    const filePath = await saveWorkbook(workbook, fileName);
-
-    const generationTime = Date.now() - startTime;
-    loggerService.info(
-      `[WorkerKPIReport] Generation complete in ${generationTime}ms. File: ${filePath}`
-    );
-
-    // Update report status if reportId provided
-    if (reportId) {
-      await Report.findByIdAndUpdate(reportId, {
-        status: "COMPLETED",
-        filePath,
-        completedAt: new Date(),
-        metadata: {
-          sheetsGenerated,
-          recordCount,
-          generationTime
-        }
-      });
-    }
-
-    return {
-      success: true,
-      filePath,
-      fileName,
-      reportId,
-      metadata: {
-        sheetsGenerated,
-        recordCount,
-        generationTime
-      }
-    };
-  } catch (error: any) {
-    console.error("[WorkerKPIReport] Generation failed:", error);
-
-    // Update report status if reportId provided
-    if (reportId) {
-      await Report.findByIdAndUpdate(reportId, {
-        status: "FAILED",
-        errorMessage: error.message,
-        completedAt: new Date()
-      });
-    }
-
-    return {
-      success: false,
-      error: error.message,
-      reportId
-    };
-  }
-}
 
 /**
  * Generate Production Rate Report
@@ -524,54 +417,6 @@ export async function generateSummaryReport(
 }
 
 // ==================== UTILITY FUNCTIONS ====================
-
-/**
- * Generate standardized report file name
- * Format: ReportType_StartDate_EndDate_Timestamp.xlsx
- */
-function generateReportFileName(
-  reportType: string,
-  startDate: Date,
-  endDate: Date
-): string {
-  const formatDate = (date: Date) => {
-    return date.toISOString().split("T")[0]; // YYYY-MM-DD
-  };
-
-  const start = formatDate(startDate);
-  const end = formatDate(endDate);
-
-  return `${reportType}_${start}_${end}.xlsx`;
-}
-
-/**
- * Save workbook to file system
- * Ensures uploads/reports directory exists
- */
-async function saveWorkbook(
-  workbook: ExcelJS.Workbook,
-  fileName: string
-): Promise<string> {
-  // Ensure reports directory exists
-  const reportsDir = path.join(process.cwd(), "uploads", "reports");
-
-  if (!fs.existsSync(reportsDir)) {
-    fs.mkdirSync(reportsDir, { recursive: true });
-    loggerService.info(
-      `[ReportGeneration] Created reports directory: ${reportsDir}`
-    );
-  }
-
-  // Generate full file path
-  const filePath = path.join(reportsDir, fileName);
-
-  // Write workbook to file
-  await workbook.xlsx.writeFile(filePath);
-
-  loggerService.info(`[ReportGeneration] Saved workbook to: ${filePath}`);
-
-  return filePath;
-}
 
 /**
  * Validate date range

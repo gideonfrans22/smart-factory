@@ -6,6 +6,7 @@ import { Report } from "./report.model";
 import * as reportGenerationService from "./report.generation.service";
 import type { ReportGenerateBody, ReportListQuery } from "./report.types";
 import type { APIResponse } from "@shared/types";
+import { WorkerReportGenerator } from "./worker/worker.report-generator";
 
 export async function listReports(
   query: ReportListQuery
@@ -203,7 +204,7 @@ export async function generateReport(
       );
       break;
     case "WORKER_PERFORMANCE_KPI":
-      result = await reportGenerationService.generateWorkerPerformanceKPIReport(
+      result = await WorkerReportGenerator.generateKPIReport(
         start,
         end,
         userIdStr,

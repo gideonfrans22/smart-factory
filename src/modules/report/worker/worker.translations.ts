@@ -1,6 +1,10 @@
 import { getTranslation } from "../helpers/getTranslation";
 
 export const workerReportTranslations = {
+  workerPerformanceSummary: {
+    en: "Worker Performance Summary",
+    ko: "작업자 성과 KPI 리포트"
+  },
   // Main Report Titles
   titles: {
     workerPerformanceReport: {
