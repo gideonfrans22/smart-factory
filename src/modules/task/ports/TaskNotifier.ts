@@ -7,6 +7,11 @@ export interface TaskNotifier {
     nextTask: TaskPersisted | null,
     projectProgress?: number
   ): Promise<void>;
+  broadcastTasksGeneratedForDeviceTypes(
+    tasks: TaskPersisted[],
+    projectId: string,
+    projectName: string
+  ): Promise<void>;
   /** Opaque project document (mongoose doc or plain object). */
   broadcastProjectProgress(project: object): Promise<void>;
   broadcastProjectUpdate(project: object): Promise<void>;

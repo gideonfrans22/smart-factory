@@ -34,6 +34,18 @@ export class RealtimeTaskNotifier implements TaskNotifier {
     );
   }
 
+  async broadcastTasksGeneratedForDeviceTypes(
+    tasks: TaskPersisted[],
+    projectId: string,
+    projectName: string
+  ): Promise<void> {
+    await realtimeService.broadcastTasksGeneratedForDeviceTypes(
+      tasks.map(toTaskPayload),
+      projectId,
+      projectName
+    );
+  }
+
   async broadcastProjectProgress(project: object): Promise<void> {
     await realtimeService.broadcastProjectProgress(toProjectPayload(project));
   }
