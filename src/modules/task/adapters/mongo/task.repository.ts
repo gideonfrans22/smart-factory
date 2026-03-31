@@ -180,6 +180,63 @@ export class MongoTaskRepository implements TaskRepo {
     return task as TaskPersisted;
   }
 
+  async findPendingForStartBatch(
+    projectId: string,
+    recipeSnapshotId: string,
+    stepOrder: number,
+    limit: number
+  ): Promise<TaskStartReadModel[]> {
+    const tasks = await Task.find({
+      projectId,
+      recipeSnapshotId,
+      stepOrder,
+      status: "PENDING"
+    })
+      .sort({ createdAt: 1, _id: 1 })
+      .limit(limit);
+
+    return tasks.map((task) => ({
+      id: task.id,
+      status: task.status as TaskStatus,
+      progress: task.progress
+    }));
+  }
+
+  async persistStartMany(
+    states: TaskStartPersistState[]
+  ): Promise<TaskPersisted[]> {
+    if (states.length === 0) {
+      return [];
+    }
+
+    const ids = states.map((s) => s.id);
+    const tasks = await Task.find({ _id: { $in: ids } });
+    if (tasks.length !== ids.length) {
+      throw new Error("One or more tasks disappeared during batch start");
+    }
+
+    const stateById = new Map(states.map((s) => [s.id, s]));
+
+    for (const task of tasks) {
+      const state = stateById.get(task.id);
+      if (!state) {
+        continue;
+      }
+      task.status = "ONGOING";
+      task.workerId = state.workerId as unknown as mongoose.Types.ObjectId;
+      if (state.deviceId) {
+        task.deviceId = state.deviceId as unknown as mongoose.Types.ObjectId;
+      }
+      task.startedAt = state.startedAt;
+      task.progress = state.progress;
+    }
+
+    await Promise.all(tasks.map((t) => t.save()));
+    await Promise.all(tasks.map((t) => t.populate([...LIFECYCLE_TASK_POPULATE])));
+
+    return tasks as unknown as TaskPersisted[];
+  }
+
   async loadForResume(id: string): Promise<TaskResumeReadModel | null> {
     const task = await Task.findById(id);
     if (!task) {

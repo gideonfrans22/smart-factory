@@ -142,6 +142,13 @@ export interface TaskRepo {
 
   loadForStart(id: string): Promise<TaskStartReadModel | null>;
   persistStart(state: TaskStartPersistState): Promise<TaskPersisted>;
+  findPendingForStartBatch(
+    projectId: string,
+    recipeSnapshotId: string,
+    stepOrder: number,
+    limit: number
+  ): Promise<TaskStartReadModel[]>;
+  persistStartMany(states: TaskStartPersistState[]): Promise<TaskPersisted[]>;
 
   loadForResume(id: string): Promise<TaskResumeReadModel | null>;
   persistResume(state: TaskResumePersistState): Promise<TaskPersisted>;
