@@ -1,5 +1,5 @@
 import { loggerService } from "@/shared/services";
-import { ReportGenerationResult } from "../report.generation.service";
+import { ReportGenerationResult } from "@/modules/report";
 import { SummarySheetBuilder } from "./summary.sheet-builder";
 import ExcelJS from "exceljs";
 import { generateReportFileName } from "../helpers/generateReportFileName";

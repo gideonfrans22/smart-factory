@@ -4,7 +4,7 @@ import fs from "fs";
 import mongoose from "mongoose";
 import path from "path";
 import { EquipmentReportGenerator } from "./equipment/equipment.report-generator";
-import * as reportGenerationService from "./report.generation.service";
+import { ProductionReportGenerator } from "./production/production.report-generator";
 import { Report } from "./report.model";
 import type { ReportGenerateBody, ReportListQuery } from "./report.types";
 import { SummaryReportGenerator } from "./summary/summary.report-generator";
@@ -186,7 +186,7 @@ export async function generateReport(
   let result;
   switch (type) {
     case "PRODUCTION_RATE":
-      result = await reportGenerationService.generateProductionRateReport(
+      result = await ProductionReportGenerator.generateProductionRateReport(
         start,
         end,
         userIdStr,

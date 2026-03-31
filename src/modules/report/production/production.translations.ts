@@ -1,6 +1,24 @@
 import { getTranslation } from "../helpers/getTranslation";
 
 export const productionReportTranslations = {
+  productionRate: {
+    en: "Production Rate",
+    ko: "생산율 리포트"
+  },
+  periods: {
+    daily: {
+      en: "Daily",
+      ko: "일간"
+    },
+    weekly: {
+      en: "Weekly",
+      ko: "주간"
+    },
+    monthly: {
+      en: "Monthly",
+      ko: "월간"
+    }
+  },
   // Production Report (Productivity Report)
   productionReport: {
     title: {

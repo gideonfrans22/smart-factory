@@ -1,9 +1,7 @@
 import { EquipmentReportGenerator } from "@/modules/report/equipment/equipment.report-generator";
+import { ProductionReportGenerator } from "@/modules/report/production/production.report-generator";
 import { WorkerReportGenerator } from "@/modules/report/worker/worker.report-generator";
-import {
-  Report,
-  reportGenerationService as ReportGenerationService
-} from "@modules/report";
+import { Report, ReportGenerationResult } from "@modules/report";
 import { ActivityLog } from "@shared/models/ActivityLog";
 import { loggerService } from "@shared/services";
 import {
@@ -339,11 +337,11 @@ async function generateScheduledReport(
     await report.save();
 
     // Generate the report
-    let result: ReportGenerationService.ReportGenerationResult;
+    let result: ReportGenerationResult;
 
     switch (type) {
       case "PRODUCTION_RATE":
-        result = await ReportGenerationService.generateProductionRateReport(
+        result = await ProductionReportGenerator.generateProductionRateReport(
           dateRange.startDate,
           dateRange.endDate,
           SYSTEM_USER_ID,

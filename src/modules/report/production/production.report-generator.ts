@@ -1,14 +1,13 @@
-import { ReportGenerationResult } from "@/modules/report";
+import { Report, ReportGenerationResult } from "@/modules/report";
 import { loggerService } from "@/shared/services";
 import ExcelJS from "exceljs";
 import { generateReportFileName } from "../helpers/generateReportFileName";
 import { saveWorkbook } from "../helpers/saveWorkbook";
-import { Report } from "@/modules/report";
-import { EquipmentSheetBuilder } from "./equipment.sheet-builder";
-import { getEquipmentReportTranslation } from "./equipment.translations";
+import { ProductionSheetBuilder } from "./production.sheet-builder";
+import { getProductionReportTranslation as getTranslation } from "./production.translations";
 
-export class EquipmentReportGenerator {
-  public static async generateReport(
+export class ProductionReportGenerator {
+  public static async generateProductionRateReport(
     startDate: Date,
     endDate: Date,
     _userId: string,
@@ -20,7 +19,7 @@ export class EquipmentReportGenerator {
 
     try {
       loggerService.info(
-        `[EquipmentReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}${
+        `[ProductionReport] Starting generation for date range: ${startDate.toISOString()} to ${endDate.toISOString()}${
           period ? ` (${period})` : ""
         }`
       );
@@ -36,24 +35,24 @@ export class EquipmentReportGenerator {
       const dateRange = { startDate, endDate };
 
       // Single comprehensive KPI sheet
-      await EquipmentSheetBuilder.buildPerformanceSummary(
+      await ProductionSheetBuilder.generateProductionRateKPISheet(
         workbook,
         dateRange,
         period,
         lang
       );
-      sheetsGenerated.push("Equipment Performance KPIs");
+      sheetsGenerated.push("Production Rate KPIs");
 
       // Get total record count (approximate based on sections)
-      const kpiSheet = workbook.getWorksheet("Equipment Performance KPIs");
+      const kpiSheet = workbook.getWorksheet("Production Rate KPIs");
       const totalRecords = kpiSheet ? kpiSheet.rowCount - 10 : 0;
 
       // Save workbook to file
       const fileName = generateReportFileName(
-        `${getEquipmentReportTranslation(
-          "equipmentPerformance",
+        `${getTranslation("productionRate", lang)}_${getTranslation(
+          `periods.${period}`,
           lang
-        )}_${getEquipmentReportTranslation(`periods.${period}`, lang)}`,
+        )}`,
         startDate,
         endDate
       );
@@ -61,7 +60,7 @@ export class EquipmentReportGenerator {
 
       const generationTime = Date.now() - startTime;
       loggerService.info(
-        `[EquipmentReport] Generation complete in ${generationTime}ms. File: ${filePath}`
+        `[ProductionReport] Generation complete in ${generationTime}ms. File: ${filePath}`
       );
 
       // Update report status if reportId provided
@@ -92,7 +91,7 @@ export class EquipmentReportGenerator {
         }
       };
     } catch (error: any) {
-      console.error("[EquipmentReport] Generation failed:", error);
+      console.error("[ProductionReport] Generation failed:", error);
 
       // Update report status if reportId provided
       if (reportId) {
