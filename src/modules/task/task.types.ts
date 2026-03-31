@@ -134,3 +134,12 @@ export interface TaskPauseBody {
   reportedBy?: string;
   isEmergency?: boolean;
 }
+
+export interface TaskStartBatchBody {
+  projectId: string;
+  recipeSnapshotId: string;
+  stepOrder: number;
+  limit: number;
+  workerId: string;
+  deviceId?: string;
+}

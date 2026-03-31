@@ -9,7 +9,8 @@ import {
   TaskGroupedQuery,
   TaskStandaloneQuery,
   DeviceTaskQuery,
-  WorkerTaskQuery
+  WorkerTaskQuery,
+  TaskStartBatchBody
 } from "./task.types";
 
 const objectIdSchema = z.string().refine(
@@ -141,6 +142,15 @@ export const workerTaskQuerySchema = z
   })
   .partial() satisfies z.ZodType<WorkerTaskQuery>;
 
+export const taskStartBatchSchema = z.object({
+  projectId: objectIdSchema,
+  recipeSnapshotId: objectIdSchema,
+  stepOrder: z.number().int().min(1),
+  limit: z.number().int().min(1).max(100),
+  workerId: objectIdSchema,
+  deviceId: objectIdSchema.optional()
+}) satisfies z.ZodType<TaskStartBatchBody>;
+
 export type TaskCreateInput = z.infer<typeof taskCreateSchema>;
 export type TaskUpdateInput = z.infer<typeof taskUpdateSchema>;
 export type TaskBatchUpdateInput = z.infer<typeof taskBatchUpdateSchema>;
@@ -150,4 +160,5 @@ export type TaskGroupedQueryInput = z.infer<typeof taskGroupedQuerySchema>;
 export type TaskStandaloneQueryInput = z.infer<typeof taskStandaloneQuerySchema>;
 export type DeviceTaskQueryInput = z.infer<typeof deviceTaskQuerySchema>;
 export type WorkerTaskQueryInput = z.infer<typeof workerTaskQuerySchema>;
+export type TaskStartBatchInput = z.infer<typeof taskStartBatchSchema>;
 
