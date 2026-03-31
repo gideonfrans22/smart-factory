@@ -1,8 +1,8 @@
 import type { TaskNotifier } from "../ports/TaskNotifier";
 import type {
   TaskPauseState,
-  TaskRepo,
-  TaskPausePersisted
+  TaskPersisted,
+  TaskRepo
 } from "../ports/TaskRepo";
 import type { TaskStatus } from "../task.types";
 import { TaskDomainError } from "./errors";
@@ -24,7 +24,7 @@ export interface PauseTaskInput {
 export async function pauseTask(
   deps: PauseTaskDeps,
   input: PauseTaskInput
-): Promise<TaskPausePersisted> {
+): Promise<TaskPersisted> {
   const task = await deps.taskRepo.loadForPause(input.taskId);
   if (!task) {
     throw new TaskDomainError({

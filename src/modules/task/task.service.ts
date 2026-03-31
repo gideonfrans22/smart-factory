@@ -1,6 +1,5 @@
 import { parseDateAsKST, roundToTwoDecimals } from "@shared/helpers";
 import {
-  Alert,
   Device,
   IRecipeSnapshot,
   Product,
@@ -11,9 +10,13 @@ import {
 import { loggerService, realtimeService } from "@shared/services";
 import { SnapshotService } from "@shared/services/snapshotService";
 import mongoose from "mongoose";
+import { mongoAlertRepository } from "./adapters/mongo/alert.repository";
+import { mongoDeviceRepository } from "./adapters/mongo/device.repository";
 import { mongoTaskRepository } from "./adapters/mongo/task.repository";
 import { realtimeTaskNotifier } from "./adapters/realtime/task.notifier";
 import { pauseTask as pauseTaskDomain } from "./domain/task.pause";
+import { resumeTask as resumeTaskDomain } from "./domain/task.resume";
+import { startTask as startTaskDomain } from "./domain/task.start";
 import { TaskDomainError } from "./domain/errors";
 import { ITask, Task } from "./task.model";
 import type {
@@ -1396,60 +1399,27 @@ export class TaskService {
     id: string,
     body: TaskStartBody
   ): Promise<InstanceType<typeof Task>> {
-    const { workerId, deviceId } = body;
-    const task = await Task.findById(id);
-    if (!task) {
-      throw new TaskServiceError({
-        statusCode: 404,
-        errorCode: "NOT_FOUND",
-        message: "Task not found"
-      });
-    }
-    if (task.status !== "PENDING") {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: `Task is already ${String(
-          task.status
-        ).toLowerCase()}. Only PENDING tasks can be started.`
-      });
-    }
-    if (!workerId) {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: "workerId is required to start a task"
-      });
-    }
-    task.status = "ONGOING";
-    task.workerId = workerId as unknown as mongoose.Types.ObjectId;
-    if (deviceId) {
-      task.deviceId = deviceId as unknown as mongoose.Types.ObjectId;
-      const device = await Device.findById(deviceId);
-      if (device) {
-        device.currentTask = task._id as mongoose.Types.ObjectId;
-        device.currentUser = workerId as unknown as mongoose.Types.ObjectId;
-        await device.save();
+    try {
+      const { workerId, deviceId } = body;
+      const result = await startTaskDomain(
+        {
+          taskRepo: mongoTaskRepository,
+          deviceRepo: mongoDeviceRepository,
+          notifier: realtimeTaskNotifier
+        },
+        {
+          taskId: id,
+          workerId,
+          deviceId
+        }
+      );
+      return result as InstanceType<typeof Task>;
+    } catch (error) {
+      if (error instanceof TaskDomainError) {
+        throw mapTaskDomainErrorToServiceError(error);
       }
+      throw error;
     }
-    task.startedAt = new Date();
-    if (task.progress === undefined || task.progress === null) {
-      task.progress = 0;
-    }
-    await task.save();
-    await task.populate([
-      { path: "projectId", select: "name status priority" },
-      { path: "workerId", select: "name username email" },
-      { path: "deviceId", select: "name deviceName ipAddress status" },
-      { path: "recipeSnapshotId", select: "name version steps" },
-      {
-        path: "productSnapshotId",
-        select:
-          "name version productNumber customerName personInCharge department"
-      }
-    ]);
-    await realtimeService.broadcastTaskStatusChange(task.toObject());
-    return task;
   }
 
   async resumeTask(
@@ -1457,88 +1427,28 @@ export class TaskService {
     body: TaskResumeBody,
     context: { userName?: string }
   ): Promise<InstanceType<typeof Task>> {
-    const { resolvedBy = "System" } = body || {};
-    const task = await Task.findById(id);
-    if (!task) {
-      throw new TaskServiceError({
-        statusCode: 404,
-        errorCode: "NOT_FOUND",
-        message: "Task not found"
-      });
-    }
-    if (
-      !["PAUSED", "PAUSED_EMERGENCY", "COMPLETED", "FAILED"].includes(
-        task.status
-      )
-    ) {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message: `Cannot resume task with status ${task.status}. Only PAUSED, PAUSED_EMERGENCY, COMPLETED (partial), or FAILED tasks can be resumed.`
-      });
-    }
-    if (task.status === "COMPLETED" && (task.progress ?? 0) >= 100) {
-      throw new TaskServiceError({
-        statusCode: 400,
-        errorCode: "VALIDATION_ERROR",
-        message:
-          "Cannot resume a fully completed task (progress = 100%). Create a new task instead."
-      });
-    }
-    if (task.deviceId) {
-      const unresolvedAlerts = await Alert.countDocuments({
-        device: task.deviceId,
-        level: { $in: ["CRITICAL", "HIGH"] },
-        status: { $nin: ["ACKNOWLEDGED", "RESOLVED"] }
-      });
-      if (unresolvedAlerts > 0) {
-        throw new TaskServiceError({
-          statusCode: 409,
-          errorCode: "UNRESOLVED_ALERT",
-          message:
-            "미해결 알림이 있어 작업을 재개할 수 없습니다. 관리자의 확인이 필요합니다. (Unresolved alerts exist for this device. Admin must acknowledge or resolve the alert before resuming.)"
-        });
+    try {
+      const { resolvedBy = "System" } = body || {};
+      const result = await resumeTaskDomain(
+        {
+          taskRepo: mongoTaskRepository,
+          deviceRepo: mongoDeviceRepository,
+          alertRepo: mongoAlertRepository,
+          notifier: realtimeTaskNotifier
+        },
+        {
+          taskId: id,
+          resolvedBy,
+          userName: context.userName
+        }
+      );
+      return result as InstanceType<typeof Task>;
+    } catch (error) {
+      if (error instanceof TaskDomainError) {
+        throw mapTaskDomainErrorToServiceError(error);
       }
-      const device = await Device.findById(task.deviceId);
-      if (device && ["MAINTENANCE", "ERROR"].includes(device.status)) {
-        throw new TaskServiceError({
-          statusCode: 409,
-          errorCode: "DEVICE_NOT_AVAILABLE",
-          message: `장비가 현재 ${
-            device.status === "MAINTENANCE" ? "점검중" : "에러"
-          } 상태입니다. 관리자의 조치 후 재개 가능합니다. (Device is currently in ${
-            device.status
-          } state. Admin must resolve before resuming.)`
-        });
-      }
+      throw error;
     }
-    task.status = "ONGOING";
-    if (task.pauseHistory && task.pauseHistory.length > 0) {
-      const lastPause = task.pauseHistory[task.pauseHistory.length - 1];
-      if (!lastPause.resumedAt) {
-        lastPause.resumedAt = new Date();
-        lastPause.resolvedBy = resolvedBy || context.userName || "Admin";
-        const pauseDuration = Math.floor(
-          (lastPause.resumedAt.getTime() - lastPause.pausedAt.getTime()) /
-            (1000 * 60)
-        );
-        task.pausedDuration = (task.pausedDuration || 0) + pauseDuration;
-      }
-    }
-    await task.save();
-    await task.populate([
-      { path: "projectId", select: "name status priority" },
-      { path: "workerId", select: "name username email" },
-      { path: "deviceId", select: "name deviceName ipAddress status" },
-      { path: "recipeSnapshotId", select: "name version steps" },
-      {
-        path: "productSnapshotId",
-        select:
-          "name version productNumber customerName personInCharge department"
-      }
-    ]);
-    await realtimeService.broadcastTaskStatusChange(task.toObject());
-    return task;
   }
 
   async pauseTask(
