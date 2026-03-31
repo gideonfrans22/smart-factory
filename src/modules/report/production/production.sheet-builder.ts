@@ -1,7 +1,7 @@
 import * as ExcelFormatService from "@/shared/services/excelFormatService";
 import { formatDateKorean } from "@/shared/services/excelFormatService";
 import ExcelJS from "exceljs";
-import { getProductionReportTranslation as getTranslation } from "../translations/production.translations";
+import { getProductionReportTranslation as getTranslation } from "./production.translations";
 import {
   aggregateOverallKPIs,
   aggregateProductStatusData,

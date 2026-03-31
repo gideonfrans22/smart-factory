@@ -11,7 +11,7 @@ import {
   DateRangeFilter,
   adjustDateRangeForPeriod
 } from "../helpers/adjustDateRangeForPeriod";
-import { getEquipmentReportTranslation as getTranslation } from "../translations/equipment.translations";
+import { getEquipmentReportTranslation as getTranslation } from "./equipment.translations";
 
 // ==================== SHEET GENERATION FUNCTION ====================
 
