@@ -3,10 +3,64 @@ import { ProductSnapshot, Project } from "@shared/models";
 import { loggerService } from "@shared/services";
 import mongoose from "mongoose";
 import { Task } from "../../task.model";
-import type { ProjectPersisted, ProjectRepo } from "../../ports/ProjectRepo";
+import type {
+  ProjectMetricsPersistState,
+  ProjectMetricsReadModel,
+  ProjectPersisted,
+  ProjectRepo
+} from "../../ports/ProjectRepo";
 import type { TaskNotifier } from "../../ports/TaskNotifier";
 
 export class MongoProjectRepository implements ProjectRepo {
+  async loadForMetrics(projectId: string): Promise<ProjectMetricsReadModel | null> {
+    const project = await Project.findById(projectId)
+      .select({
+        status: 1,
+        progress: 1,
+        producedQuantity: 1,
+        targetQuantity: 1,
+        productSnapshot: 1,
+        recipeSnapshot: 1,
+        name: 1,
+        endDate: 1
+      })
+      .lean();
+    if (!project) {
+      return null;
+    }
+    return {
+      id: String((project as { _id: unknown })._id),
+      status: String((project as { status: unknown }).status),
+      progress: (project as { progress?: number | null }).progress ?? null,
+      producedQuantity: (project as { producedQuantity?: number }).producedQuantity ?? 0,
+      targetQuantity: (project as { targetQuantity?: number }).targetQuantity ?? 0,
+      productSnapshotId:
+        (project as { productSnapshot?: unknown }).productSnapshot == null
+          ? null
+          : String((project as { productSnapshot: unknown }).productSnapshot),
+      recipeSnapshotId:
+        (project as { recipeSnapshot?: unknown }).recipeSnapshot == null
+          ? null
+          : String((project as { recipeSnapshot: unknown }).recipeSnapshot),
+      name: String((project as { name?: unknown }).name ?? "")
+    };
+  }
+
+  async persistMetrics(state: ProjectMetricsPersistState): Promise<ProjectPersisted> {
+    const project = await Project.findById(state.id);
+    if (!project) {
+      throw new Error("Project disappeared during metrics recalculation");
+    }
+    project.progress = state.progress;
+    project.producedQuantity = state.producedQuantity;
+    project.status = state.status as any;
+    if (state.endDate !== undefined) {
+      project.endDate = state.endDate ?? undefined;
+    }
+    await project.save();
+    return project as ProjectPersisted;
+  }
+
   async resolveProjectAfterFail(
     projectId: string,
     notifier: TaskNotifier
