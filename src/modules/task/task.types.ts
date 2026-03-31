@@ -30,6 +30,7 @@ export interface TaskUpdateDTO {
   mediaFiles?: string[];
   deviceId?: string;
   workerId?: string;
+  userId?: string;
   pausedDuration?: number;
   startedAt?: string | null;
   completedAt?: string | null;
