@@ -16,6 +16,7 @@
     "seed": "ts-node -r tsconfig-paths/register ./db/seeds/seed.ts",
     "recreate-task-indexes": "ts-node -r tsconfig-paths/register ./db/utils/recreate_task_indexes.ts",
     "recreate-all-indexes": "ts-node -r tsconfig-paths/register ./db/utils/recreate_all_indexes.ts",
+    "migrate:raw-material-type-link": "ts-node -r tsconfig-paths/register ./db/migrations/migrate-raw-material-to-type-link.ts",
     "reset-collections": "ts-node -r tsconfig-paths/register ./scripts/resetCollections.ts",
     "test": "jest --config ./jest.config.js",
     "generate:module": "ts-node -r tsconfig-paths/register ./scripts/generate-module.ts"
