@@ -1,11 +1,9 @@
 export interface RawMaterialDTO {
-  materialCode: string;
-  name: string;
-  materialType?: string;
-  dimensions?: {
-    length?: number;
-    width?: number;
-    height?: number;
+  materialType: string;
+  dimensions: {
+    length: number;
+    width: number;
+    height: number;
     unit?: string;
   };
   weight?: { value?: number; unit?: string };

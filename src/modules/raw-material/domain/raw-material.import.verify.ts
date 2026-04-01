@@ -8,6 +8,22 @@ export async function verifyParsedRawMaterialImport(
 ): Promise<ParsedRawMaterialData> {
   const errors: ImportRowError[] = [...parsed.errors];
 
+  for (const spec of parsed.specifications) {
+    const length = spec.dimensions?.length;
+    const width = spec.dimensions?.width;
+    const height = spec.dimensions?.height;
+    if (length === undefined || width === undefined || height === undefined) {
+      errors.push({
+        sheet: "Specifications",
+        row: spec.rowNumber,
+        column: "dimensions",
+        message:
+          "Dimensions are required (length, width, height) for each specification row.",
+        severity: "error"
+      });
+    }
+  }
+
   const namesInFile = new Set(parsed.materials.map((m) => m.name));
   const specNames = Array.from(
     new Set(parsed.specifications.map((s) => s.materialName))

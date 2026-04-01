@@ -24,17 +24,13 @@ export const rawMaterialListQuerySchema = z.object({
 });
 
 export const rawMaterialCreateSchema = z.object({
-  materialCode: z.string().min(1).max(50).trim(),
-  name: z.string().min(1).max(200).trim(),
-  materialType: objectIdSchema.optional(),
-  dimensions: z
-    .object({
-      length: z.number().min(0).optional(),
-      width: z.number().min(0).optional(),
-      height: z.number().min(0).optional(),
-      unit: z.string().max(50).trim().optional()
-    })
-    .optional(),
+  materialType: objectIdSchema,
+  dimensions: z.object({
+    length: z.number().min(0),
+    width: z.number().min(0),
+    height: z.number().min(0),
+    unit: z.string().max(50).trim().optional()
+  }),
   weight: z
     .object({
       value: z.number().min(0).optional(),
@@ -52,7 +48,22 @@ export const rawMaterialCreateSchema = z.object({
     .optional()
 });
 
-export const rawMaterialUpdateSchema = rawMaterialCreateSchema.partial();
+export const rawMaterialUpdateSchema = rawMaterialCreateSchema
+  .partial()
+  .superRefine((val, ctx) => {
+    if (val.dimensions === undefined) {
+      return;
+    }
+    const { length, width, height } = val.dimensions as any;
+    if (length === undefined || width === undefined || height === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "When dimensions is provided, length, width, and height are all required.",
+        path: ["dimensions"]
+      });
+    }
+  });
 
 export const rawMaterialIdParamSchema = z.object({
   id: objectIdSchema

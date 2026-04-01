@@ -4,7 +4,6 @@ export interface RawMaterialPersisted {
 
 export interface RawMaterialUpdateReadModel {
   id: string;
-  name: string;
 }
 
 export interface RawMaterialImportMaterial {
@@ -36,22 +35,14 @@ export interface RawMaterialImportLoadModel {
 }
 
 export interface RawMaterialRepo {
-  findByNormalizedName(name: string): Promise<RawMaterialPersisted | null>;
-  findByNormalizedNameExcludingId(
-    name: string,
-    excludeId: string
-  ): Promise<RawMaterialPersisted | null>;
-
   loadForUpdate(id: string): Promise<RawMaterialUpdateReadModel | null>;
   listExistingNames(names: string[]): Promise<string[]>;
   create(input: {
-    materialCode: string;
-    name: string;
-    materialType?: string;
-    dimensions?: {
-      length?: number;
-      width?: number;
-      height?: number;
+    materialType: string;
+    dimensions: {
+      length: number;
+      width: number;
+      height: number;
       unit?: string;
     };
     weight?: { value?: number; unit?: string };
@@ -65,8 +56,6 @@ export interface RawMaterialRepo {
 
   persistUpdate(input: {
     id: string;
-    materialCode?: string;
-    name?: string;
     materialType?: string;
     dimensions?: {
       length?: number;

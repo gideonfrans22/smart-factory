@@ -21,8 +21,8 @@ export interface RawMaterialSpecification {
 }
 
 export interface RawMaterialDocument extends Document {
-  materialCode: string;
-  name: string;
+  materialCode?: string;
+  name?: string;
   materialType?: mongoose.Types.ObjectId;
   dimensions?: RawMaterialDimensions;
   weight?: RawMaterialWeight;
@@ -79,13 +79,11 @@ const RawMaterialSchema: Schema = new Schema(
   {
     materialCode: {
       type: String,
-      required: [true, "Material code is required"],
       trim: true,
       uppercase: true
     },
     name: {
       type: String,
-      required: [true, "Material name is required"],
       trim: true
     },
     materialType: {

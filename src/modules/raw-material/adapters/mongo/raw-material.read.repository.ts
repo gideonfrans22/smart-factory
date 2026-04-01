@@ -5,27 +5,79 @@ export const mongoRawMaterialReadRepository: RawMaterialReadPort = {
   async list(filters) {
     const { supplier, search, page = 1, limit = 10 } = filters;
 
-    const query: any = {};
-    if (supplier) {
-      query.supplier = { $regex: supplier, $options: "i" };
-    }
-    if (search) {
-      query.$or = [
-        { materialCode: { $regex: search, $options: "i" } },
-        { name: { $regex: search, $options: "i" } }
-      ];
-    }
-
     const pageNum = page;
     const limitNum = limit;
     const skip = (pageNum - 1) * limitNum;
 
-    const total = await RawMaterial.countDocuments(query);
-    const items = await RawMaterial.find(query)
-      .populate("materialType", "code name")
-      .skip(skip)
-      .limit(limitNum)
-      .sort({ materialCode: 1 });
+    const pipeline: any[] = [];
+
+    const orClauses: any[] = [];
+    if (supplier) {
+      orClauses.push({ supplier: { $regex: supplier, $options: "i" } });
+    }
+    if (search) {
+      orClauses.push(
+        { supplier: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } }
+      );
+    }
+
+    if (orClauses.length > 0) {
+      pipeline.push({ $match: { $or: orClauses } });
+    }
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "rawmaterialtypes",
+          localField: "materialType",
+          foreignField: "_id",
+          as: "materialType"
+        }
+      },
+      {
+        $unwind: {
+          path: "$materialType",
+          preserveNullAndEmptyArrays: true
+        }
+      }
+    );
+
+    if (search) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { "materialType.code": { $regex: search, $options: "i" } },
+            { "materialType.name": { $regex: search, $options: "i" } },
+            { supplier: { $regex: search, $options: "i" } },
+            { description: { $regex: search, $options: "i" } }
+          ]
+        }
+      });
+    }
+
+    pipeline.push({
+      $facet: {
+        items: [
+          {
+            $sort: {
+              "materialType.code": 1,
+              "dimensions.length": 1,
+              "dimensions.width": 1,
+              "dimensions.height": 1,
+              _id: 1
+            }
+          },
+          { $skip: skip },
+          { $limit: limitNum }
+        ],
+        total: [{ $count: "count" }]
+      }
+    });
+
+    const [result] = await RawMaterial.aggregate(pipeline);
+    const items = result?.items ?? [];
+    const total = result?.total?.[0]?.count ?? 0;
 
     return {
       items,

@@ -1,13 +1,10 @@
 import type { RawMaterialRepo } from "../ports/RawMaterialRepo";
-import { RawMaterialDomainError } from "./errors";
 
 export async function updateRawMaterial(
   deps: { rawMaterialRepo: RawMaterialRepo },
   input: {
     id: string;
     patch: {
-      materialCode?: string;
-      name?: string;
       materialType?: string;
       dimensions?: {
         length?: number;
@@ -28,23 +25,6 @@ export async function updateRawMaterial(
   const existing = await deps.rawMaterialRepo.loadForUpdate(input.id);
   if (!existing) {
     return null;
-  }
-
-  if (
-    input.patch.name &&
-    input.patch.name.trim().toUpperCase() !== existing.name
-  ) {
-    const dup = await deps.rawMaterialRepo.findByNormalizedNameExcludingId(
-      input.patch.name,
-      input.id
-    );
-    if (dup) {
-      throw new RawMaterialDomainError({
-        statusCode: 409,
-        errorCode: "DUPLICATE_NAME",
-        message: "Material code already exists"
-      });
-    }
   }
 
   return await deps.rawMaterialRepo.persistUpdate({

@@ -68,7 +68,7 @@ export class RawMaterialController {
         const response: APIResponse = {
           success: false,
           error: "DUPLICATE_ERROR",
-          message: "Material code or name already exists"
+          message: "Raw material already exists"
         };
         res.status(409).json(response);
         return;
@@ -114,7 +114,7 @@ export class RawMaterialController {
         const response: APIResponse = {
           success: false,
           error: "DUPLICATE_ERROR",
-          message: "Material code already exists"
+          message: "Raw material already exists"
         };
         res.status(409).json(response);
         return;

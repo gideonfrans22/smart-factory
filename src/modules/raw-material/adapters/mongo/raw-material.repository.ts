@@ -1,41 +1,17 @@
 import { RawMaterial } from "../../raw-material.model";
-import type { RawMaterialRepo, RawMaterialPersisted } from "../../ports/RawMaterialRepo";
+import type { RawMaterialRepo } from "../../ports/RawMaterialRepo";
 
 function normalizeName(name: string): string {
   return name.trim().toUpperCase();
 }
 
 export const mongoRawMaterialRepository: RawMaterialRepo = {
-  async findByNormalizedName(name: string): Promise<RawMaterialPersisted | null> {
-    const normalized = normalizeName(name);
-    const doc = await RawMaterial.findOne({ name: normalized }, { _id: 1 }).lean();
-    if (!doc?._id) {
-      return null;
-    }
-    return { id: String(doc._id) };
-  },
-
-  async findByNormalizedNameExcludingId(
-    name: string,
-    excludeId: string
-  ): Promise<RawMaterialPersisted | null> {
-    const normalized = normalizeName(name);
-    const doc = await RawMaterial.findOne(
-      { name: normalized, _id: { $ne: excludeId } },
-      { _id: 1 }
-    ).lean();
-    if (!doc?._id) {
-      return null;
-    }
-    return { id: String(doc._id) };
-  },
-
   async loadForUpdate(id: string) {
-    const doc = await RawMaterial.findById(id, { name: 1 }).lean();
+    const doc = await RawMaterial.findById(id, { _id: 1 }).lean();
     if (!doc?._id) {
       return null;
     }
-    return { id: String(doc._id), name: String((doc as any).name) };
+    return { id: String(doc._id) };
   },
 
   async listExistingNames(names: string[]) {
@@ -48,8 +24,6 @@ export const mongoRawMaterialRepository: RawMaterialRepo = {
 
   async create(input) {
     const doc = new RawMaterial({
-      materialCode: input.materialCode,
-      name: normalizeName(input.name),
       materialType: input.materialType,
       dimensions: input.dimensions,
       weight: input.weight,
@@ -69,12 +43,6 @@ export const mongoRawMaterialRepository: RawMaterialRepo = {
       return null;
     }
 
-    if (input.materialCode !== undefined) {
-      (doc as any).materialCode = input.materialCode;
-    }
-    if (input.name !== undefined) {
-      (doc as any).name = normalizeName(input.name);
-    }
     if (input.materialType !== undefined) {
       (doc as any).materialType = input.materialType;
     }
@@ -114,7 +82,7 @@ export const mongoRawMaterialRepository: RawMaterialRepo = {
   },
 
   async upsertForImport(material, modifiedBy) {
-    const existing = await RawMaterial.findOne({ name: material.name });
+    const existing = await RawMaterial.findOne({ name: normalizeName(material.name) });
     if (existing) {
       (existing as any).materialCode = material.materialCode;
       if (material.description !== undefined) {
@@ -138,7 +106,7 @@ export const mongoRawMaterialRepository: RawMaterialRepo = {
 
     await RawMaterial.create({
       materialCode: material.materialCode,
-      name: material.name,
+      name: normalizeName(material.name),
       description: material.description,
       supplier: material.supplier,
       unit: material.unit,
@@ -149,7 +117,8 @@ export const mongoRawMaterialRepository: RawMaterialRepo = {
   },
 
   async loadForImportByNames(names: string[]) {
-    const docs = await RawMaterial.find({ name: { $in: names } });
+    const normalizedNames = names.map(normalizeName);
+    const docs = await RawMaterial.find({ name: { $in: normalizedNames } });
     return docs.map((d: any) => ({
       id: String(d._id),
       name: String(d.name),
