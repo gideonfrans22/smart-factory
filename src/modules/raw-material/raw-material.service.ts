@@ -7,6 +7,14 @@ import {
 } from "./raw-material.types";
 import { ParsedRawMaterialData } from "./raw-material.import.service";
 import { ActivityLog } from "@shared/models/ActivityLog";
+import { mongoRawMaterialRepository } from "./adapters/mongo/raw-material.repository";
+import { mongoRawMaterialReadRepository } from "./adapters/mongo/raw-material.read.repository";
+import { RawMaterialDomainError } from "./domain/errors";
+import { createRawMaterial } from "./domain/raw-material.create";
+import { updateRawMaterial } from "./domain/raw-material.update";
+import { removeRawMaterial } from "./domain/raw-material.remove";
+import { verifyParsedRawMaterialImport } from "./domain/raw-material.import.verify";
+import { applyRawMaterialImport } from "./domain/raw-material.import.apply";
 
 export interface RawMaterialListResult {
   items: RawMaterialDocument[];
@@ -21,68 +29,47 @@ export interface RawMaterialListResult {
 }
 
 export class RawMaterialService {
+  async verifyParsedImport(parsed: ParsedRawMaterialData) {
+    return await verifyParsedRawMaterialImport(
+      { rawMaterialRepo: mongoRawMaterialRepository },
+      parsed
+    );
+  }
+
   async list(
     filters: RawMaterialListFilters = {}
   ): Promise<RawMaterialListResult> {
-    const { supplier, search, page = 1, limit = 10 } = filters;
-
-    const query: any = {};
-    if (supplier) {
-      query.supplier = { $regex: supplier, $options: "i" };
-    }
-    if (search) {
-      query.$or = [
-        { materialCode: { $regex: search, $options: "i" } },
-        { name: { $regex: search, $options: "i" } }
-      ];
-    }
-
-    const pageNum = page;
-    const limitNum = limit;
-    const skip = (pageNum - 1) * limitNum;
-
-    const total = await RawMaterial.countDocuments(query);
-    const items = await RawMaterial.find(query)
-      .skip(skip)
-      .limit(limitNum)
-      .sort({ materialCode: 1 });
-
-    return {
-      items,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        totalPages: Math.ceil(total / limitNum),
-        hasNext: pageNum * limitNum < total,
-        hasPrev: pageNum > 1
-      }
-    };
+    return (await mongoRawMaterialReadRepository.list(
+      filters
+    )) as unknown as RawMaterialListResult;
   }
 
   async getById(id: string): Promise<RawMaterialDocument | null> {
-    return RawMaterial.findById(id).exec();
+    return (await mongoRawMaterialReadRepository.getById(
+      id
+    )) as RawMaterialDocument | null;
   }
 
   async create(
     data: RawMaterialDTO,
     userId?: mongoose.Types.ObjectId
   ): Promise<RawMaterialDocument> {
-    const existing = await RawMaterial.findOne({
-      name: data.name.toUpperCase()
-    });
-    if (existing) {
-      const error: any = new Error("Material name already exists");
-      error.code = "DUPLICATE_NAME";
-      throw error;
+    try {
+      return (await createRawMaterial(
+        { rawMaterialRepo: mongoRawMaterialRepository },
+        {
+          ...data,
+          modifiedBy: userId ? String(userId) : undefined
+        }
+      )) as RawMaterialDocument;
+    } catch (err) {
+      if (err instanceof RawMaterialDomainError) {
+        const e: any = new Error(err.message);
+        e.code = err.errorCode;
+        throw e;
+      }
+      throw err;
     }
-
-    const doc = new RawMaterial({
-      ...data,
-      name: data.name.toUpperCase(),
-      modifiedBy: userId
-    });
-    return doc.save();
   }
 
   async update(
@@ -90,49 +77,30 @@ export class RawMaterialService {
     data: RawMaterialUpdateDTO,
     userId?: mongoose.Types.ObjectId
   ): Promise<RawMaterialDocument | null> {
-    const rawMaterial = await RawMaterial.findById(id);
-    if (!rawMaterial) {
-      return null;
-    }
-
-    if (data.name && data.name.toUpperCase() !== rawMaterial.name) {
-      const existing = await RawMaterial.findOne({
-        name: data.name,
-        _id: { $ne: id }
-      });
-      if (existing) {
-        const error: any = new Error("Material code already exists");
-        error.code = "DUPLICATE_NAME";
-        throw error;
+    try {
+      return (await updateRawMaterial(
+        { rawMaterialRepo: mongoRawMaterialRepository },
+        {
+          id,
+          patch: data,
+          modifiedBy: userId ? String(userId) : undefined
+        }
+      )) as RawMaterialDocument | null;
+    } catch (err) {
+      if (err instanceof RawMaterialDomainError) {
+        const e: any = new Error(err.message);
+        e.code = err.errorCode;
+        throw e;
       }
-      rawMaterial.name = data.name.toUpperCase();
+      throw err;
     }
-
-    if (data.materialCode !== undefined) {
-      rawMaterial.materialCode = data.materialCode;
-    }
-    if (data.description !== undefined) {
-      rawMaterial.description = data.description;
-    }
-    if (data.supplier !== undefined) {
-      rawMaterial.supplier = data.supplier;
-    }
-    if (data.unit !== undefined) {
-      rawMaterial.unit = data.unit;
-    }
-    if (data.currentStock !== undefined) {
-      rawMaterial.currentStock = data.currentStock;
-    }
-    if (userId) {
-      rawMaterial.modifiedBy = userId;
-    }
-
-    await rawMaterial.save();
-    return RawMaterial.findById(id).populate("modifiedBy");
   }
 
   async remove(id: string): Promise<RawMaterialDocument | null> {
-    return RawMaterial.findByIdAndDelete(id).exec();
+    return (await removeRawMaterial(
+      { rawMaterialRepo: mongoRawMaterialRepository },
+      id
+    )) as RawMaterialDocument | null;
   }
 
   async importFromParsedData(
@@ -145,115 +113,13 @@ export class RawMaterialService {
     skipped: number;
     errors: typeof parsed.errors;
   }> {
-    let created = 0;
-    let updated = 0;
-    let skipped = 0;
-
-    for (const material of parsed.materials) {
-      const existing = await RawMaterial.findOne({ name: material.name });
-      if (existing) {
-        existing.materialCode = material.materialCode;
-        if (material.description !== undefined) {
-          existing.description = material.description;
-        }
-        if (material.supplier !== undefined) {
-          existing.supplier = material.supplier;
-        }
-        if (material.unit !== undefined) {
-          existing.unit = material.unit;
-        }
-        if (material.currentStock !== undefined) {
-          existing.currentStock = material.currentStock;
-        }
-        if (userId) {
-          existing.modifiedBy = userId;
-        }
-        await existing.save();
-        updated++;
-      } else {
-        await RawMaterial.create({
-          materialCode: material.materialCode,
-          name: material.name,
-          description: material.description,
-          supplier: material.supplier,
-          unit: material.unit,
-          currentStock:
-            material.currentStock !== undefined ? material.currentStock : 0,
-          modifiedBy: userId
-        });
-        created++;
+    const importResult = await applyRawMaterialImport(
+      { rawMaterialRepo: mongoRawMaterialRepository },
+      {
+        parsed,
+        modifiedBy: userId ? String(userId) : undefined
       }
-    }
-
-    const materialDocs = await RawMaterial.find({
-      name: { $in: parsed.specifications.map((s) => s.materialName) }
-    });
-    const materialMap = new Map<string, RawMaterialDocument>();
-    materialDocs.forEach((doc) => {
-      materialMap.set(doc.name, doc);
-    });
-
-    for (const spec of parsed.specifications) {
-      const materialDoc = materialMap.get(spec.materialName);
-      if (!materialDoc) {
-        continue;
-      }
-
-      const specsArray = materialDoc.specifications || [];
-
-      const isDuplicate = specsArray.some((existingSpec) => {
-        const dims = existingSpec.dimensions || {};
-        const weight = existingSpec.weight || {};
-
-        const sameColor = (existingSpec.color || "") === (spec.color || "");
-        const sameLength =
-          (dims.length ?? undefined) === (spec.dimensions?.length ?? undefined);
-        const sameWidth =
-          (dims.width ?? undefined) === (spec.dimensions?.width ?? undefined);
-        const sameHeight =
-          (dims.height ?? undefined) === (spec.dimensions?.height ?? undefined);
-        const sameDimUnit =
-          (dims.unit || undefined) === (spec.dimensions?.unit || undefined);
-        const sameWeightValue =
-          (weight.value ?? undefined) === (spec.weight?.value ?? undefined);
-        const sameWeightUnit =
-          (weight.unit || undefined) === (spec.weight?.unit || undefined);
-        const sameSupplier =
-          (existingSpec.supplier || undefined) ===
-          (spec.specSupplier || undefined);
-
-        return (
-          sameColor &&
-          sameLength &&
-          sameWidth &&
-          sameHeight &&
-          sameDimUnit &&
-          sameWeightValue &&
-          sameWeightUnit &&
-          sameSupplier
-        );
-      });
-
-      if (isDuplicate) {
-        skipped++;
-        continue;
-      }
-
-      specsArray.push({
-        color: spec.color,
-        dimensions: spec.dimensions,
-        weight: spec.weight,
-        supplier: spec.specSupplier
-      });
-
-      materialDoc.specifications = specsArray;
-
-      if (userId) {
-        materialDoc.modifiedBy = userId;
-      }
-
-      await materialDoc.save();
-    }
+    );
 
     try {
       await ActivityLog.create({
@@ -262,9 +128,9 @@ export class RawMaterialService {
         resourceType: "RawMaterial",
         resourceId: null,
         details: {
-          created,
-          updated,
-          skipped,
+          created: importResult.created,
+          updated: importResult.updated,
+          skipped: importResult.skipped,
           fileName
         },
         success: true,
@@ -277,10 +143,10 @@ export class RawMaterialService {
     }
 
     return {
-      created,
-      updated,
-      skipped,
-      errors: parsed.errors
+      created: importResult.created,
+      updated: importResult.updated,
+      skipped: importResult.skipped,
+      errors: importResult.errors
     };
   }
 }

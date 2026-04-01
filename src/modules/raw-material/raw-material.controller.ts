@@ -196,15 +196,16 @@ export class RawMaterialController {
       }
 
       const parsed = await parseRawMaterialWorkbook(req.file.buffer);
+      const verified = await rawMaterialService.verifyParsedImport(parsed);
 
-      const hardErrors = parsed.errors.filter((e) => e.severity === "error");
+      const hardErrors = verified.errors.filter((e) => e.severity === "error");
 
       const result: VerifyResult = {
         valid: hardErrors.length === 0,
         summary: {
-          rawMaterialsFound: parsed.materials.length,
-          specificationsFound: parsed.specifications.length,
-          errors: parsed.errors
+          rawMaterialsFound: verified.materials.length,
+          specificationsFound: verified.specifications.length,
+          errors: verified.errors
         }
       };
 
@@ -245,15 +246,16 @@ export class RawMaterialController {
       }
 
       const parsed = await parseRawMaterialWorkbook(req.file.buffer);
-      const hardErrors = parsed.errors.filter((e) => e.severity === "error");
+      const verified = await rawMaterialService.verifyParsedImport(parsed);
+      const hardErrors = verified.errors.filter((e) => e.severity === "error");
 
       if (hardErrors.length > 0) {
         const verifyResult: VerifyResult = {
           valid: false,
           summary: {
-            rawMaterialsFound: parsed.materials.length,
-            specificationsFound: parsed.specifications.length,
-            errors: parsed.errors
+            rawMaterialsFound: verified.materials.length,
+            specificationsFound: verified.specifications.length,
+            errors: verified.errors
           }
         };
 
@@ -270,7 +272,7 @@ export class RawMaterialController {
       }
 
       const summary = await rawMaterialService.importFromParsedData(
-        parsed,
+        verified,
         req.user?._id as mongoose.Types.ObjectId | undefined,
         req.file?.originalname
       );
