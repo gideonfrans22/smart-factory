@@ -153,7 +153,7 @@ RawMaterialSchema.pre(
 );
 
 RawMaterialSchema.index({ materialCode: 1 });
-RawMaterialSchema.index({ name: 1 }, { unique: true, sparse: true });
+RawMaterialSchema.index({ name: 1 });
 RawMaterialSchema.index({ materialType: 1 });
 RawMaterialSchema.index(
   {
