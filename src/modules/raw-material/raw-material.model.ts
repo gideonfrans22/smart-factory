@@ -23,6 +23,10 @@ export interface RawMaterialSpecification {
 export interface RawMaterialDocument extends Document {
   materialCode: string;
   name: string;
+  materialType?: mongoose.Types.ObjectId;
+  dimensions?: RawMaterialDimensions;
+  weight?: RawMaterialWeight;
+  color?: string;
   description?: string;
   specifications?: RawMaterialSpecification[];
   supplier?: string;
@@ -84,7 +88,17 @@ const RawMaterialSchema: Schema = new Schema(
       required: [true, "Material name is required"],
       trim: true
     },
+    materialType: {
+      type: Schema.Types.ObjectId,
+      ref: "RawMaterialType"
+    },
     description: {
+      type: String,
+      trim: true
+    },
+    dimensions: DimensionsSchema,
+    weight: WeightSchema,
+    color: {
       type: String,
       trim: true
     },
@@ -140,6 +154,24 @@ RawMaterialSchema.pre(
 
 RawMaterialSchema.index({ materialCode: 1 });
 RawMaterialSchema.index({ name: 1 }, { unique: true, sparse: true });
+RawMaterialSchema.index({ materialType: 1 });
+RawMaterialSchema.index(
+  {
+    materialType: 1,
+    "dimensions.length": 1,
+    "dimensions.width": 1,
+    "dimensions.height": 1
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      materialType: { $exists: true },
+      "dimensions.length": { $exists: true },
+      "dimensions.width": { $exists: true },
+      "dimensions.height": { $exists: true }
+    }
+  }
+);
 
 export const RawMaterial = mongoose.model<RawMaterialDocument>(
   "RawMaterial",

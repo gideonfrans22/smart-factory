@@ -26,6 +26,22 @@ export const rawMaterialListQuerySchema = z.object({
 export const rawMaterialCreateSchema = z.object({
   materialCode: z.string().min(1).max(50).trim(),
   name: z.string().min(1).max(200).trim(),
+  materialType: objectIdSchema.optional(),
+  dimensions: z
+    .object({
+      length: z.number().min(0).optional(),
+      width: z.number().min(0).optional(),
+      height: z.number().min(0).optional(),
+      unit: z.string().max(50).trim().optional()
+    })
+    .optional(),
+  weight: z
+    .object({
+      value: z.number().min(0).optional(),
+      unit: z.string().max(50).trim().optional()
+    })
+    .optional(),
+  color: z.string().max(200).trim().optional(),
   description: z.string().max(1000).trim().optional(),
   supplier: z.string().max(200).trim().optional(),
   unit: z.string().max(50).trim().optional(),

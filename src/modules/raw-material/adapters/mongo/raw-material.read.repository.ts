@@ -22,6 +22,7 @@ export const mongoRawMaterialReadRepository: RawMaterialReadPort = {
 
     const total = await RawMaterial.countDocuments(query);
     const items = await RawMaterial.find(query)
+      .populate("materialType", "code name")
       .skip(skip)
       .limit(limitNum)
       .sort({ materialCode: 1 });
@@ -40,7 +41,7 @@ export const mongoRawMaterialReadRepository: RawMaterialReadPort = {
   },
 
   async getById(id: string) {
-    return RawMaterial.findById(id).exec();
+    return RawMaterial.findById(id).populate("materialType", "code name").exec();
   }
 };
 

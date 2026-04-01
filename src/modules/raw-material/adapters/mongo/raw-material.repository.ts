@@ -50,6 +50,10 @@ export const mongoRawMaterialRepository: RawMaterialRepo = {
     const doc = new RawMaterial({
       materialCode: input.materialCode,
       name: normalizeName(input.name),
+      materialType: input.materialType,
+      dimensions: input.dimensions,
+      weight: input.weight,
+      color: input.color,
       description: input.description,
       supplier: input.supplier,
       unit: input.unit,
@@ -71,6 +75,18 @@ export const mongoRawMaterialRepository: RawMaterialRepo = {
     if (input.name !== undefined) {
       (doc as any).name = normalizeName(input.name);
     }
+    if (input.materialType !== undefined) {
+      (doc as any).materialType = input.materialType;
+    }
+    if (input.dimensions !== undefined) {
+      (doc as any).dimensions = input.dimensions;
+    }
+    if (input.weight !== undefined) {
+      (doc as any).weight = input.weight;
+    }
+    if (input.color !== undefined) {
+      (doc as any).color = input.color;
+    }
     if (input.description !== undefined) {
       (doc as any).description = input.description;
     }
@@ -88,7 +104,9 @@ export const mongoRawMaterialRepository: RawMaterialRepo = {
     }
 
     await doc.save();
-    return RawMaterial.findById(input.id).populate("modifiedBy");
+    return RawMaterial.findById(input.id)
+      .populate("modifiedBy")
+      .populate("materialType", "code name");
   },
 
   async deleteById(id: string) {

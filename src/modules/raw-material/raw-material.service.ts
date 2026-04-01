@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { RawMaterial, RawMaterialDocument } from "./raw-material.model";
+import { RawMaterialDocument } from "./raw-material.model";
 import {
   RawMaterialDTO,
   RawMaterialListFilters,

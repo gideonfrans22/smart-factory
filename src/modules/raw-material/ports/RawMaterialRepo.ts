@@ -47,6 +47,15 @@ export interface RawMaterialRepo {
   create(input: {
     materialCode: string;
     name: string;
+    materialType?: string;
+    dimensions?: {
+      length?: number;
+      width?: number;
+      height?: number;
+      unit?: string;
+    };
+    weight?: { value?: number; unit?: string };
+    color?: string;
     description?: string;
     supplier?: string;
     unit?: string;
@@ -58,6 +67,15 @@ export interface RawMaterialRepo {
     id: string;
     materialCode?: string;
     name?: string;
+    materialType?: string;
+    dimensions?: {
+      length?: number;
+      width?: number;
+      height?: number;
+      unit?: string;
+    };
+    weight?: { value?: number; unit?: string };
+    color?: string;
     description?: string;
     supplier?: string;
     unit?: string;
