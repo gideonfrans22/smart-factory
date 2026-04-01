@@ -1,7 +1,6 @@
 export type {
   ParsedMaterial,
-  ParsedRawMaterialData,
-  ParsedSpecification
+  ParsedRawMaterialData
 } from "./adapters/excel/raw-material.excel";
 
 export {

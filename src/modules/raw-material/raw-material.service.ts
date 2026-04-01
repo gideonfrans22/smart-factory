@@ -9,6 +9,7 @@ import { ParsedRawMaterialData } from "./raw-material.import.service";
 import { ActivityLog } from "@shared/models/ActivityLog";
 import { mongoRawMaterialRepository } from "./adapters/mongo/raw-material.repository";
 import { mongoRawMaterialReadRepository } from "./adapters/mongo/raw-material.read.repository";
+import { mongoRawMaterialTypeRepository } from "../raw-material-type/adapters/mongo/raw-material-type.repository";
 import { RawMaterialDomainError } from "./domain/errors";
 import { createRawMaterial } from "./domain/raw-material.create";
 import { updateRawMaterial } from "./domain/raw-material.update";
@@ -31,7 +32,7 @@ export interface RawMaterialListResult {
 export class RawMaterialService {
   async verifyParsedImport(parsed: ParsedRawMaterialData) {
     return await verifyParsedRawMaterialImport(
-      { rawMaterialRepo: mongoRawMaterialRepository },
+      {},
       parsed
     );
   }
@@ -114,7 +115,10 @@ export class RawMaterialService {
     errors: typeof parsed.errors;
   }> {
     const importResult = await applyRawMaterialImport(
-      { rawMaterialRepo: mongoRawMaterialRepository },
+      {
+        rawMaterialRepo: mongoRawMaterialRepository,
+        rawMaterialTypeRepo: mongoRawMaterialTypeRepository
+      },
       {
         parsed,
         modifiedBy: userId ? String(userId) : undefined

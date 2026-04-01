@@ -204,7 +204,7 @@ export class RawMaterialController {
         valid: hardErrors.length === 0,
         summary: {
           rawMaterialsFound: verified.materials.length,
-          specificationsFound: verified.specifications.length,
+          specificationsFound: 0,
           errors: verified.errors
         }
       };
@@ -254,7 +254,7 @@ export class RawMaterialController {
           valid: false,
           summary: {
             rawMaterialsFound: verified.materials.length,
-            specificationsFound: verified.specifications.length,
+            specificationsFound: 0,
             errors: verified.errors
           }
         };

@@ -12,31 +12,24 @@ import type { ExcelRawMaterialPort } from "../../ports/ExcelRawMaterialPort";
 
 export interface ParsedMaterial {
   rowNumber: number;
-  materialCode: string;
-  name: string;
+  materialTypeCode: string;
+  materialTypeName: string;
+  dimensions: {
+    length: number;
+    width: number;
+    height: number;
+    unit?: string;
+  };
+  weight?: { value?: number; unit?: string };
+  color?: string;
   description?: string;
   supplier?: string;
   unit?: string;
   currentStock?: number;
 }
 
-export interface ParsedSpecification {
-  rowNumber: number;
-  materialName: string;
-  color?: string;
-  dimensions?: {
-    length?: number;
-    width?: number;
-    height?: number;
-    unit?: string;
-  };
-  weight?: { value?: number; unit?: string };
-  specSupplier?: string;
-}
-
 export interface ParsedRawMaterialData {
   materials: ParsedMaterial[];
-  specifications: ParsedSpecification[];
   errors: ImportRowError[];
 }
 
@@ -50,18 +43,16 @@ const TRANSLATIONS = {
     },
     body: {
       en: [
-        "- Fill in the 'Raw Materials' and 'Specifications' sheets as needed.",
-        "- 'name' is the upsert key and must be unique within the Raw Materials sheet.",
-        "- Import will update existing materials by name or create new ones if not found.",
-        "- Specifications will be merged onto existing materials; duplicate specifications are skipped.",
+        "- Fill in the 'Raw Materials' sheet. One row = one raw material.",
+        "- materialTypeCode and materialTypeName are required. If no matching type exists, a new type will be created.",
+        "- Dimensions (dim_length, dim_width, dim_height) are required and used as the upsert key together with the material type.",
         "- Do not delete or rename any sheets or headers.",
         "- 'currentStock' must be a non-negative number. Leave blank to keep default."
       ],
       ko: [
-        "- 필요에 따라 Raw Materials 시트와 Specifications 시트를 작성하세요.",
-        "- name 컬럼은 업서트 키이며, Raw Materials 시트 내에서 고유해야 합니다.",
-        "- 가져오기 시 name으로 기존 원자재를 찾아 업데이트하고, 없으면 새로 생성합니다.",
-        "- Specifications 데이터는 기존 원자재에 병합되며, 중복된 사양 행은 건너뜁니다.",
+        "- Raw Materials 시트를 작성하세요. 한 행 = 한 개의 원자재입니다.",
+        "- materialTypeCode 및 materialTypeName은 필수입니다. 일치하는 타입이 없으면 새로 생성됩니다.",
+        "- Dimensions(dim_length, dim_width, dim_height)은 필수이며, 원자재 타입과 함께 업서트 키로 사용됩니다.",
         "- 어떤 시트나 헤더도 삭제하거나 이름을 변경하지 마세요.",
         "- currentStock 값은 0 이상인 숫자여야 합니다. 기본값을 유지하려면 비워 두세요."
       ]
@@ -106,12 +97,19 @@ export async function generateRawMaterialTemplate(
 
   const materialsSheet = workbook.addWorksheet("Raw Materials");
   materialsSheet.columns = [
-    { header: "materialCode", key: "materialCode", width: 20 },
-    { header: "name", key: "name", width: 30 },
+    { header: "materialTypeCode", key: "materialTypeCode", width: 20 },
+    { header: "materialTypeName", key: "materialTypeName", width: 30 },
     { header: "description", key: "description", width: 40 },
     { header: "supplier", key: "supplier", width: 25 },
     { header: "unit", key: "unit", width: 12 },
-    { header: "currentStock", key: "currentStock", width: 15 }
+    { header: "currentStock", key: "currentStock", width: 15 },
+    { header: "color", key: "color", width: 20 },
+    { header: "dim_length", key: "dim_length", width: 15 },
+    { header: "dim_width", key: "dim_width", width: 15 },
+    { header: "dim_height", key: "dim_height", width: 15 },
+    { header: "dim_unit", key: "dim_unit", width: 10 },
+    { header: "weight_value", key: "weight_value", width: 15 },
+    { header: "weight_unit", key: "weight_unit", width: 10 }
   ];
 
   styleHeaderRow(materialsSheet, 1, materialsSheet.columns.length);
@@ -119,17 +117,26 @@ export async function generateRawMaterialTemplate(
   enableAutoFilter(materialsSheet, 1, 1, materialsSheet.columns.length);
 
   const exampleRow = materialsSheet.addRow({
-    materialCode: "AL",
-    name: "Aluminum Sheet",
+    materialTypeCode: "AL",
+    materialTypeName: "Aluminum",
     description: "1mm thick",
     supplier: "POSCO",
     unit: "kg",
-    currentStock: 500
+    currentStock: 500,
+    color: "Silver",
+    dim_length: 1000,
+    dim_width: 500,
+    dim_height: 1,
+    dim_unit: "mm",
+    weight_value: 10,
+    weight_unit: "kg"
   });
   exampleRow.font = { italic: true, color: { argb: "FF808080" } };
 
+  const currentStockCol =
+    materialsSheet.getColumn("currentStock").letter ?? "F";
   materialsSheet
-    .getColumn("F")
+    .getColumn(currentStockCol)
     .eachCell({ includeEmpty: true }, (cell, rowNumber) => {
       if (rowNumber >= 3 && rowNumber <= 1048576) {
         cell.dataValidation = {
@@ -144,38 +151,9 @@ export async function generateRawMaterialTemplate(
       }
     });
 
-  const specsSheet = workbook.addWorksheet("Specifications");
-  specsSheet.columns = [
-    { header: "materialName", key: "materialName", width: 30 },
-    { header: "color", key: "color", width: 20 },
-    { header: "dim_length", key: "dim_length", width: 15 },
-    { header: "dim_width", key: "dim_width", width: 15 },
-    { header: "dim_height", key: "dim_height", width: 15 },
-    { header: "dim_unit", key: "dim_unit", width: 10 },
-    { header: "weight_value", key: "weight_value", width: 15 },
-    { header: "weight_unit", key: "weight_unit", width: 10 },
-    { header: "spec_supplier", key: "spec_supplier", width: 25 }
-  ];
-
-  styleHeaderRow(specsSheet, 1, specsSheet.columns.length);
-  freezePanes(specsSheet);
-  enableAutoFilter(specsSheet, 1, 1, specsSheet.columns.length);
-
-  const specsExampleRow = specsSheet.addRow({
-    materialName: "Aluminum Sheet",
-    color: "Silver",
-    dim_length: 1000,
-    dim_width: 500,
-    dim_height: 1,
-    dim_unit: "mm",
-    weight_value: 10,
-    weight_unit: "kg",
-    spec_supplier: "POSCO"
-  });
-  specsExampleRow.font = { italic: true, color: { argb: "FF808080" } };
-
-  specsSheet
-    .getColumn("F")
+  const dimUnitCol = materialsSheet.getColumn("dim_unit").letter ?? "K";
+  materialsSheet
+    .getColumn(dimUnitCol)
     .eachCell({ includeEmpty: true }, (cell, rowNumber) => {
       if (rowNumber >= 3 && rowNumber <= 1048576) {
         cell.dataValidation = {
@@ -186,8 +164,9 @@ export async function generateRawMaterialTemplate(
       }
     });
 
-  specsSheet
-    .getColumn("H")
+  const weightUnitCol = materialsSheet.getColumn("weight_unit").letter ?? "M";
+  materialsSheet
+    .getColumn(weightUnitCol)
     .eachCell({ includeEmpty: true }, (cell, rowNumber) => {
       if (rowNumber >= 3 && rowNumber <= 1048576) {
         cell.dataValidation = {
@@ -210,7 +189,6 @@ export async function parseRawMaterialWorkbook(
   const errors: ImportRowError[] = [];
 
   const materialsSheet = workbook.getWorksheet("Raw Materials");
-  const specsSheet = workbook.getWorksheet("Specifications");
 
   if (!materialsSheet) {
     errors.push({
@@ -220,18 +198,8 @@ export async function parseRawMaterialWorkbook(
       severity: "error"
     });
   }
-
-  if (!specsSheet) {
-    errors.push({
-      sheet: "Specifications",
-      row: 1,
-      message: "Sheet 'Specifications' not found.",
-      severity: "error"
-    });
-  }
-
-  if (!materialsSheet || !specsSheet) {
-    return { materials: [], specifications: [], errors };
+  if (!materialsSheet) {
+    return { materials: [], errors };
   }
 
   if (materialsSheet.rowCount - 1 > MAX_ROWS_PER_SHEET) {
@@ -243,65 +211,59 @@ export async function parseRawMaterialWorkbook(
     });
   }
 
-  if (specsSheet.rowCount - 1 > MAX_ROWS_PER_SHEET) {
-    errors.push({
-      sheet: "Specifications",
-      row: 0,
-      message: `Too many rows. Maximum allowed is ${MAX_ROWS_PER_SHEET}.`,
-      severity: "error"
-    });
-  }
-
   const materials: ParsedMaterial[] = [];
-  const specifications: ParsedSpecification[] = [];
 
   const materialHeaderMap = parseHeaderRow(materialsSheet, 1);
-  const specsHeaderMap = parseHeaderRow(specsSheet, 1);
-
-  const seenNames = new Set<string>();
 
   for (let rowNumber = 3; rowNumber <= materialsSheet.rowCount; rowNumber++) {
     const row = materialsSheet.getRow(rowNumber);
-    const nameCellIndex = materialHeaderMap.get("name");
-    const nameValue =
-      nameCellIndex != null ? cellToString(row.getCell(nameCellIndex)) : null;
+    const materialTypeCodeIndex = materialHeaderMap.get("materialTypeCode");
+    const materialTypeNameIndex = materialHeaderMap.get("materialTypeName");
+    const materialTypeCode =
+      materialTypeCodeIndex != null
+        ? cellToString(row.getCell(materialTypeCodeIndex))
+        : null;
+    const materialTypeName =
+      materialTypeNameIndex != null
+        ? cellToString(row.getCell(materialTypeNameIndex))
+        : null;
 
-    if (!nameValue) {
+    const isEmptyRow = !materialTypeCode && !materialTypeName;
+    if (isEmptyRow) {
       continue;
     }
 
-    const materialCodeIndex = materialHeaderMap.get("materialCode");
-    const materialCode =
-      materialCodeIndex != null
-        ? cellToString(row.getCell(materialCodeIndex))
-        : null;
-
-    if (!materialCode) {
+    if (!materialTypeCode) {
       errors.push({
         sheet: "Raw Materials",
         row: rowNumber,
-        column: "materialCode",
-        message: "materialCode is required.",
+        column: "materialTypeCode",
+        message: "materialTypeCode is required.",
         severity: "error"
       });
     }
 
-    if (seenNames.has(nameValue)) {
+    if (!materialTypeName) {
       errors.push({
         sheet: "Raw Materials",
         row: rowNumber,
-        column: "name",
-        message: `Duplicate name '${nameValue}' found in file.`,
+        column: "materialTypeName",
+        message: "materialTypeName is required.",
         severity: "error"
       });
-    } else {
-      seenNames.add(nameValue);
     }
 
     const descriptionIndex = materialHeaderMap.get("description");
     const supplierIndex = materialHeaderMap.get("supplier");
     const unitIndex = materialHeaderMap.get("unit");
     const currentStockIndex = materialHeaderMap.get("currentStock");
+    const colorIndex = materialHeaderMap.get("color");
+    const dimLengthIndex = materialHeaderMap.get("dim_length");
+    const dimWidthIndex = materialHeaderMap.get("dim_width");
+    const dimHeightIndex = materialHeaderMap.get("dim_height");
+    const dimUnitIndex = materialHeaderMap.get("dim_unit");
+    const weightValueIndex = materialHeaderMap.get("weight_value");
+    const weightUnitIndex = materialHeaderMap.get("weight_unit");
 
     const currentStock =
       currentStockIndex != null
@@ -321,10 +283,96 @@ export async function parseRawMaterialWorkbook(
       });
     }
 
+    const dimLength =
+      dimLengthIndex != null
+        ? cellToNumber(row.getCell(dimLengthIndex))
+        : null;
+    const dimWidth =
+      dimWidthIndex != null ? cellToNumber(row.getCell(dimWidthIndex)) : null;
+    const dimHeight =
+      dimHeightIndex != null
+        ? cellToNumber(row.getCell(dimHeightIndex))
+        : null;
+    const dimUnit =
+      dimUnitIndex != null
+        ? cellToString(row.getCell(dimUnitIndex)) ?? undefined
+        : undefined;
+    const weightValue =
+      weightValueIndex != null
+        ? cellToNumber(row.getCell(weightValueIndex)) ?? undefined
+        : undefined;
+    const weightUnit =
+      weightUnitIndex != null
+        ? cellToString(row.getCell(weightUnitIndex)) ?? undefined
+        : undefined;
+    const color =
+      colorIndex != null
+        ? cellToString(row.getCell(colorIndex)) ?? undefined
+        : undefined;
+
+    if (dimLength == null || Number.isNaN(dimLength)) {
+      errors.push({
+        sheet: "Raw Materials",
+        row: rowNumber,
+        column: "dim_length",
+        message: "dim_length is required and must be a number.",
+        severity: "error"
+      });
+    }
+    if (dimWidth == null || Number.isNaN(dimWidth)) {
+      errors.push({
+        sheet: "Raw Materials",
+        row: rowNumber,
+        column: "dim_width",
+        message: "dim_width is required and must be a number.",
+        severity: "error"
+      });
+    }
+    if (dimHeight == null || Number.isNaN(dimHeight)) {
+      errors.push({
+        sheet: "Raw Materials",
+        row: rowNumber,
+        column: "dim_height",
+        message: "dim_height is required and must be a number.",
+        severity: "error"
+      });
+    }
+
+    if (dimUnit && !["mm", "cm", "m", "inch"].includes(dimUnit)) {
+      errors.push({
+        sheet: "Raw Materials",
+        row: rowNumber,
+        column: "dim_unit",
+        message: "dim_unit must be one of: mm, cm, m, inch.",
+        severity: "error"
+      });
+    }
+
+    if (weightUnit && !["kg", "g", "lb", "oz"].includes(weightUnit)) {
+      errors.push({
+        sheet: "Raw Materials",
+        row: rowNumber,
+        column: "weight_unit",
+        message: "weight_unit must be one of: kg, g, lb, oz.",
+        severity: "error"
+      });
+    }
+
     materials.push({
       rowNumber,
-      materialCode: (materialCode ?? "").toUpperCase(),
-      name: nameValue.trim(),
+      materialTypeCode: (materialTypeCode ?? "").trim().toUpperCase(),
+      materialTypeName: (materialTypeName ?? "").trim(),
+      dimensions: {
+        length: (dimLength ?? undefined) as any,
+        width: (dimWidth ?? undefined) as any,
+        height: (dimHeight ?? undefined) as any,
+        unit: dimUnit
+      },
+      color,
+      weight:
+        weightValue !== undefined || weightUnit
+          ? { value: weightValue, unit: weightUnit }
+          : undefined,
       description:
         descriptionIndex != null
           ? cellToString(row.getCell(descriptionIndex)) ?? undefined
@@ -341,128 +389,7 @@ export async function parseRawMaterialWorkbook(
     });
   }
 
-  for (let rowNumber = 2; rowNumber <= specsSheet.rowCount; rowNumber++) {
-    const row = specsSheet.getRow(rowNumber);
-    const materialNameIndex = specsHeaderMap.get("materialName");
-    const materialName =
-      materialNameIndex != null
-        ? cellToString(row.getCell(materialNameIndex))
-        : null;
-
-    if (!materialName) {
-      continue;
-    }
-
-    const colorIndex = specsHeaderMap.get("color");
-    const dimLengthIndex = specsHeaderMap.get("dim_length");
-    const dimWidthIndex = specsHeaderMap.get("dim_width");
-    const dimHeightIndex = specsHeaderMap.get("dim_height");
-    const dimUnitIndex = specsHeaderMap.get("dim_unit");
-    const weightValueIndex = specsHeaderMap.get("weight_value");
-    const weightUnitIndex = specsHeaderMap.get("weight_unit");
-    const specSupplierIndex = specsHeaderMap.get("spec_supplier");
-
-    const color =
-      colorIndex != null
-        ? cellToString(row.getCell(colorIndex)) ?? undefined
-        : undefined;
-    const dimLength =
-      dimLengthIndex != null
-        ? cellToNumber(row.getCell(dimLengthIndex)) ?? undefined
-        : undefined;
-    const dimWidth =
-      dimWidthIndex != null
-        ? cellToNumber(row.getCell(dimWidthIndex)) ?? undefined
-        : undefined;
-    const dimHeight =
-      dimHeightIndex != null
-        ? cellToNumber(row.getCell(dimHeightIndex)) ?? undefined
-        : undefined;
-    const dimUnit =
-      dimUnitIndex != null
-        ? cellToString(row.getCell(dimUnitIndex)) ?? undefined
-        : undefined;
-    const weightValue =
-      weightValueIndex != null
-        ? cellToNumber(row.getCell(weightValueIndex)) ?? undefined
-        : undefined;
-    const weightUnit =
-      weightUnitIndex != null
-        ? cellToString(row.getCell(weightUnitIndex)) ?? undefined
-        : undefined;
-    const specSupplier =
-      specSupplierIndex != null
-        ? cellToString(row.getCell(specSupplierIndex)) ?? undefined
-        : undefined;
-
-    const hasAnyDetail =
-      !!color ||
-      dimLength !== undefined ||
-      dimWidth !== undefined ||
-      dimHeight !== undefined ||
-      !!dimUnit ||
-      weightValue !== undefined ||
-      !!weightUnit ||
-      !!specSupplier;
-
-    if (!hasAnyDetail) {
-      errors.push({
-        sheet: "Specifications",
-        row: rowNumber,
-        message:
-          "Specification row has materialName but no spec details; it will be ignored.",
-        severity: "warning"
-      });
-    }
-
-    if (dimUnit && !["mm", "cm", "m", "inch"].includes(dimUnit)) {
-      errors.push({
-        sheet: "Specifications",
-        row: rowNumber,
-        column: "dim_unit",
-        message: "dim_unit must be one of: mm, cm, m, inch.",
-        severity: "error"
-      });
-    }
-
-    if (weightUnit && !["kg", "g", "lb", "oz"].includes(weightUnit)) {
-      errors.push({
-        sheet: "Specifications",
-        row: rowNumber,
-        column: "weight_unit",
-        message: "weight_unit must be one of: kg, g, lb, oz.",
-        severity: "error"
-      });
-    }
-
-    specifications.push({
-      rowNumber,
-      materialName,
-      color,
-      dimensions:
-        dimLength !== undefined ||
-        dimWidth !== undefined ||
-        dimHeight !== undefined ||
-        dimUnit
-          ? {
-              length: dimLength,
-              width: dimWidth,
-              height: dimHeight,
-              unit: dimUnit
-            }
-          : undefined,
-      weight:
-        weightValue !== undefined || weightUnit
-          ? {
-              value: weightValue,
-              unit: weightUnit
-            }
-          : undefined,
-      specSupplier
-    });
-  }
-
-  return { materials, specifications, errors };
+  return { materials, errors };
 }
 
 export const excelRawMaterialAdapter: ExcelRawMaterialPort = {

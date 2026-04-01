@@ -42,6 +42,11 @@ export interface RawMaterialTypeRepo {
     code: string,
     name: string
   ): Promise<RawMaterialTypeRecord | null>;
+  findOrCreateActiveByCodeAndName(input: {
+    code: string;
+    name: string;
+    createdBy?: string;
+  }): Promise<RawMaterialTypeRecord>;
   listActive(params: RawMaterialTypeListParams): Promise<RawMaterialTypeListResult>;
   insert(input: RawMaterialTypeInsertInput): Promise<RawMaterialTypeRecord>;
   updateActive(

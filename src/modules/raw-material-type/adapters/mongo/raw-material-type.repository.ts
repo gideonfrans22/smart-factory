@@ -59,6 +59,37 @@ export class MongoRawMaterialTypeRepository implements RawMaterialTypeRepo {
     return toRecord(doc);
   }
 
+  async findOrCreateActiveByCodeAndName(input: {
+    code: string;
+    name: string;
+    createdBy?: string;
+  }): Promise<RawMaterialTypeRecord> {
+    const code = input.code.trim();
+    const name = input.name.trim();
+
+    const existing = await this.findActiveByCodeAndName(code, name);
+    if (existing) {
+      return existing;
+    }
+
+    try {
+      return await this.insert({
+        code,
+        name,
+        createdBy: input.createdBy
+      });
+    } catch (err: any) {
+      // If another request created it concurrently, read it back.
+      if (err?.code === 11000) {
+        const after = await this.findActiveByCodeAndName(code, name);
+        if (after) {
+          return after;
+        }
+      }
+      throw err;
+    }
+  }
+
   async listActive(
     params: RawMaterialTypeListParams
   ): Promise<RawMaterialTypeListResult> {

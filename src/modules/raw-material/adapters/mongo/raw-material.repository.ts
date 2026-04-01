@@ -1,10 +1,6 @@
 import { RawMaterial } from "../../raw-material.model";
 import type { RawMaterialRepo } from "../../ports/RawMaterialRepo";
 
-function normalizeName(name: string): string {
-  return name.trim().toUpperCase();
-}
-
 export const mongoRawMaterialRepository: RawMaterialRepo = {
   async loadForUpdate(id: string) {
     const doc = await RawMaterial.findById(id, { _id: 1 }).lean();
@@ -12,14 +8,6 @@ export const mongoRawMaterialRepository: RawMaterialRepo = {
       return null;
     }
     return { id: String(doc._id) };
-  },
-
-  async listExistingNames(names: string[]) {
-    const docs = await RawMaterial.find(
-      { name: { $in: names } },
-      { name: 1 }
-    ).lean();
-    return docs.map((d: any) => String(d.name));
   },
 
   async create(input) {
@@ -82,9 +70,21 @@ export const mongoRawMaterialRepository: RawMaterialRepo = {
   },
 
   async upsertForImport(material, modifiedBy) {
-    const existing = await RawMaterial.findOne({ name: normalizeName(material.name) });
+    const existing = await RawMaterial.findOne({
+      materialType: material.materialType,
+      "dimensions.length": material.dimensions.length,
+      "dimensions.width": material.dimensions.width,
+      "dimensions.height": material.dimensions.height
+    });
     if (existing) {
-      (existing as any).materialCode = material.materialCode;
+      (existing as any).materialType = material.materialType;
+      (existing as any).dimensions = material.dimensions;
+      if (material.weight !== undefined) {
+        (existing as any).weight = material.weight;
+      }
+      if (material.color !== undefined) {
+        (existing as any).color = material.color;
+      }
       if (material.description !== undefined) {
         (existing as any).description = material.description;
       }
@@ -105,8 +105,10 @@ export const mongoRawMaterialRepository: RawMaterialRepo = {
     }
 
     await RawMaterial.create({
-      materialCode: material.materialCode,
-      name: normalizeName(material.name),
+      materialType: material.materialType,
+      dimensions: material.dimensions,
+      weight: material.weight,
+      color: material.color,
       description: material.description,
       supplier: material.supplier,
       unit: material.unit,
@@ -114,28 +116,6 @@ export const mongoRawMaterialRepository: RawMaterialRepo = {
       modifiedBy
     });
     return { created: true };
-  },
-
-  async loadForImportByNames(names: string[]) {
-    const normalizedNames = names.map(normalizeName);
-    const docs = await RawMaterial.find({ name: { $in: normalizedNames } });
-    return docs.map((d: any) => ({
-      id: String(d._id),
-      name: String(d.name),
-      specifications: d.specifications ?? []
-    }));
-  },
-
-  async persistSpecificationsForImport(input) {
-    await RawMaterial.updateOne(
-      { _id: input.id },
-      {
-        $set: {
-          specifications: input.specifications,
-          ...(input.modifiedBy ? { modifiedBy: input.modifiedBy } : {})
-        }
-      }
-    );
   }
 };
 
