@@ -1,5 +1,9 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { RawMaterialSpecification } from "@modules/raw-material";
+import {
+  RawMaterialDimensions,
+  RawMaterialSpecification,
+  RawMaterialWeight
+} from "@modules/raw-material";
 
 export interface IRecipeStepSnapshot {
   _id: mongoose.Types.ObjectId;
@@ -15,12 +19,19 @@ export interface IRecipeStepSnapshot {
 
 export interface IRawMaterialSnapshotReference {
   rawMaterialId: mongoose.Types.ObjectId;
+  /** Stable identifier for integrations; set to raw material `_id` string post–raw-material migration */
   rawMaterialNumber?: string;
+  /** Display label: prefer raw material type name, else legacy `name` */
   name: string;
   unit: string;
   description?: string;
   quantityRequired: number;
   specification?: RawMaterialSpecification;
+  materialTypeCode?: string;
+  materialTypeName?: string;
+  dimensions?: RawMaterialDimensions;
+  weight?: RawMaterialWeight;
+  color?: string;
 }
 
 export interface IRecipeSnapshot extends Document {
@@ -86,7 +97,12 @@ const RawMaterialSnapshotReferenceSchema =
     unit: { type: String, required: false, default: "EA" },
     description: { type: String },
     quantityRequired: { type: Number, required: true, min: 0 },
-    specification: { type: Schema.Types.Mixed }
+    specification: { type: Schema.Types.Mixed },
+    materialTypeCode: { type: String },
+    materialTypeName: { type: String },
+    dimensions: { type: Schema.Types.Mixed },
+    weight: { type: Schema.Types.Mixed },
+    color: { type: String }
   });
 
 const RecipeSnapshotSchema = new Schema<IRecipeSnapshot>(

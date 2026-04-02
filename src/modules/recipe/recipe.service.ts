@@ -39,10 +39,15 @@ export class RecipeService {
     const [items, total] = await Promise.all([
       Recipe.find(query)
         .populate("modifiedBy", "name email")
-        .populate(
-          "rawMaterials.materialId",
-          "materialCode name specifications supplier unit"
-        )
+        .populate({
+          path: "rawMaterials.materialId",
+          select:
+            "materialType description supplier unit dimensions weight color",
+          populate: {
+            path: "materialType",
+            select: "code name"
+          }
+        })
         .populate(
           "steps.mediaIds",
           "filename originalName mimeType fileSize filePath"
@@ -68,10 +73,15 @@ export class RecipeService {
 
   async getById(id: string): Promise<IRecipe | null> {
     return Recipe.findById(id)
-      .populate(
-        "rawMaterials.materialId",
-        "materialCode name specifications supplier unit"
-      )
+      .populate({
+        path: "rawMaterials.materialId",
+        select:
+          "materialType description supplier unit dimensions weight color",
+        populate: {
+          path: "materialType",
+          select: "code name"
+        }
+      })
       .populate(
         "steps.mediaIds",
         "filename originalName mimeType fileSize filePath"
@@ -92,10 +102,15 @@ export class RecipeService {
     }
 
     return Recipe.findOne(query)
-      .populate(
-        "rawMaterials.materialId",
-        "materialCode name specifications supplier unit"
-      )
+      .populate({
+        path: "rawMaterials.materialId",
+        select:
+          "materialType description supplier unit dimensions weight color",
+        populate: {
+          path: "materialType",
+          select: "code name"
+        }
+      })
       .populate(
         "steps.mediaIds",
         "filename originalName mimeType fileSize filePath"

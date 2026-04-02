@@ -646,17 +646,52 @@ export class ProductService {
         deviceTypeMap.set(dt.name, dt._id as mongoose.Types.ObjectId)
       );
 
-      // Resolve RawMaterials
+      // Resolve RawMaterials (by id from new template, or legacy name)
+      const allMaterialIds = Array.from(
+        new Set(
+          parsed.recipeMaterials
+            .map((rm) => rm.rawMaterialId)
+            .filter(
+              (id): id is string =>
+                typeof id === "string" &&
+                id.length > 0 &&
+                mongoose.Types.ObjectId.isValid(id)
+            )
+        )
+      );
       const allMaterialNames = Array.from(
-        new Set(parsed.recipeMaterials.map((rm) => rm.materialName))
+        new Set(
+          parsed.recipeMaterials
+            .map((rm) => rm.materialName)
+            .filter((n): n is string => typeof n === "string" && n.length > 0)
+        )
       );
-      const materials = await RawMaterial.find(
-        { name: { $in: allMaterialNames } },
-        null,
-        { session }
-      );
-      const materialMap = new Map<string, any>();
-      materials.forEach((m) => materialMap.set(m.name, m));
+      const materialOr: Array<
+        | { _id: { $in: mongoose.Types.ObjectId[] } }
+        | { name: { $in: string[] } }
+      > = [];
+      if (allMaterialIds.length > 0) {
+        materialOr.push({
+          _id: {
+            $in: allMaterialIds.map((id) => new mongoose.Types.ObjectId(id))
+          }
+        });
+      }
+      if (allMaterialNames.length > 0) {
+        materialOr.push({ name: { $in: allMaterialNames } });
+      }
+      const materials =
+        materialOr.length > 0
+          ? await RawMaterial.find({ $or: materialOr }, null, { session })
+          : [];
+      const materialMapById = new Map<string, any>();
+      const materialMapByName = new Map<string, any>();
+      materials.forEach((m) => {
+        materialMapById.set((m._id as mongoose.Types.ObjectId).toString(), m);
+        if ((m as any).name) {
+          materialMapByName.set((m as any).name, m);
+        }
+      });
 
       // Upsert Products
       const productIdByDesignNumber = new Map<
@@ -744,9 +779,18 @@ export class ProductService {
         });
 
         const rawMaterials = materialsForRecipe.map((rm) => {
-          const materialDoc = materialMap.get(rm.materialName);
+          const materialDoc = rm.rawMaterialId
+            ? materialMapById.get(rm.rawMaterialId)
+            : rm.materialName
+              ? materialMapByName.get(rm.materialName)
+              : undefined;
+          if (!materialDoc?._id) {
+            throw new Error(
+              `Raw material not found for recipe '${recipeRow.recipeName}' (rawMaterialId or materialName).`
+            );
+          }
           return {
-            materialId: materialDoc?._id,
+            materialId: materialDoc._id,
             quantityRequired: rm.quantityRequired,
             specification: {
               color: rm.spec.color,

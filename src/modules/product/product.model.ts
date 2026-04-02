@@ -128,7 +128,12 @@ ProductSchema.pre(/^find/, function (this: mongoose.Query<any, any>, next) {
       populate: [
         {
           path: "rawMaterials.materialId",
-          select: "materialCode name specifications supplier unit"
+          select:
+            "materialType description supplier unit dimensions weight color",
+          populate: {
+            path: "materialType",
+            select: "code name"
+          }
         },
         { path: "modifiedBy", select: "name email" },
         {

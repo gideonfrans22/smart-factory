@@ -38,7 +38,15 @@ export class SnapshotService {
   ): Promise<IRecipeSnapshot> {
     // Fetch the live Recipe with all populated data
     const recipe = await Recipe.findById(recipeId)
-      .populate("rawMaterials.materialId")
+      .populate({
+        path: "rawMaterials.materialId",
+        select:
+          "materialType description supplier unit dimensions weight color materialCode name",
+        populate: {
+          path: "materialType",
+          select: "code name"
+        }
+      })
       .populate("steps.deviceTypeId")
       .lean();
 
@@ -63,14 +71,29 @@ export class SnapshotService {
     const rawMaterialSnapshots: IRawMaterialSnapshotReference[] =
       recipe.rawMaterials.map((rm) => {
         const material = rm.materialId as any; // Populated document
+        const mt =
+          material?.materialType &&
+          typeof material.materialType === "object" &&
+          material.materialType._id
+            ? material.materialType
+            : null;
+        const displayName =
+          (mt?.name as string | undefined) ??
+          (material?.name as string | undefined) ??
+          "Unknown material";
         return {
           rawMaterialId: material._id,
-          rawMaterialNumber: material.materialCode || "",
-          name: material.name,
+          rawMaterialNumber: material._id?.toString?.() ?? "",
+          name: displayName,
+          materialTypeCode: mt?.code,
+          materialTypeName: mt?.name,
           unit: material.unit || "EA",
           description: material.description,
           quantityRequired: rm.quantityRequired,
-          specification: rm.specification
+          specification: rm.specification,
+          dimensions: material.dimensions,
+          weight: material.weight,
+          color: material.color
         };
       });
 

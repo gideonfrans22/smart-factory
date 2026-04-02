@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import mongoose from "mongoose";
 import { DeviceType } from "@modules/device-type";
 import { Product } from "./product.model";
 import { RawMaterial } from "@modules/raw-material";
@@ -49,7 +50,10 @@ export interface ParsedStepRow {
 export interface ParsedRecipeMaterialRow {
   rowNumber: number;
   recipeName: string;
-  materialName: string;
+  /** Preferred: RawMaterial._id (hex), from RecipeMaterials.rawMaterialId */
+  rawMaterialId: string;
+  /** Legacy: resolved via RawMaterial.name when rawMaterialId is empty */
+  materialName?: string;
   quantityRequired: number;
   spec: {
     color?: string;
@@ -82,7 +86,7 @@ const TRANSLATIONS = {
         "- Product designNumber is the upsert key (non-deleted Products).",
         "- Recipes are always created as new versions; existing recipes are not overwritten.",
         "- Steps must reference valid DeviceType names from REF_DeviceTypes.",
-        "- RecipeMaterials must reference valid RawMaterial names from REF_RawMaterials.",
+        "- RecipeMaterials.rawMaterialId must match a RawMaterial id from REF_RawMaterials (column id).",
         "- dependsOnStepOrders must reference valid step orders within the same recipe."
       ],
       ko: [
@@ -90,7 +94,7 @@ const TRANSLATIONS = {
         "- 제품의 designNumber 컬럼은 업서트 키이며(삭제되지 않은 Products 기준), 고유해야 합니다.",
         "- 레시피는 항상 새 버전으로 생성되며, 기존 레시피는 덮어쓰지 않습니다.",
         "- Steps 시트의 deviceTypeName 값은 REF_DeviceTypes 시트의 유효한 장비 유형 이름을 참조해야 합니다.",
-        "- RecipeMaterials 시트의 materialName 값은 REF_RawMaterials 시트의 유효한 원자재 이름을 참조해야 합니다.",
+        "- RecipeMaterials 시트의 rawMaterialId 값은 REF_RawMaterials 시트의 id(원자재 MongoDB _id)와 일치해야 합니다.",
         "- dependsOnStepOrders 값은 동일한 레시피 내에서 존재하는 단계 번호(stepOrder)만 참조해야 합니다."
       ]
     }
@@ -112,9 +116,9 @@ const TRANSLATIONS = {
       en: "deviceTypeName must be a valid device type name.",
       ko: "deviceTypeName 값은 유효한 장비 유형 이름여야 합니다."
     },
-    materialName: {
-      en: "materialName must be a valid raw material name.",
-      ko: "materialName 값은 유효한 원자재 이름여야 합니다."
+    rawMaterialId: {
+      en: "rawMaterialId must be a valid RawMaterial id from REF_RawMaterials.",
+      ko: "rawMaterialId 값은 REF_RawMaterials 시트의 유효한 원자재 id여야 합니다."
     },
     quantityRequired: {
       en: "quantityRequired must be a number greater than 0.",
@@ -138,7 +142,9 @@ export async function generateProductImportTemplate(
   const deviceTypes = await DeviceType.find({
     isActive: { $ne: false }
   }).lean();
-  const rawMaterials = await RawMaterial.find({}).lean();
+  const rawMaterials = await RawMaterial.find({})
+    .populate("materialType", "code name")
+    .lean();
 
   // Instructions
   const instructionsSheet = workbook.addWorksheet("Instructions");
@@ -312,13 +318,61 @@ export async function generateProductImportTemplate(
 
   loggerService.debug("deviceTypes: " + `"${escapedList}"`);
 
+  // REF_RawMaterials (created before RecipeMaterials so validation can reference this sheet)
+  const refRawMaterialsSheet = workbook.addWorksheet("REF_RawMaterials", {
+    properties: { tabColor: { argb: "FF98FB98" } }
+  });
+  refRawMaterialsSheet.columns = [
+    { header: "id", key: "id", width: 28 },
+    { header: "materialTypeCode", key: "materialTypeCode", width: 20 },
+    { header: "materialTypeName", key: "materialTypeName", width: 30 },
+    { header: "supplier", key: "supplier", width: 25 },
+    { header: "unit", key: "unit", width: 10 },
+    { header: "color", key: "color", width: 15 },
+    { header: "dim_length", key: "dim_length", width: 15 },
+    { header: "dim_width", key: "dim_width", width: 15 },
+    { header: "dim_height", key: "dim_height", width: 15 },
+    { header: "dim_unit", key: "dim_unit", width: 12 },
+    { header: "weight_value", key: "weight_value", width: 18 },
+    { header: "weight_unit", key: "weight_unit", width: 12 }
+  ];
+  styleHeaderRow(refRawMaterialsSheet, 1, refRawMaterialsSheet.columns.length);
+
+  rawMaterials.forEach((rm: any) => {
+    const mt = rm.materialType;
+    const mtCode =
+      mt && typeof mt === "object" && mt.code != null ? mt.code : "";
+    const mtName =
+      mt && typeof mt === "object" && mt.name != null ? mt.name : "";
+    refRawMaterialsSheet.addRow({
+      id: rm._id.toString(),
+      materialTypeCode: mtCode,
+      materialTypeName: mtName,
+      supplier: rm.supplier ?? "",
+      unit: rm.unit ?? "",
+      color: rm.color ?? "",
+      dim_length: rm.dimensions?.length ?? "",
+      dim_width: rm.dimensions?.width ?? "",
+      dim_height: rm.dimensions?.height ?? "",
+      dim_unit: rm.dimensions?.unit ?? "",
+      weight_value: rm.weight?.value ?? "",
+      weight_unit: rm.weight?.unit ?? ""
+    });
+  });
+
+  refRawMaterialsSheet.getColumn(1).hidden = true;
+  await refRawMaterialsSheet.protect("", {
+    selectLockedCells: true,
+    selectUnlockedCells: true
+  });
+
   // RecipeMaterials
   const recipeMaterialsSheet = workbook.addWorksheet("RecipeMaterials", {
     properties: { tabColor: { argb: "FF90EE90" } }
   });
   recipeMaterialsSheet.columns = [
     { header: "recipeName", key: "recipeName", width: 30 },
-    { header: "materialName", key: "materialName", width: 30 },
+    { header: "rawMaterialId", key: "rawMaterialId", width: 28 },
     { header: "quantityRequired", key: "quantityRequired", width: 18 },
     { header: "spec_color", key: "spec_color", width: 15 },
     { header: "spec_dim_length", key: "spec_dim_length", width: 15 },
@@ -338,7 +392,7 @@ export async function generateProductImportTemplate(
   );
   const recipeMatExampleRow = recipeMaterialsSheet.addRow({
     recipeName: "Sample Recipe v1",
-    materialName: rawMaterials[0]?.name ?? "Aluminum Sheet",
+    rawMaterialId: rawMaterials[0]?._id?.toString() ?? "",
     quantityRequired: 2,
     spec_color: "",
     spec_dim_length: "",
@@ -350,8 +404,6 @@ export async function generateProductImportTemplate(
   });
   recipeMatExampleRow.font = { italic: true, color: { argb: "FF808080" } };
 
-  const rawMaterialsList = rawMaterials.map((rm) => rm.name).join(",");
-  const escapedRawMaterialsList = rawMaterialsList.replace(/"/g, '""');
   await Promise.all(
     Array.from({ length: 100 - 3 + 1 }, (_, row) => row + 3).map(
       async (row) => {
@@ -367,16 +419,16 @@ export async function generateProductImportTemplate(
           error: TRANSLATIONS.dataValidation.recipeName[lang]
         };
 
-        // materialName validation (list of raw material names)
-        const materialNameCell = recipeMaterialsSheet.getCell(`B${row}`);
-        materialNameCell.dataValidation = {
+        // rawMaterialId validation (ids from REF_RawMaterials column A)
+        const rawMaterialIdCell = recipeMaterialsSheet.getCell(`B${row}`);
+        rawMaterialIdCell.dataValidation = {
           type: "list",
-          formulae: [`"${escapedRawMaterialsList}"`],
+          formulae: [`REF_RawMaterials!$A$3:$A$${MAX_ROWS_PER_SHEET}`],
           allowBlank: false,
           showErrorMessage: true,
           errorStyle: "error",
           errorTitle: "Invalid value",
-          error: TRANSLATIONS.dataValidation.materialName[lang]
+          error: TRANSLATIONS.dataValidation.rawMaterialId[lang]
         };
 
         // quantityRequired validation (> 0)
@@ -415,54 +467,6 @@ export async function generateProductImportTemplate(
   });
   refDeviceTypesSheet.getColumn(1).hidden = true;
   await refDeviceTypesSheet.protect("", {
-    selectLockedCells: true,
-    selectUnlockedCells: true
-  });
-
-  // REF_RawMaterials
-  const refRawMaterialsSheet = workbook.addWorksheet("REF_RawMaterials", {
-    properties: { tabColor: { argb: "FF98FB98" } }
-  });
-  refRawMaterialsSheet.columns = [
-    { header: "materialName", key: "materialName", width: 30 },
-    { header: "materialCode", key: "materialCode", width: 20 },
-    { header: "supplier", key: "supplier", width: 25 },
-    { header: "unit", key: "unit", width: 10 },
-    { header: "spec_index", key: "spec_index", width: 10 },
-    { header: "spec_color", key: "spec_color", width: 15 },
-    { header: "spec_dim_length", key: "spec_dim_length", width: 15 },
-    { header: "spec_dim_width", key: "spec_dim_width", width: 15 },
-    { header: "spec_dim_height", key: "spec_dim_height", width: 15 },
-    { header: "spec_dim_unit", key: "spec_dim_unit", width: 12 },
-    { header: "spec_weight_value", key: "spec_weight_value", width: 18 },
-    { header: "spec_weight_unit", key: "spec_weight_unit", width: 12 }
-  ];
-  styleHeaderRow(refRawMaterialsSheet, 1, refRawMaterialsSheet.columns.length);
-
-  rawMaterials.forEach((rm) => {
-    const specs =
-      rm.specifications && rm.specifications.length
-        ? rm.specifications
-        : [null];
-    specs.forEach((spec: any, index: number) => {
-      refRawMaterialsSheet.addRow({
-        materialName: (rm as any).name,
-        materialCode: rm.materialCode,
-        supplier: rm.supplier ?? "",
-        unit: rm.unit ?? "",
-        spec_index: index + 1,
-        spec_color: spec?.color ?? "",
-        spec_dim_length: spec?.dimensions?.length ?? "",
-        spec_dim_width: spec?.dimensions?.width ?? "",
-        spec_dim_height: spec?.dimensions?.height ?? "",
-        spec_dim_unit: spec?.dimensions?.unit ?? "",
-        spec_weight_value: spec?.weight?.value ?? "",
-        spec_weight_unit: spec?.weight?.unit ?? ""
-      });
-    });
-  });
-
-  await refRawMaterialsSheet.protect("", {
     selectLockedCells: true,
     selectUnlockedCells: true
   });
@@ -903,6 +907,7 @@ export async function parseProductImportWorkbook(
   }
 
   // RecipeMaterials
+  const allMaterialIds: string[] = [];
   const allMaterialNames: string[] = [];
   for (
     let rowNumber = 2;
@@ -911,12 +916,17 @@ export async function parseProductImportWorkbook(
   ) {
     const row = recipeMaterialsSheet.getRow(rowNumber);
     const recipeNameIndex = recipeMatHeaderMap.get("recipeName");
+    const rawMaterialIdIndex = recipeMatHeaderMap.get("rawMaterialId");
     const materialNameIndex = recipeMatHeaderMap.get("materialName");
     const quantityIndex = recipeMatHeaderMap.get("quantityRequired");
 
     const recipeName =
       recipeNameIndex != null
         ? cellToString(row.getCell(recipeNameIndex))
+        : null;
+    const rawMaterialId =
+      rawMaterialIdIndex != null
+        ? cellToString(row.getCell(rawMaterialIdIndex))
         : null;
     const materialName =
       materialNameIndex != null
@@ -925,7 +935,12 @@ export async function parseProductImportWorkbook(
     const quantity =
       quantityIndex != null ? cellToNumber(row.getCell(quantityIndex)) : null;
 
-    if (!recipeName && !materialName && quantity == null) {
+    const idTrimmed = rawMaterialId?.trim() ?? "";
+    const nameTrimmed = materialName?.trim() ?? "";
+    const hasId = idTrimmed.length > 0;
+    const hasLegacyName = nameTrimmed.length > 0;
+
+    if (!recipeName && !hasId && !hasLegacyName && quantity == null) {
       continue;
     }
 
@@ -939,16 +954,29 @@ export async function parseProductImportWorkbook(
       });
     }
 
-    if (!materialName) {
+    if (!hasId && !hasLegacyName) {
       errors.push({
         sheet: "RecipeMaterials",
         row: rowNumber,
-        column: "materialName",
-        message: "materialName is required.",
+        column: "rawMaterialId",
+        message:
+          "rawMaterialId is required (or legacy column materialName for older templates).",
         severity: "error"
       });
-    } else {
-      allMaterialNames.push(materialName);
+    } else if (hasId) {
+      if (!mongoose.Types.ObjectId.isValid(idTrimmed)) {
+        errors.push({
+          sheet: "RecipeMaterials",
+          row: rowNumber,
+          column: "rawMaterialId",
+          message: `rawMaterialId '${idTrimmed}' is not a valid ObjectId.`,
+          severity: "error"
+        });
+      } else {
+        allMaterialIds.push(idTrimmed);
+      }
+    } else if (hasLegacyName) {
+      allMaterialNames.push(nameTrimmed);
     }
 
     if (quantity == null || quantity <= 0) {
@@ -1001,7 +1029,8 @@ export async function parseProductImportWorkbook(
     recipeMaterials.push({
       rowNumber,
       recipeName: recipeName ?? "",
-      materialName: materialName ?? "",
+      rawMaterialId: idTrimmed,
+      materialName: hasLegacyName ? nameTrimmed : undefined,
       quantityRequired: quantity ?? 0,
       spec: {
         color: spec_color,
@@ -1056,9 +1085,22 @@ export async function parseProductImportWorkbook(
     }
   });
 
+  const materialIdsFromRef = new Set<string>();
   const materialNamesFromRef = new Set<string>();
   if (refRawMaterialsSheet) {
     const headerMap = parseHeaderRow(refRawMaterialsSheet, 1);
+    const idCol = headerMap.get("id");
+    if (idCol != null) {
+      for (
+        let rowNumber = 2;
+        rowNumber <= refRawMaterialsSheet.rowCount;
+        rowNumber++
+      ) {
+        const row = refRawMaterialsSheet.getRow(rowNumber);
+        const id = cellToString(row.getCell(idCol));
+        if (id) materialIdsFromRef.add(id.trim());
+      }
+    }
     const materialNameCol = headerMap.get("materialName");
     if (materialNameCol != null) {
       for (
@@ -1073,26 +1115,63 @@ export async function parseProductImportWorkbook(
     }
   }
 
-  const dbRawMaterialsForImport = await RawMaterial.find({
-    name: { $in: allMaterialNames }
-  }).lean();
+  const idConditions: Array<
+    | { _id: { $in: mongoose.Types.ObjectId[] } }
+    | { name: { $in: string[] } }
+  > = [];
+  if (allMaterialIds.length > 0) {
+    const oidList = allMaterialIds
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+    if (oidList.length > 0) {
+      idConditions.push({ _id: { $in: oidList } });
+    }
+  }
+  if (allMaterialNames.length > 0) {
+    idConditions.push({ name: { $in: allMaterialNames } });
+  }
+
+  const dbRawMaterialsForImport =
+    idConditions.length > 0
+      ? await RawMaterial.find({ $or: idConditions }).lean()
+      : [];
+
+  const dbMaterialIds = new Set(
+    dbRawMaterialsForImport.map((rm) => (rm._id as mongoose.Types.ObjectId).toString())
+  );
   const dbMaterialNames = new Set<string>(
-    dbRawMaterialsForImport.map((rm) => (rm as any).name)
+    dbRawMaterialsForImport
+      .map((rm) => (rm as { name?: string }).name)
+      .filter((n): n is string => typeof n === "string" && n.length > 0)
   );
 
   recipeMaterials.forEach((rm) => {
-    if (
-      rm.materialName &&
-      !materialNamesFromRef.has(rm.materialName) &&
-      !dbMaterialNames.has(rm.materialName)
-    ) {
-      errors.push({
-        sheet: "RecipeMaterials",
-        row: rm.rowNumber,
-        column: "materialName",
-        message: `Material '${rm.materialName}' does not exist.`,
-        severity: "error"
-      });
+    if (rm.rawMaterialId) {
+      if (
+        !materialIdsFromRef.has(rm.rawMaterialId) &&
+        !dbMaterialIds.has(rm.rawMaterialId)
+      ) {
+        errors.push({
+          sheet: "RecipeMaterials",
+          row: rm.rowNumber,
+          column: "rawMaterialId",
+          message: `Raw material id '${rm.rawMaterialId}' does not exist in REF_RawMaterials or the database.`,
+          severity: "error"
+        });
+      }
+    } else if (rm.materialName) {
+      if (
+        !materialNamesFromRef.has(rm.materialName) &&
+        !dbMaterialNames.has(rm.materialName)
+      ) {
+        errors.push({
+          sheet: "RecipeMaterials",
+          row: rm.rowNumber,
+          column: "materialName",
+          message: `Material '${rm.materialName}' does not exist.`,
+          severity: "error"
+        });
+      }
     }
   });
 

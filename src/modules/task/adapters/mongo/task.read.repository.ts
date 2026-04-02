@@ -112,11 +112,7 @@ export class MongoTaskReadRepository implements TaskReadPort {
       .populate("deviceId", "name deviceName")
       .populate({
         path: "recipeSnapshotId",
-        select: "name version steps",
-        populate: {
-          path: "rawMaterials",
-          select: "quantityRequired name rawMaterialNumber specification"
-        }
+        select: "name version steps rawMaterials"
       })
       .populate(
         "productSnapshotId",
@@ -152,11 +148,7 @@ export class MongoTaskReadRepository implements TaskReadPort {
       .populate("workerId", "name username")
       .populate({
         path: "recipeSnapshotId",
-        select: "name version steps",
-        populate: {
-          path: "rawMaterials",
-          select: "quantityRequired name rawMaterialNumber specification"
-        }
+        select: "name version steps rawMaterials"
       })
       .populate(
         "productSnapshotId",
@@ -221,7 +213,7 @@ export class MongoTaskReadRepository implements TaskReadPort {
     const total = await Task.countDocuments(mongoQuery);
     const tasks = await Task.find(mongoQuery)
       .populate("recipeId", "name recipeNumber version")
-      .populate("recipeSnapshotId", "name version steps")
+      .populate("recipeSnapshotId", "name version steps rawMaterials")
       .populate("workerId", "name username")
       .populate("deviceTypeId", "name")
       .populate("deviceId", "name")
@@ -334,7 +326,7 @@ export class MongoTaskReadRepository implements TaskReadPort {
         )
         .populate("recipeId", "name recipeNumber version")
         .populate("workerId", "name username email")
-        .populate("recipeSnapshotId", "name version steps")
+        .populate("recipeSnapshotId", "name version steps rawMaterials")
         .populate(
           "productSnapshotId",
           "name productNumber customerName personInCharge department version"
@@ -411,7 +403,7 @@ export class MongoTaskReadRepository implements TaskReadPort {
       )
       .populate("recipeId", "name recipeNumber version")
       .populate("deviceId", "name deviceName")
-      .populate("recipeSnapshotId", "name version steps")
+      .populate("recipeSnapshotId", "name version steps rawMaterials")
       .populate(
         "productSnapshotId",
         "name productNumber customerName personInCharge department version"
@@ -915,7 +907,7 @@ export class MongoTaskReadRepository implements TaskReadPort {
         .populate("deviceTypeId", "name")
         .populate({
           path: "recipeSnapshotId",
-          populate: { path: "rawMaterials" }
+          select: "name version steps rawMaterials"
         })
         .populate(
           "productSnapshotId",
