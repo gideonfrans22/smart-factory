@@ -612,7 +612,7 @@ Authorization: Bearer <token>
 
 **Query Parameters**:
 
-- `search` (string) - Search in materialCode, name, description
+- `search` (string) - Search in supplier, description, and raw material type code/name (via lookup)
 - `page` (number, default: 1)
 - `limit` (number, default: 10)
 
@@ -626,17 +626,20 @@ Authorization: Bearer <token>
     "items": [
       {
         "_id": "mat123",
-        "materialCode": "STEEL-001",
-        "name": "Steel Bar 10mm",
+        "materialType": {
+          "_id": "type123",
+          "code": "STEEL",
+          "name": "Steel"
+        },
+        "dimensions": {
+          "length": 2000,
+          "width": 100,
+          "height": 10,
+          "unit": "mm"
+        },
         "description": "High-grade steel bar",
         "unit": "pieces",
         "currentStock": 500,
-        "specifications": {
-          "length": "2m",
-          "diameter": "10mm",
-          "weight": "5kg",
-          "material": "carbon steel"
-        },
         "supplier": "Steel Corp",
         "createdAt": "2025-10-25T10:00:00Z"
       }
@@ -671,18 +674,19 @@ Content-Type: application/json
 
 ```json
 {
-  "materialCode": "STEEL-002", // Required, unique, auto-uppercase
-  "name": "Steel Plate 5mm", // Required
-  "description": "Flat steel plate", // Optional
-  "unit": "sheets", // Optional (e.g., "pieces", "kg", "liters")
-  "currentStock": 100, // Optional, default: 0
-  "specifications": {
-    // Optional, flexible object
-    "thickness": "5mm",
-    "dimensions": "1000x2000mm",
-    "weight": "78.5kg"
+  "materialType": "507f1f77bcf86cd799439011",
+  "dimensions": {
+    "length": 1000,
+    "width": 2000,
+    "height": 5,
+    "unit": "mm"
   },
-  "supplier": "Steel Corp" // Optional
+  "weight": { "value": 78.5, "unit": "kg" },
+  "color": "Silver",
+  "description": "Flat steel plate",
+  "unit": "sheets",
+  "currentStock": 100,
+  "supplier": "Steel Corp"
 }
 ```
 
@@ -1246,9 +1250,11 @@ Authorization: Bearer <token>
                   "materialId": "mat123",
                   "quantityRequired": 5,
                   "snapshot": {
-                    "materialCode": "STEEL-001",
-                    "name": "Steel Bar 10mm",
-                    // ... frozen material data
+                    "rawMaterialNumber": "mat123",
+                    "name": "Steel",
+                    "materialTypeCode": "STEEL",
+                    "materialTypeName": "Steel",
+                    "dimensions": { "length": 2000, "width": 100, "height": 10, "unit": "mm" }
                   }
                 }
               ]
@@ -2065,7 +2071,7 @@ Projects create **immutable snapshots** of:
 
 - Products (full data)
 - Recipes (with steps, media, raw materials)
-- Raw Materials (specifications)
+- Raw Materials (type, dimensions, weight, color at root)
 
 **Why?**
 
@@ -2180,11 +2186,12 @@ DEVICE_TYPE_ID=$(curl -X POST http://localhost:3001/api/device-types \
   -d '{"name":"CNC Machine","description":"Cutting machine"}' \
   | jq -r '.data._id')
 
-# 2. Create raw material
+# 2. Create raw material (requires existing RawMaterialType `_id` in TYPE_ID)
+TYPE_ID="<raw-material-type-object-id>"
 MAT_ID=$(curl -X POST http://localhost:3001/api/raw-materials \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"materialCode":"STEEL-001","name":"Steel Bar"}' \
+  -d "{\"materialType\":\"$TYPE_ID\",\"dimensions\":{\"length\":100,\"width\":50,\"height\":10,\"unit\":\"mm\"}}" \
   | jq -r '.data._id')
 
 # 3. Create recipe

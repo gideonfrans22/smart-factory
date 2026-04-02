@@ -156,30 +156,28 @@ Stores manufacturing recipes with steps and raw material requirements.
 
 ### **4. RawMaterials Collection**
 
-Stores raw material inventory and specifications.
+Stores raw material inventory linked to a **RawMaterialType** and root-level dimensions/spec fields.
 
 ```typescript
 {
   _id: ObjectId,
-  materialCode: String (required, unique), // Unique code (e.g., "MAT-001")
-  name: String (required),                 // Material name
-  materialType: String (required),         // Type (e.g., "METAL", "PLASTIC")
-  specifications: Object {                 // Material specifications
-    dimensions: {
-      length: Number,
-      width: Number,
-      height: Number,
-      unit: String                         // e.g., "mm", "cm"
-    },
-    weight: {
-      value: Number,
-      unit: String                         // e.g., "kg", "g"
-    },
-    color: String
+  materialType: ObjectId (ref: RawMaterialType, required),
+  dimensions: {
+    length: Number (required, min 0),
+    width: Number (required, min 0),
+    height: Number (required, min 0),
+    unit: String // default "mm"
   },
-  supplier: String,                        // Optional supplier name
-  unit: String,                            // Unit of measure
-  currentStock: Number (default: 0),       // Current stock quantity
+  weight: {
+    value: Number (min 0),
+    unit: String // default "kg"
+  },
+  color: String,
+  description: String,
+  supplier: String,
+  unit: String,
+  currentStock: Number (default: 0, min 0),
+  modifiedBy: ObjectId (ref: User),
   createdAt: Date,
   updatedAt: Date
 }
@@ -187,9 +185,10 @@ Stores raw material inventory and specifications.
 
 **Indexes:**
 
-- `materialCode` (unique)
-- `materialType`
-- `name`
+- `{ materialType: 1 }`
+- Compound **unique** (partial): `materialType` + `dimensions.length` + `dimensions.width` + `dimensions.height` when all exist
+
+**Removed (Phase 6):** `materialCode`, `name`, `specifications[]` and their indexes.
 
 **Important Notes:**
 

@@ -101,9 +101,11 @@
             "materialId": "mat789",
             "quantityRequired": 5,
             "snapshot": {
-              "materialCode": "STEEL-001",
-              "name": "Steel Bar",
-              "specifications": {...}
+              "rawMaterialNumber": "mat789",
+              "name": "Steel",
+              "materialTypeCode": "STEEL",
+              "materialTypeName": "Steel",
+              "dimensions": {...}
             }
           }
         ],
@@ -181,14 +183,11 @@ Task.find({ workerId: userId });
 // Create raw material
 POST /api/raw-materials
 {
-  "materialCode": "STEEL-001",
-  "name": "Steel Bar",
+  "materialType": "<RawMaterialTypeObjectId>",
+  "dimensions": { "length": 2000, "width": 100, "height": 10, "unit": "mm" },
   "unit": "pieces",
-  "specifications": {
-    "length": "2m",
-    "weight": "5kg",
-    "color": "silver"
-  }
+  "weight": { "value": 5, "unit": "kg" },
+  "color": "silver"
 }
 ```
 
@@ -221,6 +220,14 @@ GET /api/projects/:id
 // → recipes[0].snapshot.name = "Old Name" (frozen)
 ```
 
+## Raw materials (Phase 6)
+
+| ❌ Removed | ✅ Current |
+| ---------- | ---------- |
+| `materialCode`, `name` on `RawMaterial` | `materialType` (ObjectId → RawMaterialType) |
+| `specifications[]` array on `RawMaterial` | Root `dimensions`, `weight`, `color` |
+| Search by `materialCode` / `name` | Search by supplier, description, type `code`/`name` |
+
 ## Where to Find More Info
 
 - **Full Schema:** `docs/MONGODB_SCHEMA.md`
@@ -230,4 +237,4 @@ GET /api/projects/:id
 
 ---
 
-**Last Updated:** October 25, 2025
+**Last Updated:** April 2, 2026
