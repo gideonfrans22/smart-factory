@@ -4,9 +4,22 @@ import * as dotenv from "dotenv";
 import "@modules/user/user.model";
 import {
   RawMaterial,
-  RawMaterialDocument,
   RawMaterialSpecification
 } from "@modules/raw-material/raw-material.model";
+
+/** Pre–Phase-6 documents in DB may still carry these fields; not on current `RawMaterial` schema. */
+interface LegacyRawMaterialDoc {
+  _id: mongoose.Types.ObjectId;
+  materialCode?: string;
+  name?: string;
+  materialType?: mongoose.Types.ObjectId;
+  specifications?: RawMaterialSpecification[];
+  description?: string;
+  supplier?: string;
+  unit?: string;
+  currentStock?: number;
+  modifiedBy?: mongoose.Types.ObjectId;
+}
 import { RawMaterialType } from "@modules/raw-material-type/raw-material-type.model";
 
 dotenv.config();
@@ -119,7 +132,7 @@ const run = async (): Promise<void> => {
   const createdRawMaterialIds: mongoose.Types.ObjectId[] = [];
   const uniquenessKeysSeen = new Set<string>();
 
-  const migrateOne = async (doc: RawMaterialDocument): Promise<void> => {
+  const migrateOne = async (doc: LegacyRawMaterialDoc): Promise<void> => {
     stats.scanned += 1;
 
     if (!options.includeAlreadyMigrated && doc.materialType) {
@@ -222,16 +235,13 @@ const run = async (): Promise<void> => {
         const created = await RawMaterial.create(
           [
             {
-              materialCode: doc.materialCode,
-              name: doc.name,
               materialType: materialTypeId,
               description: doc.description,
               supplier: doc.supplier,
               unit: doc.unit,
               currentStock: doc.currentStock,
               modifiedBy: doc.modifiedBy,
-              ...extracted,
-              specifications: []
+              ...extracted
             }
           ],
           session ? { session } : undefined
@@ -279,7 +289,7 @@ const run = async (): Promise<void> => {
 
       let processed = 0;
       for await (const doc of cursor) {
-        await migrateOne(doc as RawMaterialDocument);
+        await migrateOne(doc as unknown as LegacyRawMaterialDoc);
         processed += 1;
         if (options.limit != null && processed >= options.limit) {
           break;
