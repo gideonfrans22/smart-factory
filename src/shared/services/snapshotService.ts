@@ -40,8 +40,7 @@ export class SnapshotService {
     const recipe = await Recipe.findById(recipeId)
       .populate({
         path: "rawMaterials.materialId",
-        select:
-          "materialType description supplier unit dimensions weight color materialCode name",
+        select: "materialType description supplier unit dimensions weight color",
         populate: {
           path: "materialType",
           select: "code name"
@@ -78,9 +77,7 @@ export class SnapshotService {
             ? material.materialType
             : null;
         const displayName =
-          (mt?.name as string | undefined) ??
-          (material?.name as string | undefined) ??
-          "Unknown material";
+          (mt?.name as string | undefined) ?? "Unknown material";
         return {
           rawMaterialId: material._id,
           rawMaterialNumber: material._id?.toString?.() ?? "",

@@ -12,6 +12,7 @@ export interface RawMaterialWeight {
   unit?: string;
 }
 
+/** Shape for per-recipe-line material specs (recipe / snapshot), not the removed legacy array on RawMaterial */
 export interface RawMaterialSpecification {
   dimensions?: RawMaterialDimensions;
   weight?: RawMaterialWeight;
@@ -21,14 +22,15 @@ export interface RawMaterialSpecification {
 }
 
 export interface RawMaterialDocument extends Document {
-  materialCode?: string;
-  name?: string;
-  materialType?: mongoose.Types.ObjectId;
-  dimensions?: RawMaterialDimensions;
+  materialType: mongoose.Types.ObjectId;
+  dimensions: RawMaterialDimensions & {
+    length: number;
+    width: number;
+    height: number;
+  };
   weight?: RawMaterialWeight;
   color?: string;
   description?: string;
-  specifications?: RawMaterialSpecification[];
   supplier?: string;
   unit?: string;
   currentStock?: number;
@@ -41,15 +43,18 @@ const DimensionsSchema: Schema = new Schema(
   {
     length: {
       type: Number,
-      min: 0
+      min: 0,
+      required: true
     },
     width: {
       type: Number,
-      min: 0
+      min: 0,
+      required: true
     },
     height: {
       type: Number,
-      min: 0
+      min: 0,
+      required: true
     },
     unit: {
       type: String,
@@ -77,43 +82,21 @@ const WeightSchema: Schema = new Schema(
 
 const RawMaterialSchema: Schema = new Schema(
   {
-    materialCode: {
-      type: String,
-      trim: true,
-      uppercase: true
-    },
-    name: {
-      type: String,
-      trim: true
-    },
     materialType: {
       type: Schema.Types.ObjectId,
-      ref: "RawMaterialType"
+      ref: "RawMaterialType",
+      required: true
     },
     description: {
       type: String,
       trim: true
     },
-    dimensions: DimensionsSchema,
+    dimensions: { type: DimensionsSchema, required: true },
     weight: WeightSchema,
     color: {
       type: String,
       trim: true
     },
-    specifications: [
-      {
-        dimensions: DimensionsSchema,
-        weight: WeightSchema,
-        color: {
-          type: String,
-          trim: true
-        },
-        supplier: {
-          type: String,
-          trim: true
-        }
-      }
-    ],
     supplier: {
       type: String,
       trim: true
@@ -150,8 +133,6 @@ RawMaterialSchema.pre(
   }
 );
 
-RawMaterialSchema.index({ materialCode: 1 });
-RawMaterialSchema.index({ name: 1 });
 RawMaterialSchema.index({ materialType: 1 });
 RawMaterialSchema.index(
   {

@@ -21,7 +21,7 @@ export interface IRawMaterialSnapshotReference {
   rawMaterialId: mongoose.Types.ObjectId;
   /** Stable identifier for integrations; set to raw material `_id` string post–raw-material migration */
   rawMaterialNumber?: string;
-  /** Display label: prefer raw material type name, else legacy `name` */
+  /** Display label: raw material type name (from populated material at snapshot time) */
   name: string;
   unit: string;
   description?: string;

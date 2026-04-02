@@ -8,7 +8,7 @@ export { default as rawMaterialRoutes } from "./raw-material.routes";
  * @module raw-material
  * @description Handles all raw material operations including CRUD,
  * validation, Excel import/export, and business rules for material
- * specifications and stock.
+ * dimensions, stock, and supplier metadata.
  *
  * @exports RawMaterial - Mongoose model
  * @exports RawMaterialService - Business logic
