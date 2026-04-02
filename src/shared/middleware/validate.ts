@@ -14,5 +14,15 @@ export const validate =
       });
       return;
     }
+    if (source === "query") {
+      Object.defineProperty(req, "query", {
+        value: result.data,
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+    } else {
+      (req as any)[source] = result.data;
+    }
     next();
   };
