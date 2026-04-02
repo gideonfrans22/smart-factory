@@ -1,6 +1,6 @@
 import { Response, NextFunction } from "express";
 import mongoose from "mongoose";
-import { alertService } from "./alert.service";
+import { alertService, AlertServiceError } from "./alert.service";
 import {
   AlertBulkIdsInput,
   AlertCreateInput,
@@ -144,8 +144,11 @@ export class AlertController {
       };
 
       res.json(response);
-    } catch (error: any) {
-      if (error.code === "ALREADY_RESOLVED") {
+    } catch (error: unknown) {
+      if (
+        error instanceof AlertServiceError &&
+        error.errorCode === "ALREADY_RESOLVED"
+      ) {
         const response: APIResponse = {
           success: false,
           error: "ALREADY_RESOLVED",
@@ -183,8 +186,11 @@ export class AlertController {
       };
 
       res.json(response);
-    } catch (error: any) {
-      if (error.code === "ALREADY_RESOLVED") {
+    } catch (error: unknown) {
+      if (
+        error instanceof AlertServiceError &&
+        error.errorCode === "ALREADY_RESOLVED"
+      ) {
         const response: APIResponse = {
           success: false,
           error: "ALREADY_RESOLVED",
@@ -223,8 +229,11 @@ export class AlertController {
       };
 
       res.json(response);
-    } catch (error: any) {
-      if (error.code === "ALREADY_RESOLVED") {
+    } catch (error: unknown) {
+      if (
+        error instanceof AlertServiceError &&
+        error.errorCode === "ALREADY_RESOLVED"
+      ) {
         const response: APIResponse = {
           success: false,
           error: "ALREADY_RESOLVED",
@@ -409,8 +418,11 @@ export class AlertController {
       };
 
       res.json(response);
-    } catch (error: any) {
-      if (error.code === "INVALID_TYPE") {
+    } catch (error: unknown) {
+      if (
+        error instanceof AlertServiceError &&
+        error.errorCode === "INVALID_TYPE"
+      ) {
         const response: APIResponse = {
           success: false,
           error: "INVALID_TYPE",

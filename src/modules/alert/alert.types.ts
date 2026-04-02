@@ -53,3 +53,38 @@ export interface AlertResolveEmergencyDTO {
   resolvedBy?: string;
   resolutionNotes?: string;
 }
+
+export interface AlertListResult {
+  items: any[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+export interface BulkResult {
+  modifiedCount: number;
+  matchedCount: number;
+}
+
+export interface AlertStatsResult {
+  stats: {
+    total: number;
+    critical: number;
+    unread: number;
+    pending: number;
+    resolved: number;
+  };
+  trends: {
+    total: number;
+    critical: number;
+    unread: number;
+    pending: number;
+  };
+  avgResponseTime: number;
+  todayNewAlerts: number;
+}
